@@ -1,3 +1,4 @@
+// File: client/src/pages/Auth/AuthPage.jsx
 import { ArrowRight, Eye, EyeOff, Lock, Mail, User } from 'lucide-react'
 import React, { useState } from 'react'
 
@@ -125,7 +126,7 @@ export default function AuthPage() {
     setTimeout(() => {
       setLoading(false)
       if (isLogin) {
-        window.location.href = '/'
+        window.location.href = '/dashboard'
       }
     }, 1000)
   }

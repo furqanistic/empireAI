@@ -1,4 +1,3 @@
-// File: client/src/pages/Dashboard/DashboardPage.jsx
 import {
   Bot,
   CheckCircle,
@@ -99,8 +98,8 @@ const DashboardPage = () => {
         <div className='grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6'>
           {/* Daily Check-in Bonus */}
           <div className='lg:col-span-2 bg-[#121214] border border-[#1E1E21] rounded-xl p-4 sm:p-6'>
-            <div className='flex items-center justify-between mb-4'>
-              <div className='flex items-center gap-3 sm:gap-4'>
+            <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4'>
+              <div className='flex items-center gap-3 sm:gap-4 mb-4 sm:mb-0'>
                 <div className='bg-gradient-to-br from-[#D4AF37] to-[#D4AF37]/80 p-2.5 rounded-xl flex-shrink-0'>
                   <Gift size={20} className='sm:hidden text-black' />
                   <Gift size={24} className='hidden sm:block text-black' />
@@ -118,7 +117,7 @@ const DashboardPage = () => {
               <button
                 onClick={handleClaimBonus}
                 disabled={bonusClaimed || isClaimingBonus}
-                className={`h-8 px-4 rounded-xl font-semibold text-sm transition-all duration-300 flex items-center gap-2 justify-center flex-shrink-0 ${
+                className={`hidden sm:flex h-8 px-4 rounded-xl font-semibold text-sm transition-all duration-300 items-center gap-2 justify-center flex-shrink-0 ${
                   bonusClaimed
                     ? 'bg-emerald-600 text-white cursor-not-allowed'
                     : isClaimingBonus
@@ -166,7 +165,7 @@ const DashboardPage = () => {
             </div>
 
             {/* Benefits */}
-            <div className='flex items-center justify-between text-sm'>
+            <div className='flex items-center justify-between text-sm mb-4 sm:mb-0'>
               <div className='flex items-center gap-2'>
                 <Zap size={14} className='text-[#D4AF37]' />
                 <span className='text-[#EDEDED]'>
@@ -175,6 +174,36 @@ const DashboardPage = () => {
               </div>
               <span className='text-gray-400'>+100 pts</span>
             </div>
+
+            {/* Mobile Claim Button */}
+            <button
+              onClick={handleClaimBonus}
+              disabled={bonusClaimed || isClaimingBonus}
+              className={`w-full sm:hidden h-8 px-4 rounded-xl font-semibold text-sm transition-all duration-300 flex items-center gap-2 justify-center ${
+                bonusClaimed
+                  ? 'bg-emerald-600 text-white cursor-not-allowed'
+                  : isClaimingBonus
+                  ? 'bg-[#D4AF37]/50 text-black cursor-wait'
+                  : 'bg-[#D4AF37] text-black hover:bg-[#D4AF37]/90 hover:scale-105 shadow-lg hover:shadow-[#D4AF37]/20'
+              }`}
+            >
+              {isClaimingBonus ? (
+                <>
+                  <div className='w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin' />
+                  Claiming...
+                </>
+              ) : bonusClaimed ? (
+                <>
+                  <CheckCircle size={16} />
+                  Claimed!
+                </>
+              ) : (
+                <>
+                  <Star size={16} />
+                  Claim Now
+                </>
+              )}
+            </button>
           </div>
 
           {/* Empire Score */}
