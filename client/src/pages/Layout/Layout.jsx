@@ -1,3 +1,4 @@
+// File: client/src/pages/Layout/Layout.jsx
 import {
   Bell,
   Bot,
@@ -21,6 +22,7 @@ import {
   Zap,
 } from 'lucide-react'
 import React, { useState } from 'react'
+import { Link } from 'react-router-dom'
 
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -32,55 +34,53 @@ const Layout = ({ children }) => {
       id: 'dashboard',
       label: 'Dashboard',
       icon: <Home size={18} />,
+      path: '/', // 👈 add path
       active: true,
     },
     {
       id: 'ai-builder',
       label: 'AI Builder',
       icon: <Bot size={18} />,
+      path: '/', // 👈 add path
       badge: 'START HERE',
       badgeColor: 'bg-emerald-500',
     },
-    { id: 'money-os', label: 'Money OS', icon: <DollarSign size={18} /> },
+    {
+      id: 'money-os',
+      label: 'Money OS',
+      icon: <DollarSign size={18} />,
+      path: '/',
+    },
     {
       id: 'affiliate-army',
       label: 'Affiliate Army',
       icon: <Users size={18} />,
+      path: '/',
       badge: 'RECRUIT',
       badgeColor: 'bg-blue-500',
     },
   ]
 
+  // Example advanced item
   const advancedItems = [
     {
-      id: 'ai-mentor',
-      label: 'AI Mentor',
-      icon: <Bot size={18} />,
-      premium: true,
+      id: 'products',
+      label: 'Products',
+      icon: <Box size={18} />,
+      path: '/', // 👈 add path
     },
     {
-      id: 'growth-engine',
-      label: 'Growth Engine',
-      icon: <Zap size={18} />,
-      premium: true,
+      id: 'calendar',
+      label: 'Calendar',
+      icon: <Calendar size={18} />,
+      path: '/',
     },
     {
-      id: 'affiliate-hub',
-      label: 'Affiliate Hub',
-      icon: <Users size={18} />,
-      badge: 'EARN',
-      badgeColor: 'bg-amber-500',
+      id: 'pricing',
+      label: 'Pricing',
+      icon: <Crown size={18} />,
+      path: '/',
     },
-    {
-      id: 'empire-os',
-      label: 'Empire OS',
-      icon: <Settings size={18} />,
-      premium: true,
-    },
-    { id: 'products', label: 'Products', icon: <Box size={18} /> },
-    { id: 'calendar', label: 'Calendar', icon: <Calendar size={18} /> },
-    { id: 'pricing', label: 'Pricing', icon: <Crown size={18} /> },
-    { id: 'settings', label: 'Settings', icon: <Settings size={18} /> },
   ]
 
   const notifications = [
@@ -120,37 +120,41 @@ const Layout = ({ children }) => {
 
   const MenuItem = ({ item, section }) => (
     <li>
-      <button
-        className={`group w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 text-sm font-medium ${
-          item.active
-            ? 'bg-[#D4AF37] text-black shadow-sm'
-            : item.premium
-            ? 'text-gray-500 hover:text-gray-400 hover:bg-[#1A1A1C]'
-            : 'text-[#EDEDED] hover:bg-[#1A1A1C] hover:text-white'
-        }`}
-        disabled={item.premium}
-      >
-        <span className={`${item.active ? 'text-black' : ''}`}>
-          {item.icon}
-        </span>
-        <span className='flex-1 text-left truncate'>{item.label}</span>
-
-        {item.badge && (
-          <span
-            className={`${item.badgeColor} text-white text-[10px] px-1.5 py-0.5 rounded-md font-semibold tracking-wide`}
-          >
-            {item.badge}
+      <Link to={item.path || '#'}>
+        {' '}
+        {/* 👈 add Link */}
+        <button
+          className={`group w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 text-sm font-medium ${
+            item.active
+              ? 'bg-[#D4AF37] text-black shadow-sm'
+              : item.premium
+              ? 'text-gray-500 hover:text-gray-400 hover:bg-[#1A1A1C]'
+              : 'text-[#EDEDED] hover:bg-[#1A1A1C] hover:text-white'
+          }`}
+          disabled={item.premium}
+        >
+          <span className={`${item.active ? 'text-black' : ''}`}>
+            {item.icon}
           </span>
-        )}
+          <span className='flex-1 text-left truncate'>{item.label}</span>
 
-        {item.premium && (
-          <Star
-            size={14}
-            className='text-[#D4AF37] opacity-60 group-hover:opacity-80'
-            fill='currentColor'
-          />
-        )}
-      </button>
+          {item.badge && (
+            <span
+              className={`${item.badgeColor} text-white text-[10px] px-1.5 py-0.5 rounded-md font-semibold tracking-wide`}
+            >
+              {item.badge}
+            </span>
+          )}
+
+          {item.premium && (
+            <Star
+              size={14}
+              className='text-[#D4AF37] opacity-60 group-hover:opacity-80'
+              fill='currentColor'
+            />
+          )}
+        </button>
+      </Link>
     </li>
   )
 

@@ -1,3 +1,4 @@
+// File: client/src/pages/Dashboard/DashboardPage.jsx
 import {
   Bot,
   CheckCircle,
@@ -37,33 +38,36 @@ const DashboardPage = () => {
     badge,
     color = 'bg-[#D4AF37]',
   }) => (
-    <div className='group bg-[#121214] border border-[#1E1E21] rounded-xl p-4 sm:p-5 hover:border-[#D4AF37]/40 hover:bg-[#1A1A1C]/50 transition-all duration-300 cursor-pointer'>
-      <div className='flex items-start gap-3'>
-        <div
-          className={`${color} p-2.5 rounded-xl text-black group-hover:scale-110 transition-transform duration-300 flex-shrink-0`}
-        >
-          {icon}
+    <div className='group bg-[#121214] border border-[#1E1E21] rounded-xl p-4 sm:p-5 hover:border-[#D4AF37]/40 hover:bg-[#1A1A1C]/50 transition-all duration-300 cursor-pointer relative'>
+      <div className='relative z-10'>
+        <div className='flex items-center gap-2 mb-3'>
+          <h3 className='text-[#EDEDED] font-semibold text-base sm:text-lg'>
+            {title}
+          </h3>
+          {badge && (
+            <span className='bg-[#D4AF37] text-black text-xs px-2 py-0.5 rounded-lg font-bold uppercase tracking-wider'>
+              {badge}
+            </span>
+          )}
         </div>
-        <div className='flex-1 min-w-0'>
-          <div className='flex items-center gap-2 mb-2'>
-            <h3 className='text-[#EDEDED] font-semibold text-base sm:text-lg truncate'>
-              {title}
-            </h3>
-            {badge && (
-              <span className='bg-[#D4AF37] text-black text-xs px-2 py-0.5 rounded-lg font-bold uppercase tracking-wider whitespace-nowrap'>
-                {badge}
-              </span>
-            )}
-          </div>
-          <p className='text-gray-400 text-sm leading-relaxed mb-3'>
-            {description}
-          </p>
+
+        <p className='text-gray-400 text-sm leading-relaxed mb-4'>
+          {description}
+        </p>
+
+        <div className='flex items-center justify-between'>
           <div className='flex items-center text-[#D4AF37] text-sm font-medium group-hover:gap-2 transition-all duration-300'>
             <span>Get Started</span>
             <ChevronRight
               size={16}
-              className='group-hover:translate-x-1 transition-transform duration-300'
+              className='ml-1 group-hover:translate-x-1 transition-transform duration-300'
             />
+          </div>
+
+          <div
+            className={`${color} p-1.5 rounded-lg text-black group-hover:scale-110 transition-transform duration-300`}
+          >
+            {React.cloneElement(icon, { size: 16 })}
           </div>
         </div>
       </div>
@@ -94,50 +98,83 @@ const DashboardPage = () => {
         {/* Daily Bonus & Stats Row */}
         <div className='grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6'>
           {/* Daily Check-in Bonus */}
-          <div className='lg:col-span-2 bg-[#121214] border border-[#1E1E21] rounded-xl p-4 sm:p-6 flex items-center justify-between min-h-[120px]'>
-            <div className='flex items-center gap-3 sm:gap-4'>
-              <div className='bg-gradient-to-br from-[#D4AF37] to-[#D4AF37]/80 p-2.5 rounded-xl flex-shrink-0'>
-                <Gift size={20} className='sm:hidden text-black' />
-                <Gift size={24} className='hidden sm:block text-black' />
+          <div className='lg:col-span-2 bg-[#121214] border border-[#1E1E21] rounded-xl p-4 sm:p-6'>
+            <div className='flex items-center justify-between mb-4'>
+              <div className='flex items-center gap-3 sm:gap-4'>
+                <div className='bg-gradient-to-br from-[#D4AF37] to-[#D4AF37]/80 p-2.5 rounded-xl flex-shrink-0'>
+                  <Gift size={20} className='sm:hidden text-black' />
+                  <Gift size={24} className='hidden sm:block text-black' />
+                </div>
+                <div>
+                  <h2 className='text-lg sm:text-xl font-bold text-[#EDEDED] mb-1'>
+                    Daily Empire Bonus
+                  </h2>
+                  <p className='text-gray-400 text-sm'>
+                    Claim your daily 100 points reward
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className='text-lg sm:text-xl font-bold text-[#EDEDED] mb-1'>
-                  Daily Empire Bonus
-                </h2>
-                <p className='text-gray-400 text-sm'>
-                  Claim your daily 100 points reward
-                </p>
+
+              <button
+                onClick={handleClaimBonus}
+                disabled={bonusClaimed || isClaimingBonus}
+                className={`h-8 px-4 rounded-xl font-semibold text-sm transition-all duration-300 flex items-center gap-2 justify-center flex-shrink-0 ${
+                  bonusClaimed
+                    ? 'bg-emerald-600 text-white cursor-not-allowed'
+                    : isClaimingBonus
+                    ? 'bg-[#D4AF37]/50 text-black cursor-wait'
+                    : 'bg-[#D4AF37] text-black hover:bg-[#D4AF37]/90 hover:scale-105 shadow-lg hover:shadow-[#D4AF37]/20'
+                }`}
+              >
+                {isClaimingBonus ? (
+                  <>
+                    <div className='w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin' />
+                    <span className='hidden sm:inline'>Claiming...</span>
+                  </>
+                ) : bonusClaimed ? (
+                  <>
+                    <CheckCircle size={16} />
+                    Claimed!
+                  </>
+                ) : (
+                  <>
+                    <Star size={16} />
+                    Claim Now
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Streak & Bonus Info */}
+            <div className='grid grid-cols-2 gap-3 mb-4'>
+              <div className='bg-[#1A1A1C] rounded-lg p-3'>
+                <div className='flex items-center gap-2 mb-1'>
+                  <div className='w-2 h-2 rounded-full bg-[#D4AF37]'></div>
+                  <span className='text-gray-400 text-xs'>Current Streak</span>
+                </div>
+                <div className='text-[#D4AF37] font-bold text-lg'>7 days</div>
+              </div>
+              <div className='bg-[#1A1A1C] rounded-lg p-3'>
+                <div className='flex items-center gap-2 mb-1'>
+                  <div className='w-2 h-2 rounded-full bg-emerald-500'></div>
+                  <span className='text-gray-400 text-xs'>Next Milestone</span>
+                </div>
+                <div className='text-emerald-400 font-bold text-lg'>
+                  10 days
+                </div>
               </div>
             </div>
 
-            <button
-              onClick={handleClaimBonus}
-              disabled={bonusClaimed || isClaimingBonus}
-              className={`h-10 sm:h-12 px-4 sm:px-6 rounded-xl font-semibold text-sm transition-all duration-300 flex items-center gap-2 sm:gap-3 justify-center flex-shrink-0 ${
-                bonusClaimed
-                  ? 'bg-emerald-600 text-white cursor-not-allowed'
-                  : isClaimingBonus
-                  ? 'bg-[#D4AF37]/50 text-black cursor-wait'
-                  : 'bg-[#D4AF37] text-black hover:bg-[#D4AF37]/90 hover:scale-105 shadow-lg hover:shadow-[#D4AF37]/20'
-              }`}
-            >
-              {isClaimingBonus ? (
-                <>
-                  <div className='w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin' />
-                  <span className='hidden sm:inline'>Claiming...</span>
-                </>
-              ) : bonusClaimed ? (
-                <>
-                  <CheckCircle size={16} className='sm:w-[18px] sm:h-[18px]' />
-                  Claimed!
-                </>
-              ) : (
-                <>
-                  <Star size={16} className='sm:w-[18px] sm:h-[18px]' />
-                  Claim Now
-                </>
-              )}
-            </button>
+            {/* Benefits */}
+            <div className='flex items-center justify-between text-sm'>
+              <div className='flex items-center gap-2'>
+                <Zap size={14} className='text-[#D4AF37]' />
+                <span className='text-[#EDEDED]'>
+                  Daily bonus builds your empire score
+                </span>
+              </div>
+              <span className='text-gray-400'>+100 pts</span>
+            </div>
           </div>
 
           {/* Empire Score */}
@@ -217,7 +254,7 @@ const DashboardPage = () => {
         {/* Community & Command Briefing */}
         <div className='grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6'>
           {/* Empire Community */}
-          <div className='lg:col-span-2 bg-[#121214] border border-[#1E1E21] rounded-xl p-4 sm:p-6 flex flex-col'>
+          <div className='lg:col-span-2 bg-[#121214] border border-[#1E1E21] rounded-xl p-4 sm:p-6'>
             <div className='flex items-center gap-3 mb-3'>
               <div className='bg-[#5865F2]/10 p-2.5 rounded-xl flex-shrink-0'>
                 <MessageCircle
@@ -235,16 +272,54 @@ const DashboardPage = () => {
               </div>
             </div>
 
-            <p className='text-gray-400 text-sm leading-relaxed mb-4 flex-1'>
+            <p className='text-gray-400 text-sm leading-relaxed mb-4'>
               Connect with fellow empire builders, share strategies, and get
               exclusive insights.
             </p>
 
-            <button className='w-full h-10 sm:h-12 bg-[#5865F2] text-white rounded-xl font-semibold hover:bg-[#5865F2]/90 transition-all duration-300 flex items-center justify-center gap-2 sm:gap-3 text-sm'>
-              <MessageCircle size={16} className='sm:w-[18px] sm:h-[18px]' />
+            {/* Community Stats */}
+            <div className='grid grid-cols-3 gap-3 mb-4'>
+              <div className='bg-[#1A1A1C] rounded-lg p-3 text-center'>
+                <div className='text-[#D4AF37] font-bold text-lg'>2.8K+</div>
+                <div className='text-gray-400 text-xs'>Members</div>
+              </div>
+              <div className='bg-[#1A1A1C] rounded-lg p-3 text-center'>
+                <div className='text-emerald-400 font-bold text-lg'>24/7</div>
+                <div className='text-gray-400 text-xs'>Active</div>
+              </div>
+              <div className='bg-[#1A1A1C] rounded-lg p-3 text-center'>
+                <div className='text-blue-400 font-bold text-lg'>150+</div>
+                <div className='text-gray-400 text-xs'>Daily</div>
+              </div>
+            </div>
+
+            {/* Benefits */}
+            <div className='space-y-2 mb-4'>
+              <div className='flex items-center gap-2 text-sm'>
+                <div className='w-1.5 h-1.5 rounded-full bg-[#D4AF37]'></div>
+                <span className='text-[#EDEDED]'>
+                  Exclusive strategies & case studies
+                </span>
+              </div>
+              <div className='flex items-center gap-2 text-sm'>
+                <div className='w-1.5 h-1.5 rounded-full bg-emerald-500'></div>
+                <span className='text-[#EDEDED]'>
+                  Weekly live sessions with experts
+                </span>
+              </div>
+              <div className='flex items-center gap-2 text-sm'>
+                <div className='w-1.5 h-1.5 rounded-full bg-blue-500'></div>
+                <span className='text-[#EDEDED]'>
+                  Direct networking opportunities
+                </span>
+              </div>
+            </div>
+
+            <button className='w-full h-8 bg-[#5865F2] text-white rounded-xl font-semibold hover:bg-[#5865F2]/90 transition-all duration-300 flex items-center justify-center gap-2 text-sm'>
+              <MessageCircle size={16} />
               <span className='hidden sm:inline'>Join Discord Community</span>
               <span className='sm:hidden'>Join Discord</span>
-              <ExternalLink size={14} className='sm:w-4 sm:h-4' />
+              <ExternalLink size={14} />
             </button>
           </div>
 
@@ -294,8 +369,8 @@ const DashboardPage = () => {
                   Builder to establish your market presence.
                 </p>
 
-                <button className='bg-[#D4AF37] text-black h-8 sm:h-10 px-4 sm:px-6 rounded-xl font-semibold text-sm hover:bg-[#D4AF37]/90 transition-all duration-300 hover:scale-105 flex items-center gap-2 shadow-lg'>
-                  <Rocket size={14} className='sm:w-4 sm:h-4' />
+                <button className='bg-[#D4AF37] text-black h-8 px-4 rounded-xl font-semibold text-sm hover:bg-[#D4AF37]/90 transition-all duration-300 hover:scale-105 flex items-center gap-2 shadow-lg'>
+                  <Rocket size={14} />
                   Launch First Mission
                 </button>
               </div>
