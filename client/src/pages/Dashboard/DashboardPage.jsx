@@ -1,3 +1,4 @@
+// File: client/src/pages/Dashboard/DashboardPage.jsx
 import {
   Bot,
   CheckCircle,

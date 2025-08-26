@@ -22,41 +22,44 @@ import {
   Zap,
 } from 'lucide-react'
 import React, { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isNotificationOpen, setIsNotificationOpen] = useState(false)
 
+  // Get current location to determine active menu item
+  const location = useLocation()
+
   const menuItems = [
     {
       id: 'dashboard',
       label: 'Dashboard',
       icon: <Home size={18} />,
-      path: '/', // 👈 add path
-      active: true,
+      path: '/dashboard',
+      // Remove hardcoded active: true
     },
     {
       id: 'ai-builder',
       label: 'AI Builder',
       icon: <Bot size={18} />,
-      path: '/', // 👈 add path
+      path: '/',
       badge: 'START HERE',
       badgeColor: 'bg-emerald-500',
     },
     {
-      id: 'money-os',
-      label: 'Money OS',
+      id: 'earnings',
+      label: 'Earnings',
       icon: <DollarSign size={18} />,
-      path: '/',
+      path: '/earn',
     },
     {
       id: 'affiliate-army',
       label: 'Affiliate Army',
       icon: <Users size={18} />,
-      path: '/',
-      badge: 'RECRUIT',
+      path: '/invite',
+      badge: 'Join',
       badgeColor: 'bg-blue-500',
     },
   ]
@@ -67,19 +70,19 @@ const Layout = ({ children }) => {
       id: 'products',
       label: 'Products',
       icon: <Box size={18} />,
-      path: '/', // 👈 add path
+      path: '/products',
     },
     {
       id: 'calendar',
       label: 'Calendar',
       icon: <Calendar size={18} />,
-      path: '/',
+      path: '/calendar',
     },
     {
       id: 'pricing',
       label: 'Pricing',
       icon: <Crown size={18} />,
-      path: '/',
+      path: '/pricing',
     },
   ]
 
@@ -118,45 +121,50 @@ const Layout = ({ children }) => {
     },
   ]
 
-  const MenuItem = ({ item, section }) => (
-    <li>
-      <Link to={item.path || '#'}>
-        {' '}
-        {/* 👈 add Link */}
-        <button
-          className={`group w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 text-sm font-medium ${
-            item.active
-              ? 'bg-[#D4AF37] text-black shadow-sm'
-              : item.premium
-              ? 'text-gray-500 hover:text-gray-400 hover:bg-[#1A1A1C]'
-              : 'text-[#EDEDED] hover:bg-[#1A1A1C] hover:text-white'
-          }`}
-          disabled={item.premium}
-        >
-          <span className={`${item.active ? 'text-black' : ''}`}>
-            {item.icon}
-          </span>
-          <span className='flex-1 text-left truncate'>{item.label}</span>
+  // Function to check if menu item is active
+  const isActive = (itemPath) => {
+    return location.pathname === itemPath
+  }
 
-          {item.badge && (
-            <span
-              className={`${item.badgeColor} text-white text-[10px] px-1.5 py-0.5 rounded-md font-semibold tracking-wide`}
-            >
-              {item.badge}
-            </span>
-          )}
+  const MenuItem = ({ item, section }) => {
+    const active = isActive(item.path)
 
-          {item.premium && (
-            <Star
-              size={14}
-              className='text-[#D4AF37] opacity-60 group-hover:opacity-80'
-              fill='currentColor'
-            />
-          )}
-        </button>
-      </Link>
-    </li>
-  )
+    return (
+      <li>
+        <Link to={item.path || '#'}>
+          <button
+            className={`group w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 text-sm font-medium ${
+              active
+                ? 'bg-[#D4AF37] text-black shadow-sm'
+                : item.premium
+                ? 'text-gray-500 hover:text-gray-400 hover:bg-[#1A1A1C]'
+                : 'text-[#EDEDED] hover:bg-[#1A1A1C] hover:text-white'
+            }`}
+            disabled={item.premium}
+          >
+            <span className={`${active ? 'text-black' : ''}`}>{item.icon}</span>
+            <span className='flex-1 text-left truncate'>{item.label}</span>
+
+            {item.badge && (
+              <span
+                className={`${item.badgeColor} text-white text-[10px] px-1.5 py-0.5 rounded-md font-semibold tracking-wide`}
+              >
+                {item.badge}
+              </span>
+            )}
+
+            {item.premium && (
+              <Star
+                size={14}
+                className='text-[#D4AF37] opacity-60 group-hover:opacity-80'
+                fill='currentColor'
+              />
+            )}
+          </button>
+        </Link>
+      </li>
+    )
+  }
 
   const NotificationDrawer = () => (
     <>
