@@ -170,7 +170,6 @@ const AffiliatePage = () => {
                   <UserPlus size={16} className='text-blue-400' />
                 </div>
                 <h3 className='text-[#EDEDED] font-bold mb-1'>Pro Plan</h3>
-                <p className='text-gray-400 text-xs mb-2'>$49/month</p>
                 <div className='text-xl font-bold text-blue-400 mb-1'>20%</div>
                 <div className='text-gray-400 text-xs'>Recurring</div>
               </div>
@@ -180,7 +179,6 @@ const AffiliatePage = () => {
                   <UserPlus size={16} className='text-[#D4AF37]' />
                 </div>
                 <h3 className='text-[#EDEDED] font-bold mb-1'>Empire Plan</h3>
-                <p className='text-gray-400 text-xs mb-2'>$89/month</p>
                 <div className='text-xl font-bold text-[#D4AF37] mb-1'>30%</div>
                 <div className='text-gray-400 text-xs'>Recurring</div>
                 <div className='bg-[#D4AF37]/10 text-[#D4AF37] text-xs font-medium px-2 py-1 rounded-full mt-2'>
@@ -193,7 +191,6 @@ const AffiliatePage = () => {
                   <UserPlus size={16} className='text-purple-400' />
                 </div>
                 <h3 className='text-[#EDEDED] font-bold mb-1'>Ultimate Plan</h3>
-                <p className='text-gray-400 text-xs mb-2'>$149/month</p>
                 <div className='text-xl font-bold text-purple-400 mb-1'>
                   40%
                 </div>
