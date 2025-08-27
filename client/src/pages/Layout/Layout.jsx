@@ -23,12 +23,20 @@ import {
   Zap,
 } from 'lucide-react'
 import React, { useState } from 'react'
+import { useSelector } from 'react-redux'
 import { Link, useLocation } from 'react-router-dom'
+import { useCurrentUser, useLogout } from '../../hooks/useAuth.js'
+import { selectIsAdmin } from '../../redux/userSlice.js'
 
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isNotificationOpen, setIsNotificationOpen] = useState(false)
+
+  // Redux state
+  const currentUser = useCurrentUser()
+  const isAdmin = useSelector(selectIsAdmin)
+  const logoutMutation = useLogout()
 
   // Get current location to determine active menu item
   const location = useLocation()
@@ -39,7 +47,6 @@ const Layout = ({ children }) => {
       label: 'Dashboard',
       icon: <Home size={18} />,
       path: '/dashboard',
-      // Remove hardcoded active: true
     },
     {
       id: 'ai-builder',
@@ -125,6 +132,19 @@ const Layout = ({ children }) => {
   // Function to check if menu item is active
   const isActive = (itemPath) => {
     return location.pathname === itemPath
+  }
+
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      await logoutMutation.mutateAsync()
+      // Redirect to auth page
+      window.location.href = '/auth'
+    } catch (error) {
+      console.error('Logout error:', error)
+      // Even if API call fails, redirect to auth (Redux state is cleared)
+      window.location.href = '/auth'
+    }
   }
 
   const MenuItem = ({ item, section }) => {
@@ -313,13 +333,27 @@ const Layout = ({ children }) => {
 
       {/* Footer */}
       <div className='border-t border-[#1E1E21] p-3'>
-        <button className='w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#1A1A1C] text-[#EDEDED] hover:bg-[#1E1E21] transition-colors duration-200 text-sm font-medium h-8'>
-          <LogOut size={16} />
-          Logout
+        <button
+          onClick={handleLogout}
+          disabled={logoutMutation.isPending}
+          className='w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#1A1A1C] text-[#EDEDED] hover:bg-[#1E1E21] transition-colors duration-200 text-sm font-medium h-8 disabled:opacity-50 disabled:cursor-not-allowed'
+        >
+          {logoutMutation.isPending ? (
+            <div className='w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin' />
+          ) : (
+            <LogOut size={16} />
+          )}
+          {logoutMutation.isPending ? 'Logging out...' : 'Logout'}
         </button>
       </div>
     </>
   )
+
+  // If user is not authenticated, redirect to auth
+  if (!currentUser) {
+    window.location.href = '/auth'
+    return null
+  }
 
   return (
     <div className='flex h-screen bg-[#0B0B0C] text-[#EDEDED]'>
@@ -360,7 +394,7 @@ const Layout = ({ children }) => {
                 </div>
                 <div className='text-left'>
                   <p className='font-medium text-sm leading-none'>
-                    FurqanCodes
+                    {currentUser?.name || 'User'}
                   </p>
                   <div className='flex items-center gap-1.5 mt-1'>
                     <Star
@@ -369,7 +403,7 @@ const Layout = ({ children }) => {
                       fill='currentColor'
                     />
                     <span className='text-[#D4AF37] font-semibold text-[10px] uppercase tracking-wider'>
-                      FREE PLAN
+                      {isAdmin ? 'ADMIN' : 'FREE PLAN'}
                     </span>
                   </div>
                 </div>

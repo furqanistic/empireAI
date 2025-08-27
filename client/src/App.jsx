@@ -1,7 +1,6 @@
 // File: client/src/App.jsx
-
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
-
+import { useSelector } from 'react-redux'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import AffiliatePage from './pages/Affiliate/AffiliatePage'
 import AIBuilderPage from './pages/AIBuilder/AIBuilderPage'
 import AuthPage from './pages/Auth/AuthPage'
@@ -10,20 +9,112 @@ import EarningsPage from './pages/Earnings/EarningsPage'
 import PricingPage from './pages/Pricing/PricingPage'
 import ProductPage from './pages/Product/ProductPage'
 import ProfilePage from './pages/Profile/ProfilePage'
+import { selectCurrentUser } from './redux/userSlice.js'
+
+// Protected Route Component
+const ProtectedRoute = ({ children }) => {
+  const currentUser = useSelector(selectCurrentUser)
+
+  if (!currentUser) {
+    return <Navigate to='/auth' replace />
+  }
+
+  return children
+}
+
+// Public Route Component (redirects to dashboard if already authenticated)
+const PublicRoute = ({ children }) => {
+  const currentUser = useSelector(selectCurrentUser)
+
+  if (currentUser) {
+    return <Navigate to='/dashboard' replace />
+  }
+
+  return children
+}
 
 const App = () => {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path='/' element={<AuthPage />} />
-        <Route path='/dashboard' element={<DashboardPage />} />
-        <Route path='/auth' element={<AuthPage />} />
-        <Route path='/earn' element={<EarningsPage />} />
-        <Route path='/invite' element={<AffiliatePage />} />
-        <Route path='/pricing' element={<PricingPage />} />
-        <Route path='/profile' element={<ProfilePage />} />
-        <Route path='/product' element={<ProductPage />} />
-        <Route path='/build' element={<AIBuilderPage />} />
+        {/* Public Routes */}
+        <Route
+          path='/'
+          element={
+            <PublicRoute>
+              <AuthPage />
+            </PublicRoute>
+          }
+        />
+        <Route
+          path='/auth'
+          element={
+            <PublicRoute>
+              <AuthPage />
+            </PublicRoute>
+          }
+        />
+
+        {/* Protected Routes */}
+        <Route
+          path='/dashboard'
+          element={
+            <ProtectedRoute>
+              <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path='/build'
+          element={
+            <ProtectedRoute>
+              <AIBuilderPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path='/earn'
+          element={
+            <ProtectedRoute>
+              <EarningsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path='/invite'
+          element={
+            <ProtectedRoute>
+              <AffiliatePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path='/product'
+          element={
+            <ProtectedRoute>
+              <ProductPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path='/profile'
+          element={
+            <ProtectedRoute>
+              <ProfilePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path='/pricing'
+          element={
+            <ProtectedRoute>
+              <PricingPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Catch all route - redirect to auth */}
+        <Route path='*' element={<Navigate to='/auth' replace />} />
       </Routes>
     </BrowserRouter>
   )

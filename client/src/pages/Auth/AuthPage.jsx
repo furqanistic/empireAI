@@ -1,6 +1,25 @@
 // File: client/src/pages/Auth/AuthPage.jsx
-import { ArrowRight, Eye, EyeOff, Lock, Mail, User } from 'lucide-react'
-import React, { useState } from 'react'
+import {
+  ArrowRight,
+  CheckCircle,
+  Eye,
+  EyeOff,
+  Gift,
+  Lock,
+  Mail,
+  User,
+  XCircle,
+} from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { useSelector } from 'react-redux'
+import {
+  useAuthLoading,
+  useCurrentUser,
+  useSignin,
+  useSignup,
+  useValidateReferralCode,
+} from '../../hooks/useAuth.js'
+import { selectIsLoading } from '../../redux/userSlice.js'
 
 const Input = ({
   icon: Icon,
@@ -9,6 +28,7 @@ const Input = ({
   value,
   onChange,
   error,
+  success,
   ...props
 }) => {
   const [showPassword, setShowPassword] = useState(false)
@@ -26,7 +46,11 @@ const Input = ({
           value={value}
           onChange={onChange}
           className={`w-full h-10 pl-11 pr-12 bg-[#121214] border rounded-lg text-[#EDEDED] placeholder-gray-400 transition-all duration-200 focus:outline-none focus:ring-1 focus:ring-[#D4AF37]/20 focus:border-[#D4AF37] ${
-            error ? 'border-red-500' : 'border-[#1E1E21]'
+            error
+              ? 'border-red-500'
+              : success
+              ? 'border-green-500'
+              : 'border-[#1E1E21]'
           } hover:border-[#D4AF37]/30`}
           {...props}
         />
@@ -41,6 +65,7 @@ const Input = ({
         )}
       </div>
       {error && <p className='text-red-400 text-sm ml-1'>{error}</p>}
+      {success && <p className='text-green-400 text-sm ml-1'>{success}</p>}
     </div>
   )
 }
@@ -79,19 +104,87 @@ const Button = ({
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true)
-  const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
-    email: 'test@test.com',
-    password: 'testing123',
+    email: '',
+    password: '',
     confirmPassword: '',
     name: '',
+    referralCode: '',
   })
   const [errors, setErrors] = useState({})
+  const [referralValidation, setReferralValidation] = useState(null)
+
+  // Redux state
+  const currentUser = useCurrentUser()
+  const isLoading = useSelector(selectIsLoading)
+  const authError = useSelector((state) => state.user.error)
+
+  // React Query hooks
+  const signupMutation = useSignup()
+  const signinMutation = useSignin()
+
+  // Check for referral code in URL parameters
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const refCode = urlParams.get('ref')
+
+    if (refCode && refCode.trim()) {
+      setFormData((prev) => ({
+        ...prev,
+        referralCode: refCode.trim().toUpperCase(),
+      }))
+      // Switch to signup mode if referral code is present
+      setIsLogin(false)
+    }
+  }, []) // Fixed: Removed isLogin from dependency array
+
+  // Referral code validation
+  const {
+    data: referralValidationData,
+    isLoading: isValidatingReferral,
+    error: referralValidationError,
+  } = useValidateReferralCode(
+    formData.referralCode.trim(),
+    !isLogin && formData.referralCode.trim().length >= 3
+  )
+
+  // Redirect if user is already authenticated
+  useEffect(() => {
+    if (currentUser) {
+      window.location.href = '/dashboard'
+    }
+  }, [currentUser])
+
+  // Update referral validation state when data changes
+  useEffect(() => {
+    if (referralValidationData) {
+      setReferralValidation(referralValidationData.data)
+    } else if (referralValidationError) {
+      setReferralValidation({
+        isValid: false,
+        message: 'Error validating referral code',
+      })
+    } else {
+      setReferralValidation(null)
+    }
+  }, [referralValidationData, referralValidationError])
+
+  // Handle Redux auth errors
+  useEffect(() => {
+    if (authError && typeof authError === 'string') {
+      setErrors((prev) => ({ ...prev, general: authError }))
+    }
+  }, [authError])
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: '' }))
+    }
+
+    // Reset referral validation when user changes referral code
+    if (field === 'referralCode') {
+      setReferralValidation(null)
     }
   }
 
@@ -113,6 +206,16 @@ export default function AuthPage() {
       else if (formData.password !== formData.confirmPassword) {
         newErrors.confirmPassword = 'Passwords do not match'
       }
+
+      // Validate referral code if provided
+      if (formData.referralCode && formData.referralCode.trim().length > 0) {
+        if (formData.referralCode.trim().length < 3) {
+          newErrors.referralCode = 'Referral code must be at least 3 characters'
+        } else if (referralValidation && !referralValidation.isValid) {
+          newErrors.referralCode =
+            referralValidation.message || 'Invalid referral code'
+        }
+      }
     }
 
     setErrors(newErrors)
@@ -122,35 +225,100 @@ export default function AuthPage() {
   const handleSubmit = async () => {
     if (!validateForm()) return
 
-    setLoading(true)
-    setTimeout(() => {
-      setLoading(false)
+    // Clear any previous errors
+    setErrors({})
+
+    try {
       if (isLogin) {
-        window.location.href = '/dashboard'
+        const result = await signinMutation.mutateAsync({
+          email: formData.email.trim(),
+          password: formData.password,
+        })
+
+        if (result.status === 'success') {
+          window.location.href = '/dashboard'
+        }
+      } else {
+        const signupData = {
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          password: formData.password,
+        }
+
+        // Only include referral code if it's provided and valid
+        if (formData.referralCode.trim() && referralValidation?.isValid) {
+          signupData.referralCode = formData.referralCode.trim()
+        }
+
+        const result = await signupMutation.mutateAsync(signupData)
+
+        if (result.status === 'success') {
+          window.location.href = '/dashboard'
+        }
       }
-    }, 1000)
+    } catch (error) {
+      console.error('Auth error:', error)
+
+      // Handle API errors (Redux will handle the error state)
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        'An unexpected error occurred'
+
+      // Set specific field errors based on error message
+      if (errorMessage.toLowerCase().includes('email')) {
+        setErrors((prev) => ({ ...prev, email: errorMessage }))
+      } else if (errorMessage.toLowerCase().includes('password')) {
+        setErrors((prev) => ({ ...prev, password: errorMessage }))
+      } else if (errorMessage.toLowerCase().includes('referral')) {
+        setErrors((prev) => ({ ...prev, referralCode: errorMessage }))
+      } else {
+        // General error - Redux will handle this through authError
+        setErrors((prev) => ({ ...prev, general: errorMessage }))
+      }
+    }
   }
 
   const toggleMode = () => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const refCode = urlParams.get('ref')
+
     setIsLogin(!isLogin)
+
     if (!isLogin) {
-      // Switching to login mode
-      setFormData({
-        email: 'test@test.com',
-        password: 'testing123',
-        confirmPassword: '',
-        name: '',
-      })
-    } else {
-      // Switching to signup mode
+      // Switching to login mode - clear form but preserve referral in state if needed for display
       setFormData({
         email: '',
         password: '',
         confirmPassword: '',
         name: '',
+        referralCode: refCode ? refCode.trim().toUpperCase() : '',
+      })
+    } else {
+      // Switching to signup mode - preserve referral code from URL if present
+      setFormData({
+        email: '',
+        password: '',
+        confirmPassword: '',
+        name: '',
+        referralCode: refCode ? refCode.trim().toUpperCase() : '',
       })
     }
+
     setErrors({})
+    setReferralValidation(null)
+  }
+
+  // Show loading spinner if redirecting to dashboard
+  if (currentUser) {
+    return (
+      <div className='min-h-screen bg-[#0B0B0C] flex items-center justify-center'>
+        <div className='text-center'>
+          <div className='w-8 h-8 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin mx-auto mb-4' />
+          <p className='text-[#EDEDED]'>Redirecting to dashboard...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -194,6 +362,13 @@ export default function AuthPage() {
             </button>
           </div>
 
+          {/* General error message */}
+          {errors.general && (
+            <div className='mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg'>
+              <p className='text-red-400 text-sm'>{errors.general}</p>
+            </div>
+          )}
+
           <div className='space-y-4'>
             {!isLogin && (
               <Input
@@ -224,16 +399,61 @@ export default function AuthPage() {
             />
 
             {!isLogin && (
-              <Input
-                icon={Lock}
-                type='password'
-                placeholder='Confirm password'
-                value={formData.confirmPassword}
-                onChange={(e) =>
-                  handleInputChange('confirmPassword', e.target.value)
-                }
-                error={errors.confirmPassword}
-              />
+              <>
+                <Input
+                  icon={Lock}
+                  type='password'
+                  placeholder='Confirm password'
+                  value={formData.confirmPassword}
+                  onChange={(e) =>
+                    handleInputChange('confirmPassword', e.target.value)
+                  }
+                  error={errors.confirmPassword}
+                />
+
+                <div className='space-y-1'>
+                  <div className='relative'>
+                    <Input
+                      icon={Gift}
+                      placeholder='Referral code (optional)'
+                      value={formData.referralCode}
+                      onChange={(e) =>
+                        handleInputChange(
+                          'referralCode',
+                          e.target.value.toUpperCase()
+                        )
+                      }
+                      error={errors.referralCode}
+                    />
+
+                    {/* Referral validation indicator */}
+                    {formData.referralCode.trim().length >= 3 && (
+                      <div className='absolute right-3 top-3 transform -translate-y-1/2'>
+                        {isValidatingReferral ? (
+                          <div className='w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin' />
+                        ) : referralValidation?.isValid ? (
+                          <CheckCircle size={16} className='text-green-500' />
+                        ) : referralValidation?.isValid === false ? (
+                          <XCircle size={16} className='text-red-500' />
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Referral validation message */}
+                  {referralValidation?.isValid &&
+                    referralValidation.referrer && (
+                      <div className='ml-1 mt-3 p-2 bg-green-500/10 border border-green-500/20 rounded text-xs'>
+                        <p className='text-green-400'>
+                          You'll be referred by{' '}
+                          <span className='font-medium'>
+                            {referralValidation.referrer.name}
+                          </span>
+                        </p>
+                      </div>
+                    )}
+                </div>
+              </>
             )}
 
             {isLogin && (
@@ -247,7 +467,16 @@ export default function AuthPage() {
               </div>
             )}
 
-            <Button onClick={handleSubmit} loading={loading} className='w-full'>
+            <Button
+              onClick={handleSubmit}
+              loading={isLoading}
+              className='w-full'
+              disabled={
+                isLoading ||
+                (formData.referralCode.trim().length >= 3 &&
+                  isValidatingReferral)
+              }
+            >
               {isLogin ? 'Sign In' : 'Create Account'}
               <ArrowRight size={18} />
             </Button>
@@ -262,6 +491,7 @@ export default function AuthPage() {
             <button
               onClick={toggleMode}
               className='text-[#D4AF37] hover:text-[#D4AF37]/80 text-sm font-medium transition-colors'
+              disabled={isLoading}
             >
               {isLogin ? 'Sign up' : 'Sign in'}
             </button>
