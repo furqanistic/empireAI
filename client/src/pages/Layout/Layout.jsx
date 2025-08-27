@@ -336,7 +336,7 @@ const Layout = ({ children }) => {
         <button
           onClick={handleLogout}
           disabled={logoutMutation.isPending}
-          className='w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#1A1A1C] text-[#EDEDED] hover:bg-[#1E1E21] transition-colors duration-200 text-sm font-medium h-8 disabled:opacity-50 disabled:cursor-not-allowed'
+          className='w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-red-600 text-[#EDEDED] hover:bg-red-800 cursor-pointer transition-colors duration-200 text-sm font-medium h-8 disabled:opacity-50 disabled:cursor-not-allowed'
         >
           {logoutMutation.isPending ? (
             <div className='w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin' />
@@ -388,7 +388,7 @@ const Layout = ({ children }) => {
 
             {/* User Profile */}
             <div className='hidden md:flex items-center gap-3'>
-              <div className='flex items-center gap-3 px-3 py-1.5 rounded-lg bg-[#121214] border border-[#1E1E21] hover:bg-[#1A1A1C] transition-colors cursor-pointer'>
+              <div className='flex items-center gap-3 px-3 py-1.5 rounded-lg transition-colors cursor-pointer'>
                 <div className='w-9 h-9 rounded-full bg-[#D4AF37] flex items-center justify-center'>
                   <User size={22} className='text-black' />
                 </div>
@@ -407,7 +407,6 @@ const Layout = ({ children }) => {
                     </span>
                   </div>
                 </div>
-                <ChevronDown size={14} className='text-gray-400' />
               </div>
             </div>
 

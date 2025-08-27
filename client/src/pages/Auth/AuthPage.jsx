@@ -29,6 +29,7 @@ const Input = ({
   onChange,
   error,
   success,
+  autoFocus,
   ...props
 }) => {
   const [showPassword, setShowPassword] = useState(false)
@@ -52,6 +53,7 @@ const Input = ({
               ? 'border-green-500'
               : 'border-[#1E1E21]'
           } hover:border-[#D4AF37]/30`}
+          autoFocus={autoFocus}
           {...props}
         />
         {type === 'password' && (
@@ -136,7 +138,7 @@ export default function AuthPage() {
       // Switch to signup mode if referral code is present
       setIsLogin(false)
     }
-  }, []) // Fixed: Removed isLogin from dependency array
+  }, [])
 
   // Referral code validation
   const {
@@ -245,7 +247,7 @@ export default function AuthPage() {
           password: formData.password,
         }
 
-        // Only include referral code if it's provided and valid
+        // Only include referral code if valid
         if (formData.referralCode.trim() && referralValidation?.isValid) {
           signupData.referralCode = formData.referralCode.trim()
         }
@@ -257,25 +259,52 @@ export default function AuthPage() {
         }
       }
     } catch (error) {
-      console.error('Auth error:', error)
+      console.error('Auth error details:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+        url: error.config?.url,
+        method: error.config?.method,
+      })
 
-      // Handle API errors (Redux will handle the error state)
-      const errorMessage =
-        error.response?.data?.message ||
-        error.message ||
-        'An unexpected error occurred'
+      let errorMessage = ''
 
-      // Set specific field errors based on error message
-      if (errorMessage.toLowerCase().includes('email')) {
-        setErrors((prev) => ({ ...prev, email: errorMessage }))
-      } else if (errorMessage.toLowerCase().includes('password')) {
-        setErrors((prev) => ({ ...prev, password: errorMessage }))
-      } else if (errorMessage.toLowerCase().includes('referral')) {
-        setErrors((prev) => ({ ...prev, referralCode: errorMessage }))
+      // ✅ Handle error response from backend
+      if (error.response) {
+        const { status, data } = error.response
+
+        // Use backend's message if available
+        if (data?.message) {
+          errorMessage = data.message
+        } else {
+          // Fallback based on status
+          switch (status) {
+            case 400:
+              errorMessage = 'Please check your input and try again.'
+              break
+            case 401:
+              errorMessage = 'Incorrect email or password'
+              break
+            case 409:
+              errorMessage = 'An account with this email already exists.'
+              break
+            case 500:
+              errorMessage = 'Server error. Please try again later.'
+              break
+            default:
+              errorMessage = 'An unexpected error occurred.'
+          }
+        }
+      } else if (error.request) {
+        // Network error (no response)
+        errorMessage = 'Network error. Please check your connection.'
       } else {
-        // General error - Redux will handle this through authError
-        setErrors((prev) => ({ ...prev, general: errorMessage }))
+        // Something else happened
+        errorMessage = 'An error occurred. Please try again.'
       }
+
+      // Show user-friendly error
+      setErrors((prev) => ({ ...prev, general: errorMessage }))
     }
   }
 
@@ -286,7 +315,7 @@ export default function AuthPage() {
     setIsLogin(!isLogin)
 
     if (!isLogin) {
-      // Switching to login mode - clear form but preserve referral in state if needed for display
+      // Switching to login mode
       setFormData({
         email: '',
         password: '',
@@ -295,7 +324,7 @@ export default function AuthPage() {
         referralCode: refCode ? refCode.trim().toUpperCase() : '',
       })
     } else {
-      // Switching to signup mode - preserve referral code from URL if present
+      // Switching to signup mode
       setFormData({
         email: '',
         password: '',
@@ -369,7 +398,14 @@ export default function AuthPage() {
             </div>
           )}
 
-          <div className='space-y-4'>
+          {/* 🔥 Form now supports Enter key submission */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              handleSubmit()
+            }}
+            className='space-y-4'
+          >
             {!isLogin && (
               <Input
                 icon={User}
@@ -377,6 +413,7 @@ export default function AuthPage() {
                 value={formData.name}
                 onChange={(e) => handleInputChange('name', e.target.value)}
                 error={errors.name}
+                autoFocus
               />
             )}
 
@@ -387,6 +424,7 @@ export default function AuthPage() {
               value={formData.email}
               onChange={(e) => handleInputChange('email', e.target.value)}
               error={errors.email}
+              autoFocus={isLogin && !formData.email}
             />
 
             <Input
@@ -468,6 +506,7 @@ export default function AuthPage() {
             )}
 
             <Button
+              type='submit' // ✅ Critical for form submission
               onClick={handleSubmit}
               loading={isLoading}
               className='w-full'
@@ -480,7 +519,7 @@ export default function AuthPage() {
               {isLogin ? 'Sign In' : 'Create Account'}
               <ArrowRight size={18} />
             </Button>
-          </div>
+          </form>
 
           <div className='mt-6 text-center'>
             <span className='text-gray-400 text-sm'>

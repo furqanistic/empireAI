@@ -5,12 +5,9 @@ import {
   ChevronUp,
   Copy,
   DollarSign,
-  ExternalLink,
   Link2,
   Loader2,
   RefreshCw,
-  Share2,
-  UserPlus,
   Users,
 } from 'lucide-react'
 import React, { useState } from 'react'
@@ -27,6 +24,7 @@ const AffiliatePage = () => {
   const [copiedRefCode, setCopiedRefCode] = useState(false)
   const [showAllReferrals, setShowAllReferrals] = useState(false)
   const [showEmbedCode, setShowEmbedCode] = useState(false)
+  const [showCommission, setShowCommission] = useState(false)
 
   // Get current user and referral data
   const currentUser = useCurrentUser()
@@ -39,7 +37,7 @@ const AffiliatePage = () => {
 
   const generateCodeMutation = useGenerateReferralCode()
 
-  // Extract referral information with fallbacks - Fix URL to use /auth
+  // Extract referral information with fallbacks
   const referralStats = referralData?.data?.referralStats
   const referralCode = currentUser?.referralCode || 'LOADING'
   const referralLink =
@@ -49,17 +47,21 @@ const AffiliatePage = () => {
   // Create embed code with correct URL
   const embedCode = `<a href="${referralLink}" target="_blank" style="display: inline-block; background: #D4AF37; color: #000; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600;">Try Ascend AI</a>`
 
-  const copyToClipboard = (text, type) => {
-    navigator.clipboard.writeText(text)
-    if (type === 'link') {
-      setCopiedLink(true)
-      setTimeout(() => setCopiedLink(false), 2000)
-    } else if (type === 'code') {
-      setCopiedCode(true)
-      setTimeout(() => setCopiedCode(false), 2000)
-    } else if (type === 'refcode') {
-      setCopiedRefCode(true)
-      setTimeout(() => setCopiedRefCode(false), 2000)
+  const copyToClipboard = async (text, type) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      if (type === 'link') {
+        setCopiedLink(true)
+        setTimeout(() => setCopiedLink(false), 2000)
+      } else if (type === 'code') {
+        setCopiedCode(true)
+        setTimeout(() => setCopiedCode(false), 2000)
+      } else if (type === 'refcode') {
+        setCopiedRefCode(true)
+        setTimeout(() => setCopiedRefCode(false), 2000)
+      }
+    } catch (err) {
+      console.error('Failed to copy:', err)
     }
   }
 
@@ -90,16 +92,6 @@ const AffiliatePage = () => {
           <p className='text-gray-400'>
             Share Ascend AI and earn recurring commissions
           </p>
-          {currentUser?.name && (
-            <div className='flex items-center gap-2 mt-2'>
-              <div className='w-2 h-2 bg-green-500 rounded-full'></div>
-              <span className='text-sm text-gray-400'>
-                <span className='text-[#EDEDED] font-medium'>
-                  {currentUser.name}
-                </span>
-              </span>
-            </div>
-          )}
         </div>
 
         {statsError && (
@@ -195,9 +187,10 @@ const AffiliatePage = () => {
 
             <div className='bg-[#1A1A1C] border border-[#1E1E21] rounded-lg p-3'>
               <div className='flex items-center gap-2'>
-                <div className='bg-[#121214] border border-[#1E1E21] rounded-md px-3 py-2 font-mono text-lg font-bold text-[#D4AF37] tracking-wider flex-1 text-center'>
+                {/* Unified input style */}
+                <div className='bg-[#121214] border border-[#1E1E21] rounded-md px-3 py-2.5 font-mono text-sm font-bold text-[#D4AF37] tracking-wider flex-1 text-center min-h-[38px] flex items-center justify-center'>
                   {isLoadingStats ? (
-                    <Loader2 className='w-5 h-5 animate-spin mx-auto' />
+                    <Loader2 className='w-5 h-5 animate-spin mx-auto text-[#D4AF37]' />
                   ) : (
                     referralCode
                   )}
@@ -205,7 +198,7 @@ const AffiliatePage = () => {
                 <button
                   onClick={() => copyToClipboard(referralCode, 'refcode')}
                   disabled={isLoadingStats || referralCode === 'LOADING'}
-                  className='bg-[#D4AF37] text-black px-3 py-2 rounded-md font-semibold text-sm hover:bg-[#D4AF37]/90 transition-all duration-300 flex items-center gap-2 disabled:opacity-50'
+                  className='bg-[#D4AF37] text-black px-3 py-2.5 rounded-md font-semibold text-sm hover:bg-[#D4AF37]/90 transition-all duration-300 flex items-center gap-2 disabled:opacity-50 whitespace-nowrap'
                 >
                   {copiedRefCode ? <Check size={14} /> : <Copy size={14} />}
                   <span className='hidden sm:inline'>
@@ -230,85 +223,113 @@ const AffiliatePage = () => {
               </div>
             </div>
 
-            <div className='space-y-3'>
-              <div className='bg-[#1A1A1C] border border-[#1E1E21] rounded-lg p-3'>
-                <div className='flex items-center gap-2'>
-                  <div className='flex-1 bg-[#121214] border border-[#1E1E21] rounded-md px-3 py-2 font-mono text-xs text-[#EDEDED] overflow-x-auto'>
-                    {isLoadingStats ? 'Loading...' : referralLink}
-                  </div>
-                  <button
-                    onClick={() => copyToClipboard(referralLink, 'link')}
-                    disabled={isLoadingStats}
-                    className='bg-[#D4AF37] text-black px-3 py-2 rounded-md font-semibold text-sm hover:bg-[#D4AF37]/90 transition-all duration-300 flex items-center gap-2 disabled:opacity-50'
-                  >
-                    {copiedLink ? <Check size={14} /> : <Copy size={14} />}
-                    <span className='hidden sm:inline'>
-                      {copiedLink ? 'Copied!' : 'Copy'}
-                    </span>
-                  </button>
+            <div className='bg-[#1A1A1C] border border-[#1E1E21] rounded-lg p-3'>
+              <div className='flex items-center gap-2'>
+                {/* Unified input style */}
+                <div className='bg-[#121214] border border-[#1E1E21] rounded-md px-3 py-2.5 font-mono text-xs text-[#EDEDED] flex-1 overflow-x-auto min-h-[38px] flex items-center'>
+                  {isLoadingStats ? (
+                    <span className='text-gray-500'>Loading...</span>
+                  ) : (
+                    referralLink
+                  )}
                 </div>
-              </div>
-
-              <div className='grid grid-cols-2 gap-2'>
                 <button
+                  onClick={() => copyToClipboard(referralLink, 'link')}
                   disabled={isLoadingStats}
-                  className='bg-blue-500 text-white px-3 py-2 rounded-md font-semibold text-sm hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50'
+                  className='bg-[#D4AF37] text-black px-3 py-2.5 rounded-md font-semibold text-sm hover:bg-[#D4AF37]/90 transition-all duration-300 flex items-center gap-2 disabled:opacity-50 whitespace-nowrap'
                 >
-                  <Share2 size={14} />
-                  Share
-                </button>
-                <button
-                  onClick={() =>
-                    !isLoadingStats && window.open(referralLink, '_blank')
-                  }
-                  disabled={isLoadingStats}
-                  className='bg-[#1A1A1C] border border-[#1E1E21] text-[#EDEDED] px-3 py-2 rounded-md font-semibold text-sm hover:border-[#D4AF37]/40 transition-colors flex items-center justify-center gap-2 disabled:opacity-50'
-                >
-                  <ExternalLink size={14} />
-                  Preview
+                  {copiedLink ? <Check size={14} /> : <Copy size={14} />}
+                  <span className='hidden sm:inline'>
+                    {copiedLink ? 'Copied!' : 'Copy'}
+                  </span>
                 </button>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Commission Structure - Compact */}
+        {/* Commission Structure - Collapsible */}
         <div className='bg-[#121214] border border-[#1E1E21] rounded-xl p-4'>
-          <div className='flex items-center gap-3 mb-4'>
-            <div className='bg-[#D4AF37] p-2 rounded-lg text-black'>
-              <DollarSign size={18} />
+          <button
+            onClick={() => setShowCommission(!showCommission)}
+            className='w-full flex items-center justify-between text-left'
+          >
+            <div className='flex items-center gap-3'>
+              <div className='bg-[#D4AF37] p-2 rounded-lg text-black'>
+                <DollarSign size={18} />
+              </div>
+              <div>
+                <h3 className='text-lg font-bold text-[#EDEDED]'>
+                  Commission Structure
+                </h3>
+                <p className='text-gray-400 text-sm'>
+                  Recurring earnings on all plans
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className='text-lg font-bold text-[#EDEDED]'>
-                Commission Structure
-              </h3>
-              <p className='text-gray-400 text-sm'>
-                Recurring earnings on all plans
-              </p>
-            </div>
-          </div>
+            {showCommission ? (
+              <ChevronUp size={20} className='text-gray-400' />
+            ) : (
+              <ChevronDown size={20} className='text-gray-400' />
+            )}
+          </button>
 
-          <div className='grid grid-cols-1 sm:grid-cols-3 gap-3'>
-            <div className='bg-[#1A1A1C] border border-[#1E1E21] rounded-lg p-3 text-center'>
-              <div className='text-lg font-bold text-blue-400 mb-1'>20%</div>
-              <div className='text-[#EDEDED] text-sm font-medium'>Pro Plan</div>
-            </div>
-            <div className='bg-[#1A1A1C] border border-[#1E1E21] rounded-lg p-3 text-center ring-1 ring-[#D4AF37]/20'>
-              <div className='text-lg font-bold text-[#D4AF37] mb-1'>30%</div>
-              <div className='text-[#EDEDED] text-sm font-medium'>
-                Empire Plan
+          {showCommission && (
+            <div className='mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4'>
+              {/* Pro Plan */}
+              <div className='bg-[#1A1A1C] border border-[#1E1E21] rounded-lg p-5 text-center transition-all duration-300 hover:shadow-lg hover:shadow-[#D4AF37]/10 hover:border-[#D4AF37]/30'>
+                <div className='text-2xl font-extrabold text-blue-400 mb-2'>
+                  20%
+                </div>
+                <div className='text-[#EDEDED] text-base font-semibold mb-1'>
+                  Pro Plan
+                </div>
+                <div className='text-gray-400 text-sm mb-3'>
+                  Standard features
+                </div>
+                <div className='text-xs text-gray-500'>
+                  Recurring commission
+                </div>
               </div>
-              <div className='bg-[#D4AF37]/10 text-[#D4AF37] text-xs font-medium px-2 py-0.5 rounded-full mt-1'>
-                Popular
+
+              {/* Empire Plan (Popular) */}
+              <div className='bg-gradient-to-br from-[#D4AF37]/10 to-[#B8941F]/5 border border-[#D4AF37]/30 rounded-lg p-6 text-center relative transform scale-105 hover:scale-100 transition-all duration-300 shadow-lg shadow-[#D4AF37]/10'>
+                <div className='absolute top-2 right-2'>
+                  <span className='bg-[#D4AF37] text-black text-xs font-bold px-2 py-1 rounded-full'>
+                    Popular
+                  </span>
+                </div>
+                <div className='text-2xl font-extrabold text-[#D4AF37] mb-2'>
+                  30%
+                </div>
+                <div className='text-[#EDEDED] text-base font-semibold mb-1'>
+                  Empire Plan
+                </div>
+                <div className='text-gray-400 text-sm mb-3'>
+                  Best value for users
+                </div>
+                <div className='text-xs text-gray-500'>
+                  Highest earnings potential
+                </div>
+              </div>
+
+              {/* Ultimate Plan */}
+              <div className='bg-[#1A1A1C] border border-[#1E1E21] rounded-lg p-5 text-center transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 hover:border-purple-500/30'>
+                <div className='text-2xl font-extrabold text-purple-400 mb-2'>
+                  40%
+                </div>
+                <div className='text-[#EDEDED] text-base font-semibold mb-1'>
+                  Ultimate Plan
+                </div>
+                <div className='text-gray-400 text-sm mb-3'>
+                  Premium features
+                </div>
+                <div className='text-xs text-gray-500'>
+                  Maximum commission rate
+                </div>
               </div>
             </div>
-            <div className='bg-[#1A1A1C] border border-[#1E1E21] rounded-lg p-3 text-center'>
-              <div className='text-lg font-bold text-purple-400 mb-1'>40%</div>
-              <div className='text-[#EDEDED] text-sm font-medium'>
-                Ultimate Plan
-              </div>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Embed Code - Collapsible */}
