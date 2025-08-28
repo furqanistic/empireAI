@@ -18,6 +18,16 @@ import {
 } from '../../hooks/useAuth.js'
 import Layout from '../Layout/Layout'
 
+// Skeleton component (shadcn-style)
+const Skeleton = ({ className = '', ...props }) => {
+  return (
+    <div
+      className={`animate-pulse rounded-md bg-[#1A1A1C] ${className}`}
+      {...props}
+    />
+  )
+}
+
 const AffiliatePage = () => {
   const [copiedLink, setCopiedLink] = useState(false)
   const [copiedCode, setCopiedCode] = useState(false)
@@ -113,7 +123,7 @@ const AffiliatePage = () => {
           <div className='bg-[#121214] border border-[#1E1E21] rounded-lg p-4 text-center'>
             <div className='text-xl font-bold text-[#EDEDED] mb-1'>
               {isLoadingStats ? (
-                <Loader2 className='w-5 h-5 animate-spin mx-auto' />
+                <Skeleton className='h-6 w-8 mx-auto' />
               ) : (
                 referralStats?.summary?.totalReferrals || 0
               )}
@@ -123,7 +133,7 @@ const AffiliatePage = () => {
           <div className='bg-[#121214] border border-[#1E1E21] rounded-lg p-4 text-center'>
             <div className='text-xl font-bold text-[#D4AF37] mb-1'>
               {isLoadingStats ? (
-                <Loader2 className='w-5 h-5 animate-spin mx-auto' />
+                <Skeleton className='h-6 w-12 mx-auto' />
               ) : (
                 formatCurrency(referralStats?.summary?.totalRewards)
               )}
@@ -133,7 +143,7 @@ const AffiliatePage = () => {
           <div className='bg-[#121214] border border-[#1E1E21] rounded-lg p-4 text-center'>
             <div className='text-xl font-bold text-blue-400 mb-1'>
               {isLoadingStats ? (
-                <Loader2 className='w-5 h-5 animate-spin mx-auto' />
+                <Skeleton className='h-6 w-10 mx-auto' />
               ) : (
                 referralStats?.summary?.conversionRate || '0%'
               )}
@@ -143,7 +153,7 @@ const AffiliatePage = () => {
           <div className='bg-[#121214] border border-[#1E1E21] rounded-lg p-4 text-center'>
             <div className='text-xl font-bold text-emerald-400 mb-1'>
               {isLoadingStats ? (
-                <Loader2 className='w-5 h-5 animate-spin mx-auto' />
+                <Skeleton className='h-6 w-6 mx-auto' />
               ) : (
                 referralStats?.summary?.thisMonthReferrals || 0
               )}
@@ -187,10 +197,9 @@ const AffiliatePage = () => {
 
             <div className='bg-[#1A1A1C] border border-[#1E1E21] rounded-lg p-3'>
               <div className='flex items-center gap-2'>
-                {/* Unified input style */}
                 <div className='bg-[#121214] border border-[#1E1E21] rounded-md px-3 py-2.5 font-mono text-sm font-bold text-[#D4AF37] tracking-wider flex-1 text-center min-h-[38px] flex items-center justify-center'>
                   {isLoadingStats ? (
-                    <Loader2 className='w-5 h-5 animate-spin mx-auto text-[#D4AF37]' />
+                    <Skeleton className='h-5 w-20' />
                   ) : (
                     referralCode
                   )}
@@ -225,10 +234,9 @@ const AffiliatePage = () => {
 
             <div className='bg-[#1A1A1C] border border-[#1E1E21] rounded-lg p-3'>
               <div className='flex items-center gap-2'>
-                {/* Unified input style */}
                 <div className='bg-[#121214] border border-[#1E1E21] rounded-md px-3 py-2.5 font-mono text-xs text-[#EDEDED] flex-1 overflow-x-auto min-h-[38px] flex items-center'>
                   {isLoadingStats ? (
-                    <span className='text-gray-500'>Loading...</span>
+                    <Skeleton className='h-4 w-full max-w-xs' />
                   ) : (
                     referralLink
                   )}
@@ -422,9 +430,23 @@ const AffiliatePage = () => {
           {showAllReferrals && (
             <div className='mt-4'>
               {isLoadingStats ? (
-                <div className='text-center py-8'>
-                  <Loader2 className='w-6 h-6 animate-spin text-[#D4AF37] mx-auto mb-2' />
-                  <p className='text-gray-400 text-sm'>Loading referrals...</p>
+                <div className='space-y-2'>
+                  {/* Skeleton for referrals list */}
+                  {[1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      className='flex items-center justify-between p-3 bg-[#1A1A1C] border border-[#1E1E21] rounded-lg'
+                    >
+                      <div className='flex items-center gap-3'>
+                        <Skeleton className='w-8 h-8 rounded-full' />
+                        <div className='space-y-2'>
+                          <Skeleton className='h-4 w-24' />
+                          <Skeleton className='h-3 w-32' />
+                        </div>
+                      </div>
+                      <Skeleton className='h-6 w-16 rounded-full' />
+                    </div>
+                  ))}
                 </div>
               ) : referralStats?.referrals &&
                 referralStats.referrals.length > 0 ? (

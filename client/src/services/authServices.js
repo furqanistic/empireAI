@@ -1,3 +1,4 @@
+// File: client/src/services/authServices.js
 import axiosInstance from '../config/config.js'
 
 export const authService = {

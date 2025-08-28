@@ -117,7 +117,7 @@ export const useChangePassword = () => {
   })
 }
 
-// Referral hooks (unchanged)
+// Referral hooks
 export const useValidateReferralCode = (code, enabled = true) => {
   return useQuery({
     queryKey: ['referral', 'validate', code],
@@ -129,11 +129,17 @@ export const useValidateReferralCode = (code, enabled = true) => {
   })
 }
 
+// FIXED: Allow the query to run even without userId since the service handles that case
 export const useReferralStats = (userId) => {
+  const currentUser = useSelector(selectCurrentUser)
+
   return useQuery({
     queryKey: ['referral', 'stats', userId],
     queryFn: () => referralService.getReferralStats(userId),
-    enabled: !!userId,
+    // Enable the query if:
+    // 1. A specific userId is provided, OR
+    // 2. No userId is provided but we have a current user (for my-stats)
+    enabled: !!userId || !!currentUser,
     staleTime: 60 * 1000, // 1 minute
   })
 }
