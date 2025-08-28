@@ -11,7 +11,11 @@ import {
   selectToken,
   updateProfile,
 } from '../redux/userSlice.js'
-import { authService, referralService } from '../services/authServices.js'
+import {
+  authService,
+  notificationService,
+  referralService,
+} from '../services/authServices.js'
 
 // Auth hooks with Redux integration
 export const useSignup = () => {
@@ -27,6 +31,7 @@ export const useSignup = () => {
       dispatch(loginSuccess(data))
       // Invalidate and refetch any user-related queries
       queryClient.invalidateQueries({ queryKey: ['user'] })
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
     },
     onError: (error) => {
       const errorMessage =
@@ -50,6 +55,7 @@ export const useSignin = () => {
       dispatch(loginSuccess(data))
       // Invalidate and refetch any user-related queries
       queryClient.invalidateQueries({ queryKey: ['user'] })
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
     },
     onError: (error) => {
       const errorMessage =
@@ -160,6 +166,81 @@ export const useGenerateReferralCode = () => {
     onSuccess: () => {
       // Invalidate referral stats
       queryClient.invalidateQueries({ queryKey: ['referral', 'stats'] })
+    },
+  })
+}
+
+// Notification hooks
+export const useNotifications = (params = {}) => {
+  return useQuery({
+    queryKey: ['notifications', params],
+    queryFn: () => notificationService.getNotifications(params),
+    staleTime: 30 * 1000, // 30 seconds
+    cacheTime: 5 * 60 * 1000, // 5 minutes
+  })
+}
+
+export const useUnreadCount = () => {
+  return useQuery({
+    queryKey: ['notifications', 'unread-count'],
+    queryFn: notificationService.getUnreadCount,
+    refetchInterval: 60 * 1000, // Refresh every minute
+    staleTime: 30 * 1000, // 30 seconds
+  })
+}
+
+export const useNotificationStats = () => {
+  return useQuery({
+    queryKey: ['notifications', 'stats'],
+    queryFn: notificationService.getNotificationStats,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  })
+}
+
+export const useMarkAsRead = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: notificationService.markAsRead,
+    onSuccess: () => {
+      // Invalidate and refetch notifications
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+    },
+  })
+}
+
+export const useMarkAllAsRead = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: notificationService.markAllAsRead,
+    onSuccess: () => {
+      // Invalidate and refetch notifications
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+    },
+  })
+}
+
+export const useDeleteNotification = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: notificationService.deleteNotification,
+    onSuccess: () => {
+      // Invalidate and refetch notifications
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+    },
+  })
+}
+
+export const useClearReadNotifications = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: notificationService.clearReadNotifications,
+    onSuccess: () => {
+      // Invalidate and refetch notifications
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
     },
   })
 }

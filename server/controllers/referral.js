@@ -1,6 +1,7 @@
 // File: controllers/referral.js
 import { createError } from '../error.js'
 import User from '../models/User.js'
+import NotificationService from '../services/notificationService.js'
 
 // Get user's referral stats and information
 export const getReferralStats = async (req, res, next) => {
@@ -342,6 +343,85 @@ export const getReferralAnalytics = async (req, res, next) => {
     })
   } catch (error) {
     console.error('Error in getReferralAnalytics:', error)
+    next(error)
+  }
+}
+
+// Helper function to check and create achievement notifications
+const checkAndCreateAchievementNotifications = async (
+  userId,
+  totalReferrals
+) => {
+  try {
+    const milestones = [
+      { count: 1, type: 'first_referral' },
+      { count: 5, type: 'milestone_5_referrals' },
+      { count: 10, type: 'milestone_10_referrals' },
+      { count: 50, type: 'milestone_50_referrals' },
+      { count: 100, type: 'milestone_100_referrals' },
+    ]
+
+    const milestone = milestones.find((m) => m.count === totalReferrals)
+
+    if (milestone) {
+      await NotificationService.createAchievementNotification(
+        userId,
+        milestone.type,
+        { referralCount: totalReferrals }
+      )
+    }
+  } catch (error) {
+    console.error('Error creating achievement notification:', error)
+    // Don't throw error as this is not critical
+  }
+}
+
+// Award referral commission (can be called when referred user makes a purchase)
+export const awardReferralCommission = async (req, res, next) => {
+  try {
+    const { referredUserId, amount, transactionId } = req.body
+
+    if (!referredUserId || !amount) {
+      return next(createError(400, 'Referred user ID and amount are required'))
+    }
+
+    // Find the referred user
+    const referredUser = await User.findById(referredUserId).populate(
+      'referredBy'
+    )
+
+    if (!referredUser || !referredUser.referredBy) {
+      return next(createError(404, 'Referred user or referrer not found'))
+    }
+
+    const referrer = referredUser.referredBy
+    const commissionAmount = amount * 0.1 // 10% commission (adjust as needed)
+
+    // Update referrer's reward balance
+    referrer.referralStats.referralRewards += commissionAmount
+    await referrer.save()
+
+    // Create reward notification
+    await NotificationService.createReferralRewardNotification(
+      referrer._id,
+      commissionAmount,
+      referredUser.name
+    )
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        referrer: {
+          id: referrer._id,
+          name: referrer.name,
+        },
+        commissionAmount,
+        transactionId,
+        message: 'Referral commission awarded successfully',
+      },
+    })
+  } catch (error) {
+    console.error('Error in awardReferralCommission:', error)
     next(error)
   }
 }

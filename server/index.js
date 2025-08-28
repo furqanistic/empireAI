@@ -1,13 +1,13 @@
-// File: server/index.js - MINIMAL VERSION TO GET STARTED
+// File: server/index.js - UPDATED WITH NOTIFICATIONS
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import express from 'express'
 import mongoose from 'mongoose'
-
-// Only import existing routes
+// Import routes
 import authRoute from './routes/auth.js'
-import referralRoute from './routes/referral.js' // Comment out for now
+import notificationRoute from './routes/notification.js' // Add notification routes
+import referralRoute from './routes/referral.js'
 
 const app = express()
 dotenv.config({ quiet: true })
@@ -28,7 +28,8 @@ app.use(
 
 // Routes
 app.use('/api/auth/', authRoute)
-app.use('/api/referral/', referralRoute) // Comment out for now
+app.use('/api/referral/', referralRoute)
+app.use('/api/notifications/', notificationRoute) // Add notification routes
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -36,6 +37,20 @@ app.get('/health', (req, res) => {
     status: 'success',
     message: 'Server is running!',
     timestamp: new Date().toISOString(),
+  })
+})
+
+// Global error handling middleware
+app.use((error, req, res, next) => {
+  const statusCode = error.statusCode || 500
+  const message = error.message || 'Something went wrong!'
+
+  console.error(`Error ${statusCode}: ${message}`)
+
+  res.status(statusCode).json({
+    status: 'error',
+    statusCode,
+    message,
   })
 })
 
@@ -57,4 +72,7 @@ const PORT = process.env.PORT || 8800
 app.listen(PORT, () => {
   connect()
   console.log(`🚀 Server running on port ${PORT}`)
+  console.log(
+    `🔔 Notifications API available at: http://localhost:${PORT}/api/notifications/`
+  )
 })

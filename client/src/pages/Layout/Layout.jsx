@@ -1,31 +1,25 @@
 // File: client/src/pages/Layout/Layout.jsx
+import NotificationDrawer from '@/components/Layout/NotificationDrawer.jsx'
 import {
   Bell,
   Bot,
   Box,
-  Calendar,
-  Check,
-  ChevronDown,
-  Clock,
   Crown,
   DollarSign,
   Home,
   LogOut,
   Menu,
-  MessageCircle,
-  Settings,
   Star,
-  TrendingUp,
   User,
   User2,
   Users,
   X,
-  Zap,
 } from 'lucide-react'
 import React, { useState } from 'react'
 import { useSelector } from 'react-redux'
 import { Link, useLocation } from 'react-router-dom'
 import { useCurrentUser, useLogout } from '../../hooks/useAuth.js'
+import { useUnreadCount } from '../../hooks/useNotifications.js'
 import { selectIsAdmin } from '../../redux/userSlice.js'
 
 const Layout = ({ children }) => {
@@ -37,6 +31,10 @@ const Layout = ({ children }) => {
   const currentUser = useCurrentUser()
   const isAdmin = useSelector(selectIsAdmin)
   const logoutMutation = useLogout()
+
+  // Notification data
+  const { data: unreadData } = useUnreadCount()
+  const unreadCount = unreadData?.data?.unreadCount || 0
 
   // Get current location to determine active menu item
   const location = useLocation()
@@ -72,7 +70,6 @@ const Layout = ({ children }) => {
     },
   ]
 
-  // Example advanced item
   const advancedItems = [
     {
       id: 'products',
@@ -94,41 +91,6 @@ const Layout = ({ children }) => {
     },
   ]
 
-  const notifications = [
-    {
-      id: 1,
-      title: 'New Affiliate Commission',
-      message: 'You earned $127.50 from your referral',
-      time: '2 min ago',
-      icon: <DollarSign size={16} className='text-emerald-500' />,
-      unread: true,
-    },
-    {
-      id: 2,
-      title: 'AI Builder Update',
-      message: 'New templates are now available',
-      time: '1 hour ago',
-      icon: <Bot size={16} className='text-blue-500' />,
-      unread: true,
-    },
-    {
-      id: 3,
-      title: 'Monthly Report Ready',
-      message: 'Your performance report is ready to view',
-      time: '3 hours ago',
-      icon: <TrendingUp size={16} className='text-[#D4AF37]' />,
-      unread: false,
-    },
-    {
-      id: 4,
-      title: 'System Maintenance',
-      message: 'Scheduled maintenance tonight at 2 AM',
-      time: '1 day ago',
-      icon: <Settings size={16} className='text-gray-400' />,
-      unread: false,
-    },
-  ]
-
   // Function to check if menu item is active
   const isActive = (itemPath) => {
     return location.pathname === itemPath
@@ -138,11 +100,9 @@ const Layout = ({ children }) => {
   const handleLogout = async () => {
     try {
       await logoutMutation.mutateAsync()
-      // Redirect to auth page
       window.location.href = '/auth'
     } catch (error) {
       console.error('Logout error:', error)
-      // Even if API call fails, redirect to auth (Redux state is cleared)
       window.location.href = '/auth'
     }
   }
@@ -186,93 +146,6 @@ const Layout = ({ children }) => {
       </li>
     )
   }
-
-  const NotificationDrawer = () => (
-    <>
-      {/* Backdrop */}
-      <div
-        className={`fixed inset-0 bg-black/50 z-40 backdrop-blur-sm transition-opacity duration-300 ease-in-out ${
-          isNotificationOpen
-            ? 'opacity-100 pointer-events-auto'
-            : 'opacity-0 pointer-events-none'
-        }`}
-        onClick={() => setIsNotificationOpen(false)}
-      />
-
-      {/* Drawer */}
-      <div
-        className={`fixed top-0 right-0 h-full w-full md:w-96 bg-[#121214] border-l border-[#1E1E21] z-50 transform transition-transform duration-300 ease-in-out ${
-          isNotificationOpen ? 'translate-x-0' : 'translate-x-full'
-        }`}
-      >
-        {/* Header */}
-        <div className='flex items-center justify-between p-4 border-b border-[#1E1E21]'>
-          <div className='flex items-center gap-3'>
-            <Bell size={20} className='text-[#D4AF37]' />
-            <h2 className='text-lg font-semibold text-[#EDEDED]'>
-              Notifications
-            </h2>
-            <span className='bg-[#D4AF37] text-black text-xs px-2 py-1 rounded-full font-semibold'>
-              {notifications.filter((n) => n.unread).length}
-            </span>
-          </div>
-          <button
-            onClick={() => setIsNotificationOpen(false)}
-            className='p-2 rounded-lg bg-[#1A1A1C] text-[#EDEDED] hover:bg-[#1E1E21] transition-colors h-8 w-8 flex items-center justify-center'
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Actions */}
-        <div className='p-4 border-b border-[#1E1E21]'>
-          <button className='text-sm text-[#D4AF37] hover:text-[#D4AF37]/80 font-medium'>
-            Mark all as read
-          </button>
-        </div>
-
-        {/* Notifications List */}
-        <div className='flex-1 overflow-y-auto'>
-          {notifications.map((notification) => (
-            <div
-              key={notification.id}
-              className={`p-4 border-b border-[#1E1E21] hover:bg-[#1A1A1C] transition-colors cursor-pointer ${
-                notification.unread ? 'bg-[#1A1A1C]/50' : ''
-              }`}
-            >
-              <div className='flex items-start gap-3'>
-                <div className='mt-1'>{notification.icon}</div>
-                <div className='flex-1 min-w-0'>
-                  <div className='flex items-center gap-2 mb-1'>
-                    <h4 className='text-sm font-medium text-[#EDEDED] truncate'>
-                      {notification.title}
-                    </h4>
-                    {notification.unread && (
-                      <div className='w-2 h-2 bg-[#D4AF37] rounded-full flex-shrink-0' />
-                    )}
-                  </div>
-                  <p className='text-xs text-gray-400 mb-2 line-clamp-2'>
-                    {notification.message}
-                  </p>
-                  <div className='flex items-center gap-2 text-xs text-gray-500'>
-                    <Clock size={12} />
-                    <span>{notification.time}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Footer */}
-        <div className='p-4 border-t border-[#1E1E21]'>
-          <button className='w-full py-2 text-sm text-[#D4AF37] hover:text-[#D4AF37]/80 font-medium'>
-            View All Notifications
-          </button>
-        </div>
-      </div>
-    </>
-  )
 
   const SidebarContent = () => (
     <>
@@ -379,9 +252,9 @@ const Layout = ({ children }) => {
               className='relative p-2 rounded-lg bg-[#121214] border border-[#1E1E21] text-[#EDEDED] hover:bg-[#1A1A1C] transition-colors h-9 w-9 flex items-center justify-center'
             >
               <Bell size={22} />
-              {notifications.filter((n) => n.unread).length > 0 && (
+              {unreadCount > 0 && (
                 <span className='absolute -top-1 -right-1 w-4 h-4 bg-[#D4AF37] rounded-full text-black text-[10px] font-bold flex items-center justify-center'>
-                  {notifications.filter((n) => n.unread).length}
+                  {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               )}
             </button>
@@ -441,7 +314,10 @@ const Layout = ({ children }) => {
       </aside>
 
       {/* Notification Drawer */}
-      <NotificationDrawer />
+      <NotificationDrawer
+        isOpen={isNotificationOpen}
+        onClose={() => setIsNotificationOpen(false)}
+      />
 
       {/* Main Content */}
       <main className='flex-1 overflow-auto pt-14 md:pt-16 bg-[#0B0B0C]'>

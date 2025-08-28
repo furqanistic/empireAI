@@ -2,6 +2,7 @@
 import jwt from 'jsonwebtoken'
 import mongoose from 'mongoose'
 import { createError } from '../error.js'
+import Notification from '../models/Notification.js'
 import User from '../models/User.js'
 
 const signToken = (id) => {
@@ -118,9 +119,22 @@ export const signup = async (req, res, next) => {
 
     const [newUser] = await User.create([newUserData], { session })
 
-    // If there's a referrer, add this user to their referrals
+    // If there's a referrer, add this user to their referrals and create notification
     if (referrerUser) {
       await referrerUser.addReferral(newUser._id)
+
+      // Create notification for the referrer
+      try {
+        await Notification.createReferralNotification(referrerUser._id, newUser)
+        console.log(`Created notification for referrer ${referrerUser.name}`)
+      } catch (notificationError) {
+        // Log error but don't fail the signup process
+        console.error(
+          'Failed to create referral notification:',
+          notificationError
+        )
+      }
+
       console.log(`User ${referrerUser.name} referred ${newUser.name}`)
     }
 

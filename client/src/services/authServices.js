@@ -7,31 +7,26 @@ export const authService = {
     const response = await axiosInstance.post('/auth/signup', userData)
     return response.data
   },
-
   // Sign in user
   signin: async (credentials) => {
     const response = await axiosInstance.post('/auth/signin', credentials)
     return response.data
   },
-
   // Logout user
   logout: async () => {
     const response = await axiosInstance.post('/auth/logout')
     return response.data
   },
-
   // Get user profile
   getUserProfile: async (userId) => {
     const response = await axiosInstance.get(`/auth/profile/${userId}`)
     return response.data
   },
-
   // Update user profile
   updateProfile: async (userData) => {
     const response = await axiosInstance.put('/auth/profile', userData)
     return response.data
   },
-
   // Change password
   changePassword: async (passwordData) => {
     const response = await axiosInstance.put(
@@ -52,14 +47,12 @@ export const referralService = {
     const response = await axiosInstance.get(`/referral/validate/${code}`)
     return response.data
   },
-
   // Get referral stats
   getReferralStats: async (userId) => {
     const endpoint = userId ? `/referral/stats/${userId}` : '/referral/my-stats'
     const response = await axiosInstance.get(endpoint)
     return response.data
   },
-
   // Get referral leaderboard
   getReferralLeaderboard: async (params = {}) => {
     const response = await axiosInstance.get('/referral/leaderboard', {
@@ -67,10 +60,57 @@ export const referralService = {
     })
     return response.data
   },
-
   // Generate new referral code
   generateNewReferralCode: async () => {
     const response = await axiosInstance.put('/referral/generate-new-code')
+    return response.data
+  },
+}
+
+export const notificationService = {
+  // Get user notifications with pagination and filters
+  getNotifications: async (params = {}) => {
+    const response = await axiosInstance.get('/notifications', { params })
+    return response.data
+  },
+
+  // Get unread notification count
+  getUnreadCount: async () => {
+    const response = await axiosInstance.get('/notifications/unread-count')
+    return response.data
+  },
+
+  // Get notification statistics
+  getNotificationStats: async () => {
+    const response = await axiosInstance.get('/notifications/stats')
+    return response.data
+  },
+
+  // Mark specific notification as read
+  markAsRead: async (notificationId) => {
+    const response = await axiosInstance.put(
+      `/notifications/${notificationId}/read`
+    )
+    return response.data
+  },
+
+  // Mark all notifications as read
+  markAllAsRead: async () => {
+    const response = await axiosInstance.put('/notifications/mark-all-read')
+    return response.data
+  },
+
+  // Delete specific notification
+  deleteNotification: async (notificationId) => {
+    const response = await axiosInstance.delete(
+      `/notifications/${notificationId}`
+    )
+    return response.data
+  },
+
+  // Clear all read notifications
+  clearReadNotifications: async () => {
+    const response = await axiosInstance.delete('/notifications/clear-read')
     return response.data
   },
 }
