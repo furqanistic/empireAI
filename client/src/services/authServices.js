@@ -1,4 +1,3 @@
-// File: src/services/auth.js
 import axiosInstance from '../config/config.js'
 
 export const authService = {
@@ -38,6 +37,10 @@ export const authService = {
       '/auth/change-password',
       passwordData
     )
+    return response.data
+  },
+  deleteUser: async (userId) => {
+    const response = await axiosInstance.delete(`/auth/admin/users/${userId}`)
     return response.data
   },
 }

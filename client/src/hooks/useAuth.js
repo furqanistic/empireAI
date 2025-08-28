@@ -11,7 +11,7 @@ import {
   selectToken,
   updateProfile,
 } from '../redux/userSlice.js'
-import { authService, referralService } from '../services/auth.js'
+import { authService, referralService } from '../services/authServices.js'
 
 // Auth hooks with Redux integration
 export const useSignup = () => {

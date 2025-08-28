@@ -30,6 +30,9 @@ const UserSchema = new mongoose.Schema(
     lastLogin: {
       type: Date,
     },
+    passwordChangedAt: {
+      type: Date,
+    },
 
     // Referral System Fields
     referralCode: {
@@ -106,6 +109,12 @@ UserSchema.pre('save', async function (next) {
     // Generate a salt and hash the password
     const salt = await bcrypt.genSalt(12)
     this.password = await bcrypt.hash(this.password, salt)
+
+    // Set passwordChangedAt if this is an existing user changing password
+    if (!this.isNew) {
+      this.passwordChangedAt = new Date(Date.now() - 1000) // Subtract 1 second to ensure token is valid
+    }
+
     next()
   } catch (error) {
     next(error)
@@ -159,6 +168,18 @@ UserSchema.methods.correctPassword = async function (
   userPassword
 ) {
   return await bcrypt.compare(candidatePassword, userPassword)
+}
+
+// Method to check if password was changed after JWT was issued
+UserSchema.methods.changedPasswordAfter = function (JWTTimestamp) {
+  if (this.passwordChangedAt) {
+    const changedTimestamp = parseInt(
+      this.passwordChangedAt.getTime() / 1000,
+      10
+    )
+    return JWTTimestamp < changedTimestamp
+  }
+  return false
 }
 
 // Method to add a referral

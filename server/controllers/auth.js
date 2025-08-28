@@ -121,9 +121,6 @@ export const signup = async (req, res, next) => {
     // If there's a referrer, add this user to their referrals
     if (referrerUser) {
       await referrerUser.addReferral(newUser._id)
-
-      // You can add referral rewards logic here
-      // For example, give points to the referrer
       console.log(`User ${referrerUser.name} referred ${newUser.name}`)
     }
 
@@ -190,7 +187,7 @@ export const signin = async (req, res, next) => {
 export const updateUser = async (req, res, next) => {
   try {
     const { role, name, email } = req.body
-    const userId = req.params.id
+    const userId = req.params.id || req.user.id // Support both admin updates and self-updates
 
     // Find the user first
     const existingUser = await User.findById(userId)
@@ -200,7 +197,16 @@ export const updateUser = async (req, res, next) => {
       return next(createError(404, 'No user found with that ID'))
     }
 
-    // Validate role if being updated
+    // Check if user is trying to update their own profile or is admin
+    if (req.user.role !== 'admin' && req.user.id !== userId) {
+      return next(createError(403, 'You can only update your own profile'))
+    }
+
+    // Validate role if being updated (only admins can change roles)
+    if (role && req.user.role !== 'admin') {
+      return next(createError(403, 'Only admins can change user roles'))
+    }
+
     if (role && !['admin', 'user'].includes(role)) {
       return next(createError(400, 'Invalid role provided'))
     }
@@ -225,7 +231,7 @@ export const updateUser = async (req, res, next) => {
 
     // Prepare update data
     const updateData = {}
-    if (role) updateData.role = role
+    if (role && req.user.role === 'admin') updateData.role = role
     if (name) updateData.name = name.trim()
     if (email) updateData.email = email.toLowerCase().trim()
 
@@ -276,7 +282,14 @@ export const deleteUser = async (req, res, next) => {
 
 export const getUserProfile = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id)
+    const userId = req.params.id || req.user.id // Support both getting other profiles and own profile
+
+    // Check if user is trying to access their own profile or is admin
+    if (req.user.role !== 'admin' && req.user.id !== userId) {
+      return next(createError(403, 'You can only access your own profile'))
+    }
+
+    const user = await User.findById(userId)
       .populate('referredBy', 'name email referralCode')
       .populate('referrals.user', 'name email joinedAt')
 
@@ -349,6 +362,12 @@ export const changePassword = async (req, res, next) => {
     if (newPassword.length < 8) {
       return next(
         createError(400, 'New password must be at least 8 characters long')
+      )
+    }
+
+    if (currentPassword === newPassword) {
+      return next(
+        createError(400, 'New password must be different from current password')
       )
     }
 
