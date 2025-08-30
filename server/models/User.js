@@ -1,4 +1,4 @@
-// File: models/User.js
+// File: models/User.js - UPDATED WITH STRIPE INTEGRATION
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import mongoose from 'mongoose'
@@ -32,6 +32,13 @@ const UserSchema = new mongoose.Schema(
     },
     passwordChangedAt: {
       type: Date,
+    },
+
+    // Stripe Integration Fields
+    stripeCustomerId: {
+      type: String,
+      unique: true,
+      sparse: true, // Allows multiple null values but unique non-null values
     },
 
     // Referral System Fields
@@ -98,6 +105,7 @@ const UserSchema = new mongoose.Schema(
 UserSchema.index({ email: 1 })
 UserSchema.index({ referralCode: 1 })
 UserSchema.index({ referredBy: 1 })
+UserSchema.index({ stripeCustomerId: 1 })
 UserSchema.index({ isDeleted: 1, isActive: 1 })
 
 // Pre-save middleware to hash password
@@ -216,6 +224,27 @@ UserSchema.virtual('referralUrl').get(function () {
   return `${
     process.env.FRONTEND_URL || 'http://localhost:5173'
   }/auth?ref=${this.referralCode}`
+})
+
+// Virtual to get subscription status (populated by middleware)
+UserSchema.virtual('subscriptionStatus').get(function () {
+  if (this.subscription) {
+    return {
+      hasSubscription: true,
+      isActive: this.subscription.isActive,
+      plan: this.subscription.plan,
+      status: this.subscription.status,
+      trialActive: this.subscription.isTrialActive,
+      daysRemaining: this.subscription.daysRemaining,
+    }
+  }
+  return {
+    hasSubscription: false,
+    isActive: false,
+    plan: null,
+    status: 'none',
+    trialActive: false,
+  }
 })
 
 // Static method to find user by referral code

@@ -7,6 +7,7 @@ import AuthPage from './pages/Auth/AuthPage'
 import DashboardPage from './pages/Dashboard/DashboardPage'
 import EarningsPage from './pages/Earnings/EarningsPage'
 import PricingPage from './pages/Pricing/PricingPage'
+import SubscriptionSuccess from './pages/Pricing/SubscriptionSuccess'
 import ProductPage from './pages/Product/ProductPage'
 import ProfilePage from './pages/Profile/ProfilePage'
 import { selectCurrentUser } from './redux/userSlice.js'
@@ -112,6 +113,7 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+        <Route path='/pricing/success' element={<SubscriptionSuccess />} />
 
         {/* Catch all route - redirect to auth */}
         <Route path='*' element={<Navigate to='/auth' replace />} />

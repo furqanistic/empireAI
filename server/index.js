@@ -7,8 +7,8 @@ import mongoose from 'mongoose'
 // Import routes
 import authRoute from './routes/auth.js'
 import notificationRoute from './routes/notification.js' // Add notification routes
-import referralRoute from './routes/referral.js'
-
+import referralRoute from './routes/referral.js '
+import stripeRoute from './routes/stripe.js' // Add notification routes
 const app = express()
 dotenv.config({ quiet: true })
 
@@ -29,7 +29,8 @@ app.use(
 // Routes
 app.use('/api/auth/', authRoute)
 app.use('/api/referral/', referralRoute)
-app.use('/api/notifications/', notificationRoute) // Add notification routes
+app.use('/api/notifications/', notificationRoute)
+app.use('/api/stripe/', stripeRoute)
 
 // Health check endpoint
 app.get('/health', (req, res) => {
