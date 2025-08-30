@@ -8,16 +8,17 @@ import {
   Target,
 } from 'lucide-react'
 import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 import Layout from '../Layout/Layout'
 
 const AIBuilderPage = () => {
   const [searchTerm, setSearchTerm] = useState('')
-
+  const navigate = useNavigate()
   // AI Tools Data - Only 3 tools
   const aiTools = [
     {
-      id: 'viral-hooks',
+      id: 'viral-hooks-factory',
       name: 'Viral Hook Factory',
       description:
         'Generate unlimited high-converting hooks for any niche. Perfect for social media posts, emails, and content that stops the scroll.',
@@ -99,10 +100,7 @@ const AIBuilderPage = () => {
 
       {/* Try Button - Sticks to bottom */}
       <button
-        onClick={() => {
-          // Navigate to specific AI tool page
-          console.log(`Navigate to: /ai/${tool.id}`)
-        }}
+        onClick={() => navigate(`/build/${tool.id}`)}
         className='w-full bg-[#D4AF37] text-black h-8 rounded-xl font-semibold hover:bg-[#D4AF37]/90 transition-all duration-300 flex items-center justify-center gap-2'
       >
         Try {tool.name}

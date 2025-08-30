@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import AffiliatePage from './pages/Affiliate/AffiliatePage'
 import AIBuilderPage from './pages/AIBuilder/AIBuilderPage'
+import ViralHookFactory from './pages/AIBuilder/ViralHookFactory'
 import AuthPage from './pages/Auth/AuthPage'
 import DashboardPage from './pages/Dashboard/DashboardPage'
 import EarningsPage from './pages/Earnings/EarningsPage'
@@ -70,6 +71,14 @@ const App = () => {
           element={
             <ProtectedRoute>
               <AIBuilderPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path='/build/viral-hooks-factory'
+          element={
+            <ProtectedRoute>
+              <ViralHookFactory />
             </ProtectedRoute>
           }
         />
