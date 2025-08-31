@@ -29,8 +29,8 @@ app.use(
     origin:
       process.env.NODE_ENV === 'production'
         ? [
-            process.env.FRONTEND_URL || 'https://ascndlabs.com/',
-            'https://api.ascndlabs.com/',
+            process.env.FRONTEND_URL || 'https://ascndlabs.com',
+            'https://api.ascndlabs.com',
           ]
         : ['http://localhost:5173', 'http://localhost:5174'],
     credentials: true,
