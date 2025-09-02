@@ -8,6 +8,7 @@ import mongoose from 'mongoose'
 import authRoute from './routes/auth.js'
 import hookRoute from './routes/hook.js' // Add hook routes
 import notificationRoute from './routes/notification.js'
+import productRoute from './routes/product.js'
 import referralRoute from './routes/referral.js'
 import stripeRoute from './routes/stripe.js'
 // Import hook middleware
@@ -72,7 +73,7 @@ app.use('/api/auth/', authRoute)
 app.use('/api/referral/', referralRoute)
 app.use('/api/notifications/', notificationRoute)
 app.use('/api/stripe/', stripeRoute)
-
+app.use('/api/products/', productRoute)
 // Hook Generation Routes with middleware
 app.use(
   '/api/hooks/',

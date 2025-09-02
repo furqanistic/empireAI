@@ -1,6 +1,5 @@
 // File: services/groqService.js
 import dotenv from 'dotenv'
-import fetch from 'node-fetch'
 dotenv.config({ quiet: true })
 
 class GroqService {
