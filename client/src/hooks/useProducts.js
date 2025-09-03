@@ -1,4 +1,4 @@
-// File: client/src/hooks/useProducts.js
+// File: client/src/hooks/useProducts.js - FIXED export functionality
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { productService } from '../services/productServices.js'
 
@@ -221,100 +221,40 @@ export const useCopyContent = () => {
   }
 }
 
-// Custom hook for handling product download with tracking
+// FIXED: Export product hook - now works with backend API
 export const useDownloadProduct = () => {
-  const markProductDownloaded = useMarkProductDownloaded()
+  const queryClient = useQueryClient()
 
-  const downloadProductReport = async (productData, generationId) => {
-    try {
-      if (!productData) {
-        throw new Error('No product data available')
+  return useMutation({
+    mutationFn: async ({ generationId, format }) => {
+      console.log(`Starting export: ${format} for generation: ${generationId}`)
+
+      // Call the backend export service
+      const result = await productService.exportProduct(generationId, format)
+
+      console.log(`Export completed: ${result.filename}`)
+      return result
+    },
+    onSuccess: (result, variables) => {
+      console.log('Export successful:', result)
+
+      // Optionally mark as downloaded in backend for analytics
+      if (variables.generationId) {
+        // Fire and forget - don't wait for this
+        productService
+          .markProductDownloaded(variables.generationId)
+          .catch((err) => console.warn('Failed to mark as downloaded:', err))
       }
 
-      // Create comprehensive text version
-      const report = `
-${productData.title}
-${'='.repeat(productData.title.length)}
-
-PRODUCT OVERVIEW
-${productData.overview}
-
-PRODUCT OUTLINE
-${productData.outline.modules
-  .map(
-    (module, i) =>
-      `Module ${i + 1}: ${module.title}\n${module.description}\n${module.lessons
-        .map((lesson) => `• ${lesson}`)
-        .join('\n')}`
-  )
-  .join('\n\n')}
-
-PRICING STRATEGY
-${productData.pricing.strategy}
-Main Price: ${productData.pricing.mainPrice}
-Payment Plans:
-${productData.pricing.paymentPlans.map((plan) => `• ${plan}`).join('\n')}
-
-MARKETING ANGLES
-${productData.marketing.angles
-  .map((angle, i) => `${i + 1}. ${angle}`)
-  .join('\n')}
-
-BONUS IDEAS
-${productData.bonuses
-  .map((bonus, i) => `${i + 1}. ${bonus.title}\n   ${bonus.description}`)
-  .join('\n\n')}
-
-LAUNCH SEQUENCE
-${productData.launch.sequence
-  .map((step, i) => `Day ${step.day}: ${step.title}\n${step.description}`)
-  .join('\n\n')}
-
-SALES COPY
-Headline: ${productData.sales.headline}
-Subheadline: ${productData.sales.subheadline}
-
-Key Benefits:
-${productData.sales.bulletPoints.map((point) => `• ${point}`).join('\n')}
-
-TECHNICAL REQUIREMENTS
-${productData.technical.requirements.map((req) => `• ${req}`).join('\n')}
-
-REVENUE PROJECTIONS
-${Object.entries(productData.revenue)
-  .map(([key, value]) => `${key}: ${value}`)
-  .join('\n')}
-
-Generated on: ${new Date().toLocaleDateString()}
-      `
-
-      const blob = new Blob([report], { type: 'text/plain' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${productData.title.replace(
-        /[^a-z0-9]/gi,
-        '_'
-      )}_Product_Blueprint.txt`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-
-      // Track the download action
-      if (generationId) {
-        markProductDownloaded.mutate(generationId)
-      }
-
-      return { success: true }
-    } catch (error) {
-      console.error('Failed to download product:', error)
-      return { success: false, error: 'Failed to download product report' }
-    }
-  }
-
-  return {
-    downloadProduct: downloadProductReport,
-    isLoading: markProductDownloaded.isPending,
-  }
+      // Invalidate related queries
+      queryClient.invalidateQueries({
+        queryKey: ['products', 'generation', variables.generationId],
+      })
+      queryClient.invalidateQueries({ queryKey: ['products', 'stats'] })
+    },
+    onError: (error, variables) => {
+      console.error('Export failed:', error)
+      console.error('Variables:', variables)
+    },
+  })
 }

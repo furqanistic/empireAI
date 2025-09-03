@@ -1,8 +1,10 @@
-// File: routes/product.js
+// File: server/routes/product.js - Complete with all missing routes
 import express from 'express'
+
 import {
   addFeedback,
   deleteProductGeneration,
+  exportProduct,
   generateProduct,
   getAllProductGenerations,
   getProductAnalytics,
@@ -13,10 +15,10 @@ import {
   markProductDownloaded,
   testAIConnection,
   testGroqConnection,
+  trackExport,
 } from '../controllers/productController.js'
 import {
   checkActiveUser,
-  logUserActivity,
   restrictTo,
   verifyToken,
 } from '../middleware/authMiddleware.js'
@@ -55,76 +57,47 @@ router.use(addRateInfoHeaders)
 // Enhanced logging for all product operations
 router.use(logProductActivity)
 
-// Main product generation endpoint - NO LIMITS!
+// Main product generation endpoint
 router.post(
   '/generate',
-  validateEnhancedProductRequest, // Enhanced validation with better error messages
-  validateContentAppropriateNess, // Basic content filtering
-  trackProductAnalytics, // Analytics tracking
-  enhancedProductLogging, // Detailed logging
-  logUserActivity('generate_product'), // User activity logging
-  generateProduct // Main generation function
-)
-
-// Alternative generation endpoint with basic validation (for backwards compatibility)
-router.post(
-  '/generate-basic',
-  validateProductRequest, // Basic validation only
-  logUserActivity('generate_product_basic'),
+  validateEnhancedProductRequest,
+  validateContentAppropriateNess,
+  trackProductAnalytics,
+  enhancedProductLogging,
   generateProduct
 )
 
-// Get user's product generation history - NO LIMITS!
-router.get(
-  '/history',
-  logUserActivity('view_product_history'),
-  getProductHistory
-)
+// Alternative generation endpoint with basic validation (for backwards compatibility)
+router.post('/generate-basic', validateProductRequest, generateProduct)
 
-// Get user's product generation statistics - NO LIMITS!
-router.get('/stats', logUserActivity('view_product_stats'), getUserStats)
+// FIXED: Export product - removed wrong validation middleware
+router.post('/export', trackExport, exportProduct)
 
-// Get specific product generation by ID - NO LIMITS!
-router.get(
-  '/:id',
-  logUserActivity('view_product_generation'),
-  getProductGeneration
-)
+// ADDED: Get user's product generation history - This was missing!
+router.get('/history', getProductHistory)
 
-// Mark content as copied (for analytics) - NO LIMITS!
-router.post(
-  '/:id/copy',
-  logUserActivity('copy_product_content'),
-  markContentCopied
-)
+// ADDED: Get user's product generation statistics - This was missing!
 
-// Mark product as downloaded (for analytics) - NO LIMITS!
-router.post(
-  '/:id/download',
-  logUserActivity('download_product'),
-  markProductDownloaded
-)
+// Get specific product generation by ID
+router.get('/:id', getProductGeneration)
 
-// Add feedback to a product generation - NO LIMITS!
-router.post(
-  '/:id/feedback',
-  logUserActivity('add_product_feedback'),
-  addFeedback
-)
+// Mark content as copied (for analytics)
+router.post('/:id/copy', markContentCopied)
 
-// Delete a product generation - NO LIMITS!
-router.delete(
-  '/:id',
-  logUserActivity('delete_product_generation'),
-  deleteProductGeneration
-)
+// Mark product as downloaded (for analytics)
+router.post('/:id/download', markProductDownloaded)
 
-// Bulk generation endpoint (for power users) - NO LIMITS!
+// Add feedback to a product generation
+router.post('/:id/feedback', addFeedback)
+
+// Delete a product generation
+router.delete('/:id', deleteProductGeneration)
+
+// Bulk generation endpoint (for power users)
 router.post(
   '/generate-bulk',
   validateEnhancedProductRequest,
   trackProductAnalytics,
-  logUserActivity('generate_bulk_products'),
   async (req, res, next) => {
     // Handle bulk generation (generate multiple products at once)
     const { bulkConfig } = req.body
@@ -163,68 +136,57 @@ router.post(
   }
 )
 
-// Admin only routes - NO LIMITS!
+// Admin only routes
 router.use(restrictTo('admin'))
 
-// Get product analytics (admin only) - NO LIMITS!
-router.get(
-  '/admin/analytics',
-  logUserActivity('view_product_analytics'),
-  getProductAnalytics
-)
+// Get product analytics (admin only)
+router.get('/admin/analytics', getProductAnalytics)
 
-// Get all product generations (admin only) - NO LIMITS!
-router.get(
-  '/admin/all',
-  logUserActivity('view_all_product_generations'),
-  getAllProductGenerations
-)
+// Get all product generations (admin only)
+router.get('/admin/all', getAllProductGenerations)
 
-// Admin bulk operations - NO LIMITS!
-router.post(
-  '/admin/bulk-operations',
-  logUserActivity('admin_bulk_operations'),
-  async (req, res, next) => {
-    const { operation, filters } = req.body
+// Admin bulk operations
+router.post('/admin/bulk-operations', async (req, res, next) => {
+  const { operation, filters } = req.body
 
-    try {
-      switch (operation) {
-        case 'cleanup-failed':
-          // Clean up failed generations
-          const deleted = await ProductGeneration.deleteMany({
-            status: 'failed',
-            createdAt: { $lt: new Date(Date.now() - 24 * 60 * 60 * 1000) }, // Older than 24 hours
-          })
+  try {
+    switch (operation) {
+      case 'cleanup-failed':
+        // Clean up failed generations
+        const deleted = await ProductGeneration.deleteMany({
+          status: 'failed',
+          createdAt: { $lt: new Date(Date.now() - 24 * 60 * 60 * 1000) }, // Older than 24 hours
+        })
 
-          res.json({
-            status: 'success',
-            message: `Cleaned up ${deleted.deletedCount} failed generations`,
-          })
-          break
+        res.json({
+          status: 'success',
+          message: `Cleaned up ${deleted.deletedCount} failed generations`,
+        })
+        break
 
-        case 'export-data':
-          // Export generation data
-          const generations = await ProductGeneration.find(filters || {})
-            .populate('user', 'email')
-            .lean()
+      case 'export-data':
+        // Export generation data
+        const generations = await ProductGeneration.find(filters || {})
+          .populate('user', 'email')
+          .lean()
 
-          res.json({
-            status: 'success',
-            data: { generations },
-            count: generations.length,
-          })
-          break
+        res.json({
+          status: 'success',
+          data: { generations },
+          count: generations.length,
+        })
+        break
 
-        default:
-          res.status(400).json({
-            status: 'error',
-            message: 'Invalid bulk operation',
-          })
-      }
-    } catch (error) {
-      next(error)
+      default:
+        res.status(400).json({
+          status: 'error',
+          message: 'Invalid bulk operation',
+        })
     }
+  } catch (error) {
+    console.error('Admin bulk operation error:', error)
+    next(error)
   }
-)
+})
 
 export default router

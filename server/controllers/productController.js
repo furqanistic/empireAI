@@ -1,8 +1,8 @@
 // File: controllers/productController.js
 import { createError } from '../error.js'
 import ProductGeneration from '../models/ProductGeneration.js'
+import exportService from '../services/exportService.js'
 import productService from '../services/productService.js'
-
 // Generate complete digital product
 // Complete generateProduct function for controllers/productController.js
 
@@ -767,5 +767,137 @@ export const testGroqConnection = async (req, res, next) => {
   } catch (error) {
     console.log('❌ GROQ connection failed:', error.message)
     next(createError(500, `GROQ connection failed: ${error.message}`))
+  }
+}
+
+export const exportProduct = async (req, res, next) => {
+  try {
+    const { generationId, format } = req.body
+    const userId = req.user.id
+    const userEmail = req.user.email
+
+    console.log(
+      `📤 Export request: ${format} for user: ${userEmail}, generation: ${generationId}`
+    )
+
+    // Validate required parameters
+    if (!generationId || !format) {
+      return next(createError(400, 'Generation ID and format are required'))
+    }
+
+    // Validate format
+    const validFormats = ['pdf', 'docx', 'xlsx', 'pptx']
+    if (!validFormats.includes(format)) {
+      return next(
+        createError(
+          400,
+          `Invalid format. Supported formats: ${validFormats.join(', ')}`
+        )
+      )
+    }
+
+    // Find the product generation
+    const productGeneration = await ProductGeneration.findOne({
+      _id: generationId,
+      user: userId,
+      status: 'completed',
+    })
+
+    if (!productGeneration) {
+      console.log(
+        `❌ Product generation not found: ${generationId} for user: ${userId}`
+      )
+      return next(
+        createError(404, 'Product generation not found or not completed')
+      )
+    }
+
+    if (!productGeneration.generatedProduct) {
+      console.log(`❌ Product data missing for generation: ${generationId}`)
+      return next(createError(400, 'Product data is not available for export'))
+    }
+
+    console.log(
+      `✅ Found product generation: ${productGeneration.generatedProduct.title}`
+    )
+
+    try {
+      // Generate the export using the exportService
+      console.log(`🔄 Starting ${format} generation...`)
+      const result = await exportService.exportProduct(
+        productGeneration.generatedProduct,
+        generationId,
+        format,
+        userEmail
+      )
+
+      console.log(
+        `✅ Export completed: ${result.filename} (${result.buffer.length} bytes)`
+      )
+
+      // Mark as downloaded (optional - for analytics)
+      try {
+        await productGeneration.markDownloaded()
+        console.log(`📊 Marked generation ${generationId} as downloaded`)
+      } catch (markError) {
+        console.warn('Failed to mark as downloaded:', markError.message)
+        // Don't fail the request for this
+      }
+
+      // Set response headers for file download
+      res.setHeader('Content-Type', result.contentType)
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${result.filename}"`
+      )
+      res.setHeader('Content-Length', result.buffer.length)
+      res.setHeader('Cache-Control', 'no-cache')
+
+      // Send the file buffer
+      res.send(result.buffer)
+    } catch (exportError) {
+      console.error('❌ Export generation error:', exportError)
+
+      // Provide specific error messages based on the error type
+      if (exportError.message.includes('PDF')) {
+        return next(
+          createError(500, 'PDF generation failed. Please try again.')
+        )
+      } else if (exportError.message.includes('Excel')) {
+        return next(
+          createError(500, 'Excel generation failed. Please try again.')
+        )
+      } else if (exportError.message.includes('timeout')) {
+        return next(
+          createError(504, 'Export generation timed out. Please try again.')
+        )
+      } else {
+        return next(createError(500, `Export failed: ${exportError.message}`))
+      }
+    }
+  } catch (error) {
+    console.error('❌ Export controller error:', error)
+    next(createError(500, 'Export failed due to server error'))
+  }
+}
+
+// Track export analytics
+export const trackExport = async (req, res, next) => {
+  try {
+    const { generationId, format } = req.body
+    const userId = req.user.id
+
+    // Log export for analytics
+    console.log(
+      `📊 Export Analytics: User ${userId} exported ${format} for generation ${generationId}`
+    )
+
+    // You could save this to a separate analytics collection if needed
+    // await ExportAnalytics.create({ userId, generationId, format, timestamp: new Date() })
+
+    next()
+  } catch (error) {
+    console.warn('Export tracking failed:', error.message)
+    next() // Don't fail the request for tracking errors
   }
 }

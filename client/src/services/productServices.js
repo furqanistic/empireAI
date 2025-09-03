@@ -1,4 +1,4 @@
-// File: client/src/services/productServices.js
+// File: client/src/services/productServices.js - FIXED with export functionality
 import axiosInstance from '../config/config.js'
 
 export const productService = {
@@ -71,5 +71,75 @@ export const productService = {
   getAllProductGenerations: async (params = {}) => {
     const response = await axiosInstance.get('/products/admin/all', { params })
     return response.data
+  },
+
+  // ADDED: Export product in various formats
+  exportProduct: async (generationId, format) => {
+    try {
+      const response = await axiosInstance.post(
+        '/products/export',
+        {
+          generationId,
+          format,
+        },
+        {
+          responseType: 'blob', // Important for file downloads
+          timeout: 60000, // 60 second timeout for large files
+        }
+      )
+
+      // Get filename from response headers
+      const contentDisposition = response.headers['content-disposition']
+      let filename = `product-blueprint.${format}`
+
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="([^"]*)"/)
+        if (filenameMatch) {
+          filename = filenameMatch[1]
+        }
+      }
+
+      // Create blob and download
+      const blob = new Blob([response.data], {
+        type: response.headers['content-type'],
+      })
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+
+      // Cleanup
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+
+      return {
+        success: true,
+        filename,
+        size: blob.size,
+      }
+    } catch (error) {
+      console.error('Export error:', error)
+
+      // Handle specific error types
+      if (error.response?.status === 404) {
+        throw new Error('Product generation not found')
+      } else if (error.response?.status === 401) {
+        throw new Error('Please log in to export products')
+      } else if (error.response?.status === 400) {
+        throw new Error('Invalid export request')
+      } else if (error.response?.status >= 500) {
+        throw new Error('Server error - please try again later')
+      } else if (error.code === 'NETWORK_ERROR') {
+        throw new Error('Network error - check your connection')
+      } else {
+        throw new Error(
+          error.response?.data?.message || error.message || 'Export failed'
+        )
+      }
+    }
   },
 }

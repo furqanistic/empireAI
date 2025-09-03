@@ -1,4 +1,4 @@
-// File: client/src/pages/AIBuilder/AIProductGenerator.jsx
+// File: client/src/pages/AIBuilder/ProductGenerator.jsx - Complete version with History
 import {
   AlertCircle,
   BookOpen,
@@ -39,7 +39,9 @@ import {
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 
+import ExportOptions from '@/components/AIBuilder/ExportOptions'
 import ProductGenerationProgress from '@/components/AIBuilder/ProductGenerationProgress'
+import ProductHistory from '@/components/AIBuilder/ProductHistory'
 import {
   useCopyContent,
   useDownloadProduct,
@@ -49,7 +51,7 @@ import {
 
 import Layout from '../Layout/Layout'
 
-const AIProductGenerator = () => {
+const ProductGenerator = () => {
   const [selectedProductType, setSelectedProductType] = useState('')
   const [selectedNiche, setSelectedNiche] = useState('')
   const [selectedAudience, setSelectedAudience] = useState('')
@@ -62,11 +64,36 @@ const AIProductGenerator = () => {
   const [activeTab, setActiveTab] = useState('overview')
   const [detailLevel, setDetailLevel] = useState('standard')
 
+  // NEW: State for loaded products from history
+  const [loadedProductData, setLoadedProductData] = useState(null)
+  const [isFromHistory, setIsFromHistory] = useState(false)
+
   // Hooks
   const generateProductMutation = useGenerateProduct()
   const { copyContent, isLoading: isCopying } = useCopyContent()
-  const { downloadProduct, isLoading: isDownloading } = useDownloadProduct()
+  const downloadMutation = useDownloadProduct()
   const { data: userStats } = useProductStats()
+
+  // NEW: Function to handle loading a product from history
+  const handleLoadProduct = (productData) => {
+    setLoadedProductData(productData)
+    setGeneratedProduct(productData.product)
+    setGenerationId(productData.id)
+    setIsFromHistory(true)
+
+    // Set form fields based on loaded product metadata
+    if (productData.metadata) {
+      setSelectedProductType(productData.metadata.productType || '')
+      setSelectedNiche(productData.metadata.niche || '')
+      setSelectedAudience(productData.metadata.audience || '')
+      setSelectedPriceRange(productData.metadata.priceRange || '')
+      setSelectedComplexity(productData.metadata.complexity || '')
+      setCustomContext('')
+    }
+
+    setActiveTab('overview')
+    setCopyFeedback({})
+  }
 
   const hasTabContent = (tabId, product) => {
     if (!product) return false
@@ -351,6 +378,10 @@ const AIProductGenerator = () => {
     )
       return
 
+    // Clear any loaded product data when generating new
+    setLoadedProductData(null)
+    setIsFromHistory(false)
+
     const productData = {
       productType: selectedProductType,
       niche: selectedNiche,
@@ -368,9 +399,13 @@ const AIProductGenerator = () => {
         setGeneratedProduct(result.data.product)
         setGenerationId(result.data.id)
         setActiveTab('overview')
+
+        // Clear any previous copy feedback
+        setCopyFeedback({})
       }
     } catch (error) {
       console.error('Generation failed:', error)
+      // Error handling is managed by the mutation
     }
   }
 
@@ -394,7 +429,10 @@ const AIProductGenerator = () => {
     } catch (error) {
       setCopyFeedback((prev) => ({
         ...prev,
-        [section]: { type: 'error', message: 'Failed to copy' },
+        [section]: {
+          type: 'error',
+          message: error.message || 'Failed to copy',
+        },
       }))
 
       setTimeout(() => {
@@ -402,41 +440,7 @@ const AIProductGenerator = () => {
           ...prev,
           [section]: null,
         }))
-      }, 2000)
-    }
-  }
-
-  const downloadFullReport = async () => {
-    if (!generatedProduct) return
-
-    try {
-      const result = await downloadProduct(generatedProduct, generationId)
-
-      if (result.success) {
-        setCopyFeedback((prev) => ({
-          ...prev,
-          download: { type: 'success', message: 'Downloaded!' },
-        }))
-
-        setTimeout(() => {
-          setCopyFeedback((prev) => ({
-            ...prev,
-            download: null,
-          }))
-        }, 2000)
-      }
-    } catch (error) {
-      setCopyFeedback((prev) => ({
-        ...prev,
-        download: { type: 'error', message: 'Download failed' },
-      }))
-
-      setTimeout(() => {
-        setCopyFeedback((prev) => ({
-          ...prev,
-          download: null,
-        }))
-      }, 2000)
+      }, 3000)
     }
   }
 
@@ -451,6 +455,12 @@ const AIProductGenerator = () => {
   return (
     <Layout>
       <div className='max-w-7xl mx-auto p-4 sm:p-6 space-y-8'>
+        {/* NEW: Product History Component */}
+        <ProductHistory
+          onLoadProduct={handleLoadProduct}
+          currentProductId={generationId}
+        />
+
         {/* Progress Bar Component */}
         <ProductGenerationProgress isGenerating={isGenerating} />
 
@@ -471,6 +481,37 @@ const AIProductGenerator = () => {
           </p>
         </div>
 
+        {/* NEW: Show loaded product info */}
+        {isFromHistory && loadedProductData && (
+          <div className='max-w-2xl mx-auto'>
+            <div className='bg-gradient-to-r from-[#D4AF37]/10 to-purple-500/10 border border-[#D4AF37]/20 rounded-xl p-4 flex items-center gap-3'>
+              <CheckCircle size={20} className='text-[#D4AF37] flex-shrink-0' />
+              <div className='flex-1'>
+                <p className='text-[#D4AF37] font-medium text-sm'>
+                  Loaded from history
+                </p>
+                <p className='text-gray-300 text-sm'>
+                  Created on{' '}
+                  {new Date(
+                    loadedProductData.metadata?.createdAt
+                  ).toLocaleDateString()}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setLoadedProductData(null)
+                  setIsFromHistory(false)
+                  setGeneratedProduct(null)
+                  setGenerationId(null)
+                }}
+                className='text-gray-400 hover:text-[#EDEDED] text-sm'
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Error Display */}
         {generateProductMutation.isError && (
           <div className='max-w-2xl mx-auto'>
@@ -479,8 +520,7 @@ const AIProductGenerator = () => {
               <div>
                 <p className='text-red-400 font-medium'>Generation Failed</p>
                 <p className='text-red-300 text-sm'>
-                  {generateProductMutation.error?.response?.data?.message ||
-                    generateProductMutation.error?.message ||
+                  {generateProductMutation.error?.message ||
                     'Something went wrong. Please try again.'}
                 </p>
               </div>
@@ -932,14 +972,15 @@ const AIProductGenerator = () => {
             <div className='text-center space-y-4'>
               <div className='inline-flex items-center gap-2 bg-gradient-to-r from-[#D4AF37]/20 to-green-500/20 border border-[#D4AF37]/30 rounded-full px-4 py-2 text-[#D4AF37] text-sm font-medium'>
                 <CheckCircle size={14} />
-                Product Blueprint Generated
+                Product Blueprint {isFromHistory ? 'Loaded' : 'Generated'}
               </div>
               <h2 className='text-3xl font-bold text-[#EDEDED]'>
                 {generatedProduct.title}
               </h2>
               <p className='text-gray-400 max-w-2xl mx-auto'>
-                Your complete digital product blueprint is ready. Everything
-                from pricing to launch strategy.
+                {isFromHistory
+                  ? 'Loaded from your product history. All export and copy functions are available.'
+                  : 'Your complete digital product blueprint is ready. Everything from pricing to launch strategy.'}
               </p>
             </div>
 
@@ -984,7 +1025,8 @@ const AIProductGenerator = () => {
                               'overview'
                             )
                           }
-                          className='flex items-center gap-2 px-3 py-2 bg-[#D4AF37]/10 text-[#D4AF37] rounded-lg hover:bg-[#D4AF37]/20 transition-colors'
+                          disabled={isCopying}
+                          className='flex items-center gap-2 px-3 py-2 bg-[#D4AF37]/10 text-[#D4AF37] rounded-lg hover:bg-[#D4AF37]/20 transition-colors disabled:opacity-50'
                         >
                           {copyFeedback.overview?.type === 'success' ? (
                             <>
@@ -1020,7 +1062,8 @@ const AIProductGenerator = () => {
                               'outline'
                             )
                           }
-                          className='flex items-center gap-2 px-3 py-2 bg-[#D4AF37]/10 text-[#D4AF37] rounded-lg hover:bg-[#D4AF37]/20 transition-colors'
+                          disabled={isCopying}
+                          className='flex items-center gap-2 px-3 py-2 bg-[#D4AF37]/10 text-[#D4AF37] rounded-lg hover:bg-[#D4AF37]/20 transition-colors disabled:opacity-50'
                         >
                           <Copy size={14} />
                           Copy Outline
@@ -1072,7 +1115,8 @@ const AIProductGenerator = () => {
                               'pricing'
                             )
                           }
-                          className='flex items-center gap-2 px-3 py-2 bg-[#D4AF37]/10 text-[#D4AF37] rounded-lg hover:bg-[#D4AF37]/20 transition-colors'
+                          disabled={isCopying}
+                          className='flex items-center gap-2 px-3 py-2 bg-[#D4AF37]/10 text-[#D4AF37] rounded-lg hover:bg-[#D4AF37]/20 transition-colors disabled:opacity-50'
                         >
                           <Copy size={14} />
                           Copy Pricing
@@ -1129,7 +1173,8 @@ const AIProductGenerator = () => {
                               'marketing'
                             )
                           }
-                          className='flex items-center gap-2 px-3 py-2 bg-[#D4AF37]/10 text-[#D4AF37] rounded-lg hover:bg-[#D4AF37]/20 transition-colors'
+                          disabled={isCopying}
+                          className='flex items-center gap-2 px-3 py-2 bg-[#D4AF37]/10 text-[#D4AF37] rounded-lg hover:bg-[#D4AF37]/20 transition-colors disabled:opacity-50'
                         >
                           <Copy size={14} />
                           Copy Angles
@@ -1176,7 +1221,8 @@ const AIProductGenerator = () => {
                               'bonuses'
                             )
                           }
-                          className='flex items-center gap-2 px-3 py-2 bg-[#D4AF37]/10 text-[#D4AF37] rounded-lg hover:bg-[#D4AF37]/20 transition-colors'
+                          disabled={isCopying}
+                          className='flex items-center gap-2 px-3 py-2 bg-[#D4AF37]/10 text-[#D4AF37] rounded-lg hover:bg-[#D4AF37]/20 transition-colors disabled:opacity-50'
                         >
                           <Copy size={14} />
                           Copy Bonuses
@@ -1223,7 +1269,8 @@ const AIProductGenerator = () => {
                               'launch'
                             )
                           }
-                          className='flex items-center gap-2 px-3 py-2 bg-[#D4AF37]/10 text-[#D4AF37] rounded-lg hover:bg-[#D4AF37]/20 transition-colors'
+                          disabled={isCopying}
+                          className='flex items-center gap-2 px-3 py-2 bg-[#D4AF37]/10 text-[#D4AF37] rounded-lg hover:bg-[#D4AF37]/20 transition-colors disabled:opacity-50'
                         >
                           <Copy size={14} />
                           Copy Launch
@@ -1274,7 +1321,8 @@ const AIProductGenerator = () => {
                               'sales'
                             )
                           }
-                          className='flex items-center gap-2 px-3 py-2 bg-[#D4AF37]/10 text-[#D4AF37] rounded-lg hover:bg-[#D4AF37]/20 transition-colors'
+                          disabled={isCopying}
+                          className='flex items-center gap-2 px-3 py-2 bg-[#D4AF37]/10 text-[#D4AF37] rounded-lg hover:bg-[#D4AF37]/20 transition-colors disabled:opacity-50'
                         >
                           <Copy size={14} />
                           Copy Sales Copy
@@ -1339,7 +1387,8 @@ const AIProductGenerator = () => {
                               'technical'
                             )
                           }
-                          className='flex items-center gap-2 px-3 py-2 bg-[#D4AF37]/10 text-[#D4AF37] rounded-lg hover:bg-[#D4AF37]/20 transition-colors'
+                          disabled={isCopying}
+                          className='flex items-center gap-2 px-3 py-2 bg-[#D4AF37]/10 text-[#D4AF37] rounded-lg hover:bg-[#D4AF37]/20 transition-colors disabled:opacity-50'
                         >
                           <Copy size={14} />
                           Copy Technical
@@ -1379,7 +1428,8 @@ const AIProductGenerator = () => {
                               'revenue'
                             )
                           }
-                          className='flex items-center gap-2 px-3 py-2 bg-[#D4AF37]/10 text-[#D4AF37] rounded-lg hover:bg-[#D4AF37]/20 transition-colors'
+                          disabled={isCopying}
+                          className='flex items-center gap-2 px-3 py-2 bg-[#D4AF37]/10 text-[#D4AF37] rounded-lg hover:bg-[#D4AF37]/20 transition-colors disabled:opacity-50'
                         >
                           <Copy size={14} />
                           Copy Revenue
@@ -1408,32 +1458,14 @@ const AIProductGenerator = () => {
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className='text-center space-y-4'>
-              <div className='flex flex-col sm:flex-row gap-4 justify-center max-w-lg mx-auto'>
-                <button
-                  onClick={downloadFullReport}
-                  disabled={isDownloading}
-                  className='flex-1 bg-[#D4AF37] text-black h-12 rounded-xl font-semibold hover:bg-[#D4AF37]/90 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50'
-                >
-                  {copyFeedback.download?.type === 'success' ? (
-                    <>
-                      <CheckCircle size={16} />
-                      {copyFeedback.download.message}
-                    </>
-                  ) : isDownloading ? (
-                    <>
-                      <RefreshCw size={16} className='animate-spin' />
-                      Downloading...
-                    </>
-                  ) : (
-                    <>
-                      <Download size={16} />
-                      Download Full Report
-                    </>
-                  )}
-                </button>
+            {/* Professional Export Options */}
+            <div className='text-center space-y-6'>
+              <ExportOptions
+                generationId={generationId}
+                productTitle={generatedProduct.title}
+              />
 
+              <div className='flex flex-col sm:flex-row gap-4 justify-center max-w-lg mx-auto'>
                 <button
                   onClick={generateProduct}
                   disabled={isGenerating || !canGenerate}
@@ -1445,7 +1477,13 @@ const AIProductGenerator = () => {
               </div>
 
               <button
-                onClick={() => setGeneratedProduct(null)}
+                onClick={() => {
+                  setGeneratedProduct(null)
+                  setGenerationId(null)
+                  setLoadedProductData(null)
+                  setIsFromHistory(false)
+                  setCopyFeedback({})
+                }}
                 className='text-[#D4AF37] hover:underline text-sm'
               >
                 Start Over
@@ -1488,4 +1526,4 @@ const AIProductGenerator = () => {
   )
 }
 
-export default AIProductGenerator
+export default ProductGenerator

@@ -174,13 +174,6 @@ export const logHookActivity = (req, res, next) => {
   const originalSend = res.send
 
   res.send = function (data) {
-    // Log successful generations
-    if (res.statusCode === 200 && req.route && req.route.path === '/generate') {
-      console.log(
-        `Hook Generation: User ${req.user.email} generated hooks for ${req.body.platform}/${req.body.niche}/${req.body.tone}`
-      )
-    }
-
     originalSend.call(this, data)
   }
 

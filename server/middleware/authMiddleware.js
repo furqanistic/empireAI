@@ -130,18 +130,3 @@ export const attachUserId = (req, res, next) => {
   }
   next()
 }
-
-// Middleware to log user activity (optional)
-export const logUserActivity = (action) => {
-  return (req, res, next) => {
-    if (req.user) {
-      console.log(
-        `User ${
-          req.user.email
-        } performed action: ${action} at ${new Date().toISOString()}`
-      )
-      // You can implement proper logging here (e.g., save to database, log files, etc.)
-    }
-    next()
-  }
-}
