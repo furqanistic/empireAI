@@ -1,4 +1,4 @@
-// File: server/index.js - FIXED VERSION
+// File: server/index.js - COMPLETELY CLEAN, NO RATE LIMITING FOR BUSINESS PLANS
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import dotenv from 'dotenv'
@@ -6,12 +6,13 @@ import express from 'express'
 import mongoose from 'mongoose'
 // Import routes
 import authRoute from './routes/auth.js'
-import hookRoute from './routes/hook.js' // Add hook routes
+import businessPlanRoute from './routes/businessPlan.js' // CLEAN - NO MIDDLEWARE
+import hookRoute from './routes/hook.js'
 import notificationRoute from './routes/notification.js'
 import productRoute from './routes/product.js'
 import referralRoute from './routes/referral.js'
 import stripeRoute from './routes/stripe.js'
-// Import hook middleware
+// Import hook middleware ONLY (not for business plans)
 import {
   applySubscriptionLimits,
   checkSubscriptionAccess,
@@ -68,22 +69,22 @@ app.use(cors(corsOptions))
 app.use(cookieParser())
 app.use(express.json())
 
-// Routes
+// Basic routes (no middleware)
 app.use('/api/auth/', authRoute)
 app.use('/api/referral/', referralRoute)
 app.use('/api/notifications/', notificationRoute)
 app.use('/api/stripe/', stripeRoute)
 app.use('/api/products/', productRoute)
-// Hook Generation Routes with middleware
+
+// Hook Generation Routes with middleware (ONLY for hooks)
 app.use(
   '/api/hooks/',
-  [
-    checkSubscriptionAccess, // Check user subscription status
-    applySubscriptionLimits, // Apply limits based on subscription
-    logHookActivity, // Log hook generation activities
-  ],
+  [checkSubscriptionAccess, applySubscriptionLimits, logHookActivity],
   hookRoute
 )
+
+// Business Plan Routes - COMPLETELY CLEAN, NO MIDDLEWARE, NO RATE LIMITING
+app.use('/api/business-plans/', businessPlanRoute)
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -104,6 +105,21 @@ app.get('/api/hooks/health', (req, res) => {
     message: 'Hook Generation API is ready!',
     groq: groqStatus,
     model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+    timestamp: new Date().toISOString(),
+  })
+})
+
+// Business Plan API health check endpoint - NO RATE LIMITING
+app.get('/api/business-plans/health', (req, res) => {
+  const groqStatus = process.env.GROQ_API_KEY
+    ? '✅ Connected'
+    : '❌ Missing API Key'
+  res.status(200).json({
+    status: 'success',
+    message: 'Business Plan Generation API is ready! NO RATE LIMITS!',
+    groq: groqStatus,
+    model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+    rateLimiting: 'DISABLED',
     timestamp: new Date().toISOString(),
   })
 })
@@ -142,6 +158,9 @@ app.listen(PORT, () => {
   )
   console.log(
     `🤖 Hook Generation API available at: http://localhost:${PORT}/api/hooks/`
+  )
+  console.log(
+    `💼 Business Plan API (NO RATE LIMITS) available at: http://localhost:${PORT}/api/business-plans/`
   )
   console.log(
     `🎯 GROQ Status: ${

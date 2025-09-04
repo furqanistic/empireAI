@@ -1,6 +1,8 @@
-// File: client/src/components/AIBuilder/ProductHistory.jsx - COMPACT VERSION
-import { useProductHistory } from '@/hooks/useProducts'
+// File: client/src/components/AIBuilder/BusinessPlanHistory.jsx - COMPACT VERSION
+import { useBusinessPlanHistory } from '@/hooks/useBusinessPlans'
 import {
+  BarChart3,
+  Briefcase,
   Calendar,
   CheckCircle,
   ChevronDown,
@@ -8,18 +10,22 @@ import {
   ChevronRight,
   ChevronUp,
   Clock,
+  DollarSign,
   FileText,
   Loader2,
   RefreshCw,
+  Rocket,
+  Target,
+  Users,
   XCircle,
 } from 'lucide-react'
 import React, { useState } from 'react'
 import { useSelector } from 'react-redux'
 
-const ProductHistory = ({ onLoadProduct, currentProductId }) => {
+const BusinessPlanHistory = ({ onLoadPlan, currentPlanId }) => {
   const [currentPage, setCurrentPage] = useState(1)
   const [isCollapsed, setIsCollapsed] = useState(true)
-  const [loadingProductId, setLoadingProductId] = useState(null)
+  const [loadingPlanId, setLoadingPlanId] = useState(null)
   const { token } = useSelector((state) => state.user)
 
   const {
@@ -27,13 +33,13 @@ const ProductHistory = ({ onLoadProduct, currentProductId }) => {
     isLoading,
     error,
     refetch,
-  } = useProductHistory({ page: currentPage, limit: 10 }, !!token)
+  } = useBusinessPlanHistory({ page: currentPage, limit: 10 }, !!token)
 
   if (!token) return null
 
-  const generations = historyData?.data?.generations || []
+  const businessPlans = historyData?.data?.businessPlans || []
   const totalPages = historyData?.totalPages || 1
-  const hasHistory = generations.length > 0
+  const hasHistory = businessPlans.length > 0
 
   const formatDate = (dateString) => {
     const date = new Date(dateString)
@@ -61,60 +67,56 @@ const ProductHistory = ({ onLoadProduct, currentProductId }) => {
     }
   }
 
-  const getProductTypeIcon = (productType) => {
+  const getNicheIcon = (niche) => {
     const iconMap = {
-      'digital-product': '💿',
-      'physical-product': '📦',
-      service: '🔧',
-      course: '📚',
-      software: '💻',
-      app: '📱',
-      book: '📖',
-      template: '📄',
-      tool: '🛠️',
-      plugin: '⚡',
-      theme: '🎨',
-      script: '📝',
+      fitness: '💪',
+      tech: '💻',
+      finance: '💰',
+      education: '📚',
+      ecommerce: '🛒',
+      food: '🍽️',
+      travel: '✈️',
+      fashion: '👕',
+      pets: '🐾',
+      home: '🏠',
+      entertainment: '🎮',
+      creative: '🎨',
     }
-    return iconMap[productType] || '📦'
+    return iconMap[niche] || '📈'
   }
 
-  const getNicheColor = (niche) => {
-    const colorMap = {
-      tech: 'bg-blue-500/20 text-blue-400',
-      fitness: 'bg-green-500/20 text-green-400',
-      finance: 'bg-yellow-500/20 text-yellow-400',
-      education: 'bg-purple-500/20 text-purple-400',
-      business: 'bg-orange-500/20 text-orange-400',
-      marketing: 'bg-pink-500/20 text-pink-400',
-      design: 'bg-indigo-500/20 text-indigo-400',
-      health: 'bg-emerald-500/20 text-emerald-400',
-      lifestyle: 'bg-rose-500/20 text-rose-400',
+  const getBusinessModelIcon = (model) => {
+    const iconMap = {
+      saas: <Rocket size={10} />,
+      ecommerce: <Briefcase size={10} />,
+      marketplace: <Users size={10} />,
+      coaching: <Target size={10} />,
+      subscription: <DollarSign size={10} />,
+      content: <FileText size={10} />,
     }
-    return colorMap[niche] || 'bg-gray-500/20 text-gray-400'
+    return iconMap[model] || <BarChart3 size={10} />
   }
 
-  const handleLoadProduct = async (generation) => {
-    if (generation.status !== 'completed' || !generation.generatedProduct)
-      return
+  const handleLoadPlan = async (plan) => {
+    if (plan.status !== 'completed' || !plan.generatedPlan) return
 
-    setLoadingProductId(generation._id)
+    setLoadingPlanId(plan._id)
     try {
       await new Promise((resolve) => setTimeout(resolve, 200))
-      onLoadProduct({
-        id: generation._id,
-        product: generation.generatedProduct,
+      onLoadPlan({
+        id: plan._id,
+        plan: plan.generatedPlan,
         metadata: {
-          productType: generation.productType,
-          niche: generation.niche,
-          audience: generation.audience,
-          priceRange: generation.priceRange,
-          complexity: generation.complexity,
-          createdAt: generation.createdAt,
+          niche: plan.niche,
+          businessModel: plan.businessModel,
+          targetMarket: plan.targetMarket,
+          customContext: plan.customContext,
+          createdAt: plan.createdAt,
+          dataSource: plan.dataSource,
         },
       })
     } finally {
-      setLoadingProductId(null)
+      setLoadingPlanId(null)
     }
   }
 
@@ -127,9 +129,9 @@ const ProductHistory = ({ onLoadProduct, currentProductId }) => {
           className='flex items-center justify-between w-full mb-3 text-left group'
         >
           <div className='flex items-center gap-2'>
-            <FileText size={18} className='text-[#D4AF37]' />
+            <BarChart3 size={18} className='text-[#D4AF37]' />
             <h3 className='text-base font-semibold text-[#EDEDED] group-hover:text-[#D4AF37] transition-colors'>
-              Recent Products
+              Recent Plans
             </h3>
             <span className='text-xs text-gray-400'>
               ({historyData?.totalResults || 0})
@@ -167,7 +169,7 @@ const ProductHistory = ({ onLoadProduct, currentProductId }) => {
               <div className='text-center py-4'>
                 <XCircle size={20} className='text-red-400 mx-auto mb-2' />
                 <p className='text-sm text-red-400 mb-2'>
-                  Failed to load products
+                  Failed to load plans
                 </p>
                 <button
                   onClick={() => refetch()}
@@ -181,10 +183,8 @@ const ProductHistory = ({ onLoadProduct, currentProductId }) => {
             {/* No History */}
             {!isLoading && !error && !hasHistory && (
               <div className='text-center py-6'>
-                <FileText size={20} className='text-gray-400 mx-auto mb-2' />
-                <p className='text-sm text-gray-400'>
-                  No products generated yet
-                </p>
+                <Rocket size={20} className='text-gray-400 mx-auto mb-2' />
+                <p className='text-sm text-gray-400'>No business plans yet</p>
               </div>
             )}
 
@@ -192,20 +192,19 @@ const ProductHistory = ({ onLoadProduct, currentProductId }) => {
             {!isLoading && !error && hasHistory && (
               <>
                 <div className='grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2'>
-                  {generations.map((generation) => {
-                    const isCurrentProduct = currentProductId === generation._id
+                  {businessPlans.map((plan) => {
+                    const isCurrentPlan = currentPlanId === plan._id
                     const canLoad =
-                      generation.status === 'completed' &&
-                      generation.generatedProduct
-                    const isLoadingProduct = loadingProductId === generation._id
+                      plan.status === 'completed' && plan.generatedPlan
+                    const isLoadingPlan = loadingPlanId === plan._id
 
                     return (
                       <button
-                        key={generation._id}
-                        onClick={() => canLoad && handleLoadProduct(generation)}
-                        disabled={!canLoad || isLoadingProduct}
+                        key={plan._id}
+                        onClick={() => canLoad && handleLoadPlan(plan)}
+                        disabled={!canLoad || isLoadingPlan}
                         className={`p-2.5 rounded-lg border transition-all duration-150 text-left group relative ${
-                          isCurrentProduct
+                          isCurrentPlan
                             ? 'border-[#D4AF37] bg-[#D4AF37]/10'
                             : canLoad
                             ? 'border-[#1E1E21] bg-gradient-to-br from-[#1A1A1C] to-[#0F0F11] hover:border-[#D4AF37]/40 hover:scale-105'
@@ -213,14 +212,14 @@ const ProductHistory = ({ onLoadProduct, currentProductId }) => {
                         }`}
                       >
                         {/* Current indicator */}
-                        {isCurrentProduct && (
+                        {isCurrentPlan && (
                           <div className='absolute -top-1 -right-1 bg-[#D4AF37] text-black text-xs px-1.5 py-0.5 rounded-full font-bold text-[10px] leading-none'>
                             Current
                           </div>
                         )}
 
                         {/* Loading Overlay */}
-                        {isLoadingProduct && (
+                        {isLoadingPlan && (
                           <div className='absolute inset-0 flex items-center justify-center bg-black/40 rounded-lg'>
                             <Loader2
                               size={16}
@@ -232,85 +231,65 @@ const ProductHistory = ({ onLoadProduct, currentProductId }) => {
                         {/* Compact Content */}
                         <div
                           className={`space-y-2 ${
-                            isLoadingProduct ? 'opacity-50' : ''
+                            isLoadingPlan ? 'opacity-50' : ''
                           }`}
                         >
-                          {/* Title with product type icon */}
+                          {/* Title with niche icon */}
                           <div className='flex items-start gap-1.5'>
                             <span className='text-sm flex-shrink-0 mt-0.5'>
-                              {getProductTypeIcon(generation.productType)}
+                              {getNicheIcon(plan.niche)}
                             </span>
                             <h4
                               className={`font-medium text-xs line-clamp-2 leading-tight ${
-                                isCurrentProduct
+                                isCurrentPlan
                                   ? 'text-[#D4AF37]'
                                   : 'text-[#EDEDED] group-hover:text-[#D4AF37]'
                               } transition-colors`}
                             >
-                              {generation.generatedProduct?.title ||
-                                'Untitled Product'}
+                              {plan.generatedPlan?.title || 'Business Plan'}
                             </h4>
                           </div>
 
                           {/* Tags */}
                           <div className='flex items-center gap-1 flex-wrap'>
-                            <div className='px-1.5 py-0.5 bg-[#D4AF37]/20 text-[#D4AF37] rounded text-[10px] font-medium capitalize'>
-                              {generation.productType.replace('-', ' ')}
+                            <div className='flex items-center gap-0.5 px-1.5 py-0.5 bg-[#D4AF37]/20 text-[#D4AF37] rounded text-[10px] font-medium'>
+                              {getBusinessModelIcon(plan.businessModel)}
+                              <span className='capitalize'>
+                                {plan.businessModel}
+                              </span>
                             </div>
-                            <div
-                              className={`px-1.5 py-0.5 rounded text-[10px] font-medium capitalize ${getNicheColor(
-                                generation.niche
-                              )}`}
-                            >
-                              {generation.niche}
+                            <div className='px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded text-[10px] font-medium'>
+                              {plan.targetMarket.toUpperCase()}
                             </div>
                           </div>
-
-                          {/* Audience & Price Range */}
-                          {(generation.audience || generation.priceRange) && (
-                            <div className='text-[10px] text-gray-400 space-y-0.5'>
-                              {generation.audience && (
-                                <div className='truncate'>
-                                  {generation.audience}
-                                </div>
-                              )}
-                              {generation.priceRange && (
-                                <div className='text-green-400 font-medium'>
-                                  {generation.priceRange}
-                                </div>
-                              )}
-                            </div>
-                          )}
 
                           {/* Status and Date */}
                           <div className='flex items-center justify-between text-[10px]'>
                             <div className='flex items-center gap-1 text-gray-400'>
                               <Calendar size={8} />
-                              <span>{formatDate(generation.createdAt)}</span>
+                              <span>{formatDate(plan.createdAt)}</span>
                             </div>
                             <div className='flex items-center gap-0.5'>
-                              {getStatusIcon(generation.status)}
+                              {getStatusIcon(plan.status)}
                             </div>
                           </div>
 
                           {/* Status messages */}
-                          {generation.status === 'pending' && (
+                          {plan.status === 'pending' && (
                             <div className='text-[10px] text-yellow-400'>
                               Generating...
                             </div>
                           )}
-                          {generation.status === 'failed' && (
+                          {plan.status === 'failed' && (
                             <div className='text-[10px] text-red-400'>
-                              Generation failed
+                              Failed
                             </div>
                           )}
-                          {canLoad &&
-                            !isCurrentProduct &&
-                            !isLoadingProduct && (
-                              <div className='text-[10px] text-gray-500 group-hover:text-[#D4AF37] transition-colors'>
-                                Click to load
-                              </div>
-                            )}
+                          {canLoad && !isCurrentPlan && !isLoadingPlan && (
+                            <div className='text-[10px] text-gray-500 group-hover:text-[#D4AF37] transition-colors'>
+                              Click to load
+                            </div>
+                          )}
                         </div>
                       </button>
                     )
@@ -321,7 +300,7 @@ const ProductHistory = ({ onLoadProduct, currentProductId }) => {
                 {totalPages > 1 && (
                   <div className='flex items-center justify-between mt-3 pt-3 border-t border-[#1E1E21]'>
                     <span className='text-[10px] text-gray-500'>
-                      {generations.length} of {historyData?.totalResults}
+                      {businessPlans.length} of {historyData?.totalResults}
                     </span>
 
                     <div className='flex items-center gap-2'>
@@ -362,4 +341,4 @@ const ProductHistory = ({ onLoadProduct, currentProductId }) => {
   )
 }
 
-export default ProductHistory
+export default BusinessPlanHistory

@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import AffiliatePage from './pages/Affiliate/AffiliatePage'
 import AIBuilderPage from './pages/AIBuilder/AIBuilderPage'
+import NicheLaunchpad from './pages/AIBuilder/NicheLaunchpad'
 import ProductGenerator from './pages/AIBuilder/ProductGenerator'
 import ViralHookFactory from './pages/AIBuilder/ViralHookFactory'
 import AuthPage from './pages/Auth/AuthPage'
@@ -88,6 +89,14 @@ const App = () => {
           element={
             <ProtectedRoute>
               <ProductGenerator />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path='/build/niche-launchpad'
+          element={
+            <ProtectedRoute>
+              <NicheLaunchpad />
             </ProtectedRoute>
           }
         />
