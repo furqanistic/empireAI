@@ -37,15 +37,7 @@ const ProductCheckoutPage = () => {
 
   // Fetch product data
   useEffect(() => {
-    console.log('=== CHECKOUT PAGE DEBUG ===')
-    console.log('URL params:', { id })
-    console.log('Current URL:', window.location.href)
-
     if (id) {
-      console.log('Fetching product with ID:', id)
-      console.log('ID type:', typeof id)
-      console.log('ID length:', id.length)
-      console.log('Is valid MongoDB ID format:', /^[0-9a-fA-F]{24}$/.test(id))
       fetchPublicProduct(id)
     } else {
       console.error('No ID found in URL params')
@@ -58,21 +50,12 @@ const ProductCheckoutPage = () => {
       setLoading(true)
       setCheckoutError(null)
 
-      console.log('=== CHECKOUT SUBMISSION DEBUG ===')
-      console.log('Product ID for checkout:', id)
-      console.log('Customer data:', data)
-
       await redirectToCheckout(id, {
         email: data.email,
         firstName: data.firstName,
         lastName: data.lastName,
       })
     } catch (error) {
-      console.error('=== CHECKOUT ERROR DEBUG ===')
-      console.error('Full error object:', error)
-      console.error('Error response:', error.response)
-      console.error('Error data:', error.response?.data)
-
       let errorMessage = 'Failed to process checkout. Please try again.'
 
       if (error.response?.data?.message) {
@@ -88,11 +71,7 @@ const ProductCheckoutPage = () => {
   }
 
   // Debug: Log product loading state
-  useEffect(() => {
-    console.log('=== PRODUCT LOADING DEBUG ===')
-    console.log('publicProductLoading:', publicProductLoading)
-    console.log('publicProduct:', publicProduct)
-  }, [publicProductLoading, publicProduct])
+  useEffect(() => {}, [publicProductLoading, publicProduct])
 
   // Loading state
   if (publicProductLoading) {
@@ -119,16 +98,7 @@ const ProductCheckoutPage = () => {
           <p className='text-gray-400 mb-6'>
             This product is not available or has been removed.
           </p>
-          <div className='bg-gray-800 rounded p-4 mb-4 text-left'>
-            <p className='text-gray-300 text-sm'>Debug Info:</p>
-            <p className='text-gray-400 text-xs'>ID from URL: {id}</p>
-            <p className='text-gray-400 text-xs'>
-              Loading: {publicProductLoading.toString()}
-            </p>
-            <p className='text-gray-400 text-xs'>
-              Product: {publicProduct ? 'Found' : 'Not found'}
-            </p>
-          </div>
+
           <button
             onClick={() => navigate('/')}
             className='bg-[#D4AF37] text-black px-6 py-2 rounded-xl font-medium hover:bg-[#D4AF37]/90 transition-all duration-300'

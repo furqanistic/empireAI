@@ -1,6 +1,7 @@
 // File: client/src/App.jsx
 import { useSelector } from 'react-redux'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import AdminPage from './pages/Admin/AdminPage'
 import AffiliatePage from './pages/Affiliate/AffiliatePage'
 import AIBuilderPage from './pages/AIBuilder/AIBuilderPage'
 import NicheLaunchpad from './pages/AIBuilder/NicheLaunchpad'
@@ -16,7 +17,7 @@ import ProductPage from './pages/Product/ProductPage'
 import ProductSuccessPage from './pages/Product/ProductSuccessPage'
 import PurchasesPage from './pages/Product/PurchasesPage'
 import ProfilePage from './pages/Profile/ProfilePage'
-import { selectCurrentUser } from './redux/userSlice.js'
+import { selectCurrentUser, selectIsAdmin } from './redux/userSlice.js'
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -24,6 +25,23 @@ const ProtectedRoute = ({ children }) => {
 
   if (!currentUser) {
     return <Navigate to='/auth' replace />
+  }
+
+  return children
+}
+
+// Admin Route Component (checks for admin role)
+const AdminRoute = ({ children }) => {
+  const currentUser = useSelector(selectCurrentUser)
+  const isAdmin = useSelector(selectIsAdmin)
+
+  if (!currentUser) {
+    return <Navigate to='/auth' replace />
+  }
+
+  // Check if user has admin role using existing selector
+  if (!isAdmin) {
+    return <Navigate to='/dashboard' replace />
   }
 
   return children
@@ -146,6 +164,17 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+
+        {/* Admin Only Route */}
+        <Route
+          path='/admin'
+          element={
+            <AdminRoute>
+              <AdminPage />
+            </AdminRoute>
+          }
+        />
+
         <Route path='/pricing/success' element={<SubscriptionSuccess />} />
 
         {/* Catch all route - redirect to auth */}

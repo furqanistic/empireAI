@@ -9,6 +9,10 @@ import {
   Home,
   LogOut,
   Menu,
+  MessageCircle,
+  PanelLeft,
+  PanelRight,
+  Shield,
   Star,
   User,
   User2,
@@ -26,6 +30,7 @@ const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isNotificationOpen, setIsNotificationOpen] = useState(false)
+  const [showText, setShowText] = useState(true)
 
   // Redux state
   const currentUser = useCurrentUser()
@@ -89,11 +94,51 @@ const Layout = ({ children }) => {
       icon: <Crown size={18} />,
       path: '/pricing',
     },
+    // Conditionally add Admin page for admin users
+    ...(isAdmin
+      ? [
+          {
+            id: 'admin',
+            label: 'Admin Panel',
+            icon: <Shield size={18} />,
+            path: '/admin',
+            badge: 'ADMIN',
+            badgeColor: 'bg-red-500',
+          },
+        ]
+      : []),
+  ]
+
+  const communityItems = [
+    {
+      id: 'discord',
+      label: 'Discord Server',
+      icon: <MessageCircle size={18} />,
+      path: 'https://discord.gg/your-discord-invite', // Replace with your actual Discord invite link
+      external: true,
+      badge: 'JOIN',
+      badgeColor: 'bg-indigo-500',
+    },
   ]
 
   // Function to check if menu item is active
   const isActive = (itemPath) => {
     return location.pathname === itemPath
+  }
+
+  // Handle sidebar toggle with text animation
+  const handleSidebarToggle = () => {
+    if (sidebarOpen) {
+      // Closing sidebar - hide text immediately
+      setShowText(false)
+      setSidebarOpen(false)
+    } else {
+      // Opening sidebar - show sidebar first, then text after animation
+      setSidebarOpen(true)
+      setTimeout(() => {
+        setShowText(true)
+      }, 200) // Delay text appearance until sidebar animation is mostly complete
+    }
   }
 
   // Handle logout
@@ -110,11 +155,66 @@ const Layout = ({ children }) => {
   const MenuItem = ({ item, section }) => {
     const active = isActive(item.path)
 
+    // Handle external links (like Discord)
+    if (item.external) {
+      return (
+        <li>
+          <a
+            href={item.path}
+            target='_blank'
+            rel='noopener noreferrer'
+            className='block'
+            title={!sidebarOpen ? item.label : undefined}
+          >
+            <button
+              className={`group w-full flex items-center ${
+                sidebarOpen ? 'gap-3 px-3' : 'justify-center px-0'
+              } py-2.5 rounded-lg transition-all duration-200 text-sm font-medium ${
+                item.premium
+                  ? 'text-gray-500 hover:text-gray-400 hover:bg-[#1A1A1C]'
+                  : 'text-[#EDEDED] hover:bg-[#1A1A1C] hover:text-white'
+              }`}
+              disabled={item.premium}
+            >
+              <span>{item.icon}</span>
+
+              {showText && sidebarOpen && (
+                <>
+                  <span className='flex-1 text-left truncate'>
+                    {item.label}
+                  </span>
+
+                  {item.badge && (
+                    <span
+                      className={`${item.badgeColor} text-white text-[10px] px-1.5 py-0.5 rounded-md font-semibold tracking-wide`}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+
+                  {item.premium && (
+                    <Star
+                      size={14}
+                      className='text-[#D4AF37] opacity-60 group-hover:opacity-80'
+                      fill='currentColor'
+                    />
+                  )}
+                </>
+              )}
+            </button>
+          </a>
+        </li>
+      )
+    }
+
+    // Handle internal links
     return (
       <li>
         <Link to={item.path || '#'}>
           <button
-            className={`group w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 text-sm font-medium ${
+            className={`group w-full flex items-center ${
+              sidebarOpen ? 'gap-3 px-3' : 'justify-center px-0'
+            } py-2.5 rounded-lg transition-all duration-200 text-sm font-medium ${
               active
                 ? 'bg-[#D4AF37] text-black shadow-sm'
                 : item.premium
@@ -122,24 +222,30 @@ const Layout = ({ children }) => {
                 : 'text-[#EDEDED] hover:bg-[#1A1A1C] hover:text-white'
             }`}
             disabled={item.premium}
+            title={!sidebarOpen ? item.label : undefined}
           >
             <span className={`${active ? 'text-black' : ''}`}>{item.icon}</span>
-            <span className='flex-1 text-left truncate'>{item.label}</span>
 
-            {item.badge && (
-              <span
-                className={`${item.badgeColor} text-white text-[10px] px-1.5 py-0.5 rounded-md font-semibold tracking-wide`}
-              >
-                {item.badge}
-              </span>
-            )}
+            {showText && sidebarOpen && (
+              <>
+                <span className='flex-1 text-left truncate'>{item.label}</span>
 
-            {item.premium && (
-              <Star
-                size={14}
-                className='text-[#D4AF37] opacity-60 group-hover:opacity-80'
-                fill='currentColor'
-              />
+                {item.badge && (
+                  <span
+                    className={`${item.badgeColor} text-white text-[10px] px-1.5 py-0.5 rounded-md font-semibold tracking-wide`}
+                  >
+                    {item.badge}
+                  </span>
+                )}
+
+                {item.premium && (
+                  <Star
+                    size={14}
+                    className='text-[#D4AF37] opacity-60 group-hover:opacity-80'
+                    fill='currentColor'
+                  />
+                )}
+              </>
             )}
           </button>
         </Link>
@@ -150,22 +256,32 @@ const Layout = ({ children }) => {
   const SidebarContent = () => (
     <>
       {/* Logo Section */}
-      <div className='px-4 py-6 border-b border-[#1E1E21]'>
+      <div
+        className={`${
+          sidebarOpen ? 'px-4 py-6' : 'px-2 py-6'
+        } border-b border-[#1E1E21]`}
+      >
         <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-3'>
+          <div
+            className={`flex items-center ${
+              sidebarOpen ? 'gap-3' : 'justify-center w-full'
+            }`}
+          >
             <div className='text-[#D4AF37] p-2 rounded-lg bg-[#D4AF37]/10'>
               <svg viewBox='0 0 24 24' fill='currentColor' className='w-6 h-6'>
                 <path d='M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z' />
               </svg>
             </div>
-            <div>
-              <h1 className='text-lg font-bold text-[#D4AF37] leading-none'>
-                Ascend AI
-              </h1>
-              <p className='text-[10px] text-gray-400 uppercase tracking-wider font-semibold'>
-                EMPIRE
-              </p>
-            </div>
+            {showText && sidebarOpen && (
+              <div>
+                <h1 className='text-lg font-bold text-[#D4AF37] leading-none'>
+                  Ascend AI
+                </h1>
+                <p className='text-[10px] text-gray-400 uppercase tracking-wider font-semibold'>
+                  EMPIRE
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Mobile Close Button */}
@@ -178,13 +294,19 @@ const Layout = ({ children }) => {
         </div>
       </div>
 
-      <nav className='flex-1 px-3 py-6 space-y-8 overflow-y-auto'>
+      <nav
+        className={`flex-1 ${
+          sidebarOpen ? 'px-3' : 'px-1'
+        } py-6 space-y-8 overflow-y-auto`}
+      >
         {/* Essential Tools */}
         <div>
-          <h3 className='text-[11px] uppercase tracking-wider text-gray-400 font-semibold mb-4 px-3'>
-            Essential Tools
-          </h3>
-          <ul className='space-y-1'>
+          {showText && sidebarOpen && (
+            <h3 className='text-[11px] uppercase tracking-wider text-gray-400 font-semibold mb-4 px-3'>
+              Essential Tools
+            </h3>
+          )}
+          <ul className={`space-y-1 ${!sidebarOpen ? 'mt-0' : ''}`}>
             {menuItems.map((item) => (
               <MenuItem key={item.id} item={item} section='essential' />
             ))}
@@ -193,12 +315,28 @@ const Layout = ({ children }) => {
 
         {/* Advanced Tools */}
         <div>
-          <h3 className='text-[11px] uppercase tracking-wider text-gray-400 font-semibold mb-4 px-3'>
-            Advanced Tools
-          </h3>
+          {showText && sidebarOpen && (
+            <h3 className='text-[11px] uppercase tracking-wider text-gray-400 font-semibold mb-4 px-3'>
+              Advanced Tools
+            </h3>
+          )}
           <ul className='space-y-1'>
             {advancedItems.map((item) => (
               <MenuItem key={item.id} item={item} section='advanced' />
+            ))}
+          </ul>
+        </div>
+
+        {/* Community */}
+        <div>
+          {showText && sidebarOpen && (
+            <h3 className='text-[11px] uppercase tracking-wider text-gray-400 font-semibold mb-4 px-3'>
+              Community
+            </h3>
+          )}
+          <ul className='space-y-1'>
+            {communityItems.map((item) => (
+              <MenuItem key={item.id} item={item} section='community' />
             ))}
           </ul>
         </div>
@@ -209,14 +347,19 @@ const Layout = ({ children }) => {
         <button
           onClick={handleLogout}
           disabled={logoutMutation.isPending}
-          className='w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-red-600 text-[#EDEDED] hover:bg-red-800 cursor-pointer transition-colors duration-200 text-sm font-medium h-8 disabled:opacity-50 disabled:cursor-not-allowed'
+          className={`w-full flex items-center ${
+            sidebarOpen ? 'justify-center gap-2 px-4' : 'justify-center px-0'
+          } py-2.5 rounded-lg bg-red-600 text-[#EDEDED] hover:bg-red-800 cursor-pointer transition-colors duration-200 text-sm font-medium h-8 disabled:opacity-50 disabled:cursor-not-allowed`}
+          title={!sidebarOpen ? 'Logout' : undefined}
         >
           {logoutMutation.isPending ? (
             <div className='w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin' />
           ) : (
             <LogOut size={16} />
           )}
-          {logoutMutation.isPending ? 'Logging out...' : 'Logout'}
+          {showText &&
+            sidebarOpen &&
+            (logoutMutation.isPending ? 'Logging out...' : 'Logout')}
         </button>
       </div>
     </>
@@ -231,7 +374,13 @@ const Layout = ({ children }) => {
   return (
     <div className='flex h-screen bg-[#0B0B0C] text-[#EDEDED]'>
       {/* Top Bar */}
-      <header className='fixed top-0 left-0 right-0 z-20 h-14 md:h-16 bg-[#0B0B0C]/95 backdrop-blur-sm border-b border-[#1E1E21] flex items-center px-4 md:px-6'>
+      <header
+        className={`fixed top-0 z-20 h-14 md:h-16 bg-[#0B0B0C]/95 backdrop-blur-sm border-b border-[#1E1E21] flex items-center px-4 md:px-6 transition-all duration-300 ${
+          sidebarOpen
+            ? 'left-0 md:left-64 right-0'
+            : 'left-0 md:left-16 right-0'
+        }`}
+      >
         <div className='flex items-center justify-between w-full max-w-screen-2xl mx-auto'>
           {/* Left Section */}
           <div className='flex items-center gap-4'>
@@ -241,6 +390,15 @@ const Layout = ({ children }) => {
               className='md:hidden p-2 rounded-lg bg-[#121214] border border-[#1E1E21] text-[#EDEDED] hover:bg-[#1A1A1C] transition-colors h-9 w-9 flex items-center justify-center'
             >
               {isMobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+            </button>
+
+            {/* Desktop sidebar toggle button */}
+            <button
+              onClick={handleSidebarToggle}
+              className='hidden md:flex p-2 rounded-lg bg-[#D4AF37] text-black hover:bg-[#D4AF37]/80 transition-colors h-9 w-9 items-center justify-center font-bold'
+              title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+            >
+              {sidebarOpen ? <PanelLeft size={20} /> : <PanelRight size={20} />}
             </button>
           </div>
 
@@ -303,9 +461,11 @@ const Layout = ({ children }) => {
 
       {/* Sidebar */}
       <aside
-        className={`fixed md:relative z-30 h-full w-64 border-r border-[#1E1E21] bg-[#121214] transform transition-transform duration-300 ease-in-out
+        className={`fixed md:relative z-30 h-full ${
+          sidebarOpen ? 'w-64' : 'w-16'
+        } border-r border-[#1E1E21] bg-[#121214] transform transition-all duration-300 ease-in-out
           ${
-            isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+            isMobileMenuOpen ? 'translate-x-0 w-64' : '-translate-x-full'
           } md:translate-x-0`}
       >
         <div className='h-full flex flex-col'>
