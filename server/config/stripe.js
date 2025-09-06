@@ -1,4 +1,4 @@
-// File: config/stripe.js
+// File: config/stripe.js - UPDATED WITH STRIPE CONNECT
 import dotenv from 'dotenv'
 import Stripe from 'stripe'
 dotenv.config({ quiet: true })
@@ -94,6 +94,76 @@ export const SUBSCRIPTION_PLANS = {
   },
 }
 
+// STRIPE CONNECT CONFIGURATION
+export const CONNECT_CONFIG = {
+  // Commission rates for different plan types
+  commissionRates: {
+    starter: 0.05, // 5%
+    pro: 0.08, // 8%
+    empire: 0.12, // 12%
+  },
+
+  // Minimum payout amounts (in cents)
+  minimumPayout: {
+    USD: 1000, // $10.00
+    EUR: 1000, // €10.00
+    GBP: 800, // £8.00
+  },
+
+  // Payout schedules
+  payoutSchedule: {
+    manual: 'Manual payouts on request',
+    weekly: 'Weekly automatic payouts',
+    monthly: 'Monthly automatic payouts',
+  },
+
+  // Connect account capabilities
+  capabilities: ['card_payments', 'transfers'],
+
+  // Countries supported for Connect accounts
+  supportedCountries: [
+    'US',
+    'CA',
+    'GB',
+    'AU',
+    'NZ',
+    'JP',
+    'SG',
+    'HK',
+    'AT',
+    'BE',
+    'BG',
+    'HR',
+    'CY',
+    'CZ',
+    'DK',
+    'EE',
+    'FI',
+    'FR',
+    'DE',
+    'GR',
+    'HU',
+    'IE',
+    'IT',
+    'LV',
+    'LT',
+    'LU',
+    'MT',
+    'NL',
+    'NO',
+    'PL',
+    'PT',
+    'RO',
+    'SK',
+    'SI',
+    'ES',
+    'SE',
+    'CH',
+    'BR',
+    'MX',
+  ],
+}
+
 // Helper function to get plan details
 export const getPlanDetails = (planName, billingCycle = 'monthly') => {
   const plan = SUBSCRIPTION_PLANS[planName]
@@ -147,11 +217,33 @@ export const getAmount = (planName, billingCycle) => {
   return SUBSCRIPTION_PLANS[planName].pricing[billingCycle].amount
 }
 
+// NEW: Helper function to get commission rate
+export const getCommissionRate = (planName) => {
+  if (!SUBSCRIPTION_PLANS[planName]) {
+    throw new Error(`Invalid plan: ${planName}`)
+  }
+  return CONNECT_CONFIG.commissionRates[planName] || 0.05
+}
+
+// NEW: Helper function to calculate commission
+export const calculateCommission = (amount, planName) => {
+  const rate = getCommissionRate(planName)
+  return Math.floor(amount * rate) // Return in cents
+}
+
+// NEW: Helper function to validate minimum payout
+export const validateMinimumPayout = (amount, currency = 'USD') => {
+  const minimum =
+    CONNECT_CONFIG.minimumPayout[currency] || CONNECT_CONFIG.minimumPayout.USD
+  return amount >= minimum
+}
+
 // Free trial configuration
 export const TRIAL_PERIOD_DAYS = 14
 
-// Stripe webhook events we care about
+// Stripe webhook events we care about (UPDATED WITH CONNECT EVENTS)
 export const STRIPE_EVENTS = {
+  // Subscription events
   CUSTOMER_SUBSCRIPTION_CREATED: 'customer.subscription.created',
   CUSTOMER_SUBSCRIPTION_UPDATED: 'customer.subscription.updated',
   CUSTOMER_SUBSCRIPTION_DELETED: 'customer.subscription.deleted',
@@ -159,6 +251,26 @@ export const STRIPE_EVENTS = {
   INVOICE_PAYMENT_FAILED: 'invoice.payment_failed',
   CUSTOMER_CREATED: 'customer.created',
   CUSTOMER_UPDATED: 'customer.updated',
+
+  // Connect events
+  ACCOUNT_UPDATED: 'account.updated',
+  ACCOUNT_APPLICATION_DEAUTHORIZED: 'account.application.deauthorized',
+  CAPABILITY_UPDATED: 'capability.updated',
+  PERSON_CREATED: 'person.created',
+  PERSON_UPDATED: 'person.updated',
+
+  // Payout events
+  PAYOUT_CREATED: 'payout.created',
+  PAYOUT_UPDATED: 'payout.updated',
+  PAYOUT_PAID: 'payout.paid',
+  PAYOUT_FAILED: 'payout.failed',
+  PAYOUT_CANCELED: 'payout.canceled',
+
+  // Transfer events
+  TRANSFER_CREATED: 'transfer.created',
+  TRANSFER_UPDATED: 'transfer.updated',
+  TRANSFER_PAID: 'transfer.paid',
+  TRANSFER_FAILED: 'transfer.failed',
 }
 
 // Helper function to create or retrieve Stripe customer
@@ -189,6 +301,66 @@ export const createOrRetrieveCustomer = async (user) => {
     return customer
   } catch (error) {
     console.error('Error creating/retrieving Stripe customer:', error)
+    throw error
+  }
+}
+
+// NEW: Helper function to create Stripe Connect account
+export const createConnectAccount = async (user, countryCode = 'US') => {
+  try {
+    // Validate country
+    if (!CONNECT_CONFIG.supportedCountries.includes(countryCode)) {
+      throw new Error(
+        `Country ${countryCode} is not supported for Connect accounts`
+      )
+    }
+
+    const account = await stripe.accounts.create({
+      type: 'express',
+      country: countryCode,
+      email: user.email,
+      capabilities: {
+        card_payments: { requested: true },
+        transfers: { requested: true },
+      },
+      business_type: 'individual',
+      metadata: {
+        userId: user._id.toString(),
+        userEmail: user.email,
+      },
+    })
+
+    return account
+  } catch (error) {
+    console.error('Error creating Connect account:', error)
+    throw error
+  }
+}
+
+// NEW: Helper function to create account link for onboarding
+export const createAccountLink = async (accountId, returnUrl, refreshUrl) => {
+  try {
+    const accountLink = await stripe.accountLinks.create({
+      account: accountId,
+      refresh_url: refreshUrl,
+      return_url: returnUrl,
+      type: 'account_onboarding',
+    })
+
+    return accountLink
+  } catch (error) {
+    console.error('Error creating account link:', error)
+    throw error
+  }
+}
+
+// NEW: Helper function to retrieve Connect account
+export const retrieveConnectAccount = async (accountId) => {
+  try {
+    const account = await stripe.accounts.retrieve(accountId)
+    return account
+  } catch (error) {
+    console.error('Error retrieving Connect account:', error)
     throw error
   }
 }

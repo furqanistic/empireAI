@@ -1,5 +1,4 @@
-// File: server/index.js (FIXED)
-
+// File: server/index.js (UPDATED WITH PAYOUT ROUTES)
 // CRITICAL FIX: Load dotenv FIRST, before any other imports
 import dotenv from 'dotenv'
 dotenv.config({ quiet: true })
@@ -22,6 +21,7 @@ import stripeRoute from './routes/stripe.js'
 // NEW IMPORTS
 import digitalProductsRoute from './routes/digitalProducts.js'
 import digitalProductWebhooksRoute from './routes/digitalProductWebhooks.js'
+import payoutRoute from './routes/payout.js' // NEW: Payout routes
 
 // Import middleware
 import {
@@ -39,11 +39,14 @@ const isOriginAllowed = (origin) => {
   const prodOrigins = ['https://ascndlabs.com', 'https://api.ascndlabs.com']
   const allowedOrigins =
     process.env.NODE_ENV === 'production' ? prodOrigins : devOrigins
+
   if (allowedOrigins.includes(origin)) return true
+
   if (process.env.NODE_ENV === 'production') {
     const subdomainPattern = /^https:\/\/[\w-]+\.ascndlabs\.com$/
     if (subdomainPattern.test(origin)) return true
   }
+
   return false
 }
 
@@ -76,8 +79,9 @@ app.use('/api/notifications/', notificationRoute)
 app.use('/api/stripe/', stripeRoute)
 app.use('/api/products/', productRoute) // Your existing products
 
-// NEW ROUTE - Digital products for user-created content
+// NEW ROUTES
 app.use('/api/digital-products/', digitalProductsRoute)
+app.use('/api/payouts/', payoutRoute) // NEW: Payout management routes
 
 // Hook routes with middleware
 app.use(
@@ -115,7 +119,6 @@ const connect = () => {
 }
 
 const PORT = process.env.PORT || 8800
-
 app.listen(PORT, () => {
   connect()
   console.log(`🚀 Server running on port ${PORT}`)
@@ -124,10 +127,4 @@ app.listen(PORT, () => {
       process.env.GROQ_API_KEY ? '✅ Connected' : '❌ Missing API Key'
     }`
   )
-
-  // Debug: Log environment status
-  console.log('🔧 Environment Status:')
-  console.log(`   NODE_ENV: ${process.env.NODE_ENV}`)
-  console.log(`   FRONTEND_URL: ${process.env.FRONTEND_URL || '❌ NOT LOADED'}`)
-  console.log(`   MONGO: ${process.env.MONGO ? '✅ SET' : '❌ NOT SET'}`)
 })

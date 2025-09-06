@@ -4,6 +4,7 @@ import {
   Bell,
   Bot,
   Box,
+  CreditCard,
   Crown,
   DollarSign,
   Home,
@@ -71,6 +72,13 @@ const Layout = ({ children }) => {
       icon: <Users size={18} />,
       path: '/invite',
       badge: 'Join',
+      badgeColor: 'bg-blue-500',
+    },
+    {
+      id: 'paid',
+      label: 'Get Paid',
+      icon: <CreditCard size={18} />,
+      path: '/payout',
       badgeColor: 'bg-blue-500',
     },
   ]

@@ -1,4 +1,4 @@
-// File: models/User.js - UPDATED WITH STRIPE INTEGRATION
+// File: models/User.js - UPDATED WITH STRIPE CONNECT INTEGRATION
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import mongoose from 'mongoose'
@@ -41,11 +41,97 @@ const UserSchema = new mongoose.Schema(
       sparse: true, // Allows multiple null values but unique non-null values
     },
 
-    // Referral System Fields
+    // NEW: Stripe Connect Fields for Payouts
+    stripeConnect: {
+      accountId: {
+        type: String,
+        unique: true,
+        sparse: true,
+      },
+
+      // Account verification status
+      isVerified: {
+        type: Boolean,
+        default: false,
+      },
+
+      // Current verification requirements
+      requirementsNeeded: [
+        {
+          type: String,
+        },
+      ],
+
+      // Account capabilities
+      capabilities: {
+        cardPayments: {
+          type: String,
+          enum: ['active', 'inactive', 'pending'],
+          default: 'inactive',
+        },
+        transfers: {
+          type: String,
+          enum: ['active', 'inactive', 'pending'],
+          default: 'inactive',
+        },
+      },
+
+      // Payout settings
+      payoutSettings: {
+        schedule: {
+          type: String,
+          enum: ['manual', 'weekly', 'monthly'],
+          default: 'manual',
+        },
+        minimumAmount: {
+          type: Number,
+          default: 1000, // $10.00 in cents
+        },
+        currency: {
+          type: String,
+          default: 'USD',
+        },
+      },
+
+      // Business information
+      businessProfile: {
+        name: String,
+        supportEmail: String,
+        supportPhone: String,
+        supportUrl: String,
+        country: String,
+        businessType: {
+          type: String,
+          enum: ['individual', 'company'],
+          default: 'individual',
+        },
+      },
+
+      // Account status tracking
+      onboardingCompleted: {
+        type: Boolean,
+        default: false,
+      },
+
+      lastUpdated: {
+        type: Date,
+        default: Date.now,
+      },
+
+      // Restrictions or issues
+      restrictedFeatures: [
+        {
+          feature: String,
+          reason: String,
+        },
+      ],
+    },
+
+    // Enhanced Referral System Fields
     referralCode: {
       type: String,
       unique: true,
-      sparse: true, // Allows multiple null values but unique non-null values
+      sparse: true,
     },
     referredBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -67,8 +153,19 @@ const UserSchema = new mongoose.Schema(
           enum: ['active', 'inactive'],
           default: 'active',
         },
+        // Track if this referral has made a purchase
+        hasSubscribed: {
+          type: Boolean,
+          default: false,
+        },
+        subscriptionValue: {
+          type: Number,
+          default: 0,
+        },
       },
     ],
+
+    // Enhanced referral statistics
     referralStats: {
       totalReferrals: {
         type: Number,
@@ -78,9 +175,79 @@ const UserSchema = new mongoose.Schema(
         type: Number,
         default: 0,
       },
-      referralRewards: {
+      paidReferrals: {
         type: Number,
         default: 0,
+      },
+      totalEarnings: {
+        type: Number,
+        default: 0, // Total earnings in cents
+      },
+      pendingEarnings: {
+        type: Number,
+        default: 0,
+      },
+      paidEarnings: {
+        type: Number,
+        default: 0,
+      },
+      conversionRate: {
+        type: Number,
+        default: 0, // Percentage of referrals that convert to paid
+      },
+    },
+
+    // NEW: Earnings and Payout Information
+    earningsInfo: {
+      totalEarned: {
+        type: Number,
+        default: 0, // Total lifetime earnings in cents
+      },
+      availableForPayout: {
+        type: Number,
+        default: 0, // Currently available for payout in cents
+      },
+      totalPaidOut: {
+        type: Number,
+        default: 0, // Total amount paid out in cents
+      },
+      lastPayoutDate: {
+        type: Date,
+      },
+      nextAutomaticPayout: {
+        type: Date,
+      },
+    },
+
+    // Notification preferences
+    notificationPreferences: {
+      emailNotifications: {
+        earnings: {
+          type: Boolean,
+          default: true,
+        },
+        payouts: {
+          type: Boolean,
+          default: true,
+        },
+        referrals: {
+          type: Boolean,
+          default: true,
+        },
+        marketing: {
+          type: Boolean,
+          default: false,
+        },
+      },
+      pushNotifications: {
+        earnings: {
+          type: Boolean,
+          default: true,
+        },
+        payouts: {
+          type: Boolean,
+          default: true,
+        },
       },
     },
 
@@ -106,21 +273,19 @@ UserSchema.index({ email: 1 })
 UserSchema.index({ referralCode: 1 })
 UserSchema.index({ referredBy: 1 })
 UserSchema.index({ stripeCustomerId: 1 })
+UserSchema.index({ 'stripeConnect.accountId': 1 })
 UserSchema.index({ isDeleted: 1, isActive: 1 })
 
 // Pre-save middleware to hash password
 UserSchema.pre('save', async function (next) {
-  // Only hash the password if it has been modified (or is new)
   if (!this.isModified('password')) return next()
 
   try {
-    // Generate a salt and hash the password
     const salt = await bcrypt.genSalt(12)
     this.password = await bcrypt.hash(this.password, salt)
 
-    // Set passwordChangedAt if this is an existing user changing password
     if (!this.isNew) {
-      this.passwordChangedAt = new Date(Date.now() - 1000) // Subtract 1 second to ensure token is valid
+      this.passwordChangedAt = new Date(Date.now() - 1000)
     }
 
     next()
@@ -131,7 +296,6 @@ UserSchema.pre('save', async function (next) {
 
 // Pre-save middleware to generate referral code
 UserSchema.pre('save', async function (next) {
-  // Only generate referral code if it's a new user and doesn't have one
   if (!this.isNew || this.referralCode) return next()
 
   try {
@@ -140,9 +304,7 @@ UserSchema.pre('save', async function (next) {
     let attempts = 0
     const maxAttempts = 10
 
-    // Generate unique referral code
     while (!isUnique && attempts < maxAttempts) {
-      // Create referral code from name and random string
       const namePrefix = this.name
         .replace(/\s+/g, '')
         .substring(0, 3)
@@ -150,7 +312,6 @@ UserSchema.pre('save', async function (next) {
       const randomSuffix = crypto.randomBytes(3).toString('hex').toUpperCase()
       referralCode = `${namePrefix}${randomSuffix}`
 
-      // Check if this code already exists
       const existingUser = await mongoose.models.User.findOne({ referralCode })
       if (!existingUser) {
         isUnique = true
@@ -160,7 +321,6 @@ UserSchema.pre('save', async function (next) {
     }
 
     if (!isUnique) {
-      // Fallback to timestamp-based code
       this.referralCode = `USER${Date.now().toString().slice(-6)}`
     }
 
@@ -190,10 +350,12 @@ UserSchema.methods.changedPasswordAfter = function (JWTTimestamp) {
   return false
 }
 
-// Method to add a referral
-UserSchema.methods.addReferral = async function (referredUserId) {
+// Enhanced method to add a referral
+UserSchema.methods.addReferral = async function (
+  referredUserId,
+  subscriptionValue = 0
+) {
   try {
-    // Check if referral already exists
     const existingReferral = this.referrals.find(
       (ref) => ref.user.toString() === referredUserId.toString()
     )
@@ -203,12 +365,21 @@ UserSchema.methods.addReferral = async function (referredUserId) {
         user: referredUserId,
         joinedAt: new Date(),
         status: 'active',
+        hasSubscribed: subscriptionValue > 0,
+        subscriptionValue: subscriptionValue,
       })
 
-      // Update referral stats
       this.referralStats.totalReferrals += 1
       this.referralStats.activeReferrals += 1
-      this.referralStats.referralRewards += 10 // Example: 10 points per referral
+
+      if (subscriptionValue > 0) {
+        this.referralStats.paidReferrals += 1
+      }
+
+      // Update conversion rate
+      this.referralStats.conversionRate =
+        (this.referralStats.paidReferrals / this.referralStats.totalReferrals) *
+        100
 
       await this.save()
       return true
@@ -219,14 +390,88 @@ UserSchema.methods.addReferral = async function (referredUserId) {
   }
 }
 
-// Virtual for referral URL (if you want to implement sharing)
+// NEW: Method to update Stripe Connect account status
+UserSchema.methods.updateConnectAccountStatus = function (accountData) {
+  if (!this.stripeConnect) {
+    this.stripeConnect = {}
+  }
+
+  this.stripeConnect.accountId = accountData.id
+  this.stripeConnect.isVerified =
+    accountData.details_submitted && accountData.charges_enabled
+  this.stripeConnect.requirementsNeeded =
+    accountData.requirements?.currently_due || []
+
+  // Update capabilities
+  if (accountData.capabilities) {
+    this.stripeConnect.capabilities = {
+      cardPayments: accountData.capabilities.card_payments || 'inactive',
+      transfers: accountData.capabilities.transfers || 'inactive',
+    }
+  }
+
+  // Update business profile if available
+  if (accountData.business_profile) {
+    this.stripeConnect.businessProfile = {
+      ...this.stripeConnect.businessProfile,
+      name: accountData.business_profile.name,
+      supportEmail: accountData.business_profile.support_email,
+      supportPhone: accountData.business_profile.support_phone,
+      supportUrl: accountData.business_profile.support_url,
+      country: accountData.country,
+    }
+  }
+
+  this.stripeConnect.onboardingCompleted = accountData.details_submitted
+  this.stripeConnect.lastUpdated = new Date()
+
+  return this.save()
+}
+
+// NEW: Method to update earnings information
+UserSchema.methods.updateEarningsInfo = async function () {
+  const Earnings = mongoose.model('Earnings')
+
+  // Get earnings summary
+  const summary = await Earnings.getEarningsSummary(this._id)
+
+  this.earningsInfo.totalEarned =
+    summary.approved.total + summary.paid.total + summary.pending.total
+  this.earningsInfo.availableForPayout = summary.approved.total
+  this.earningsInfo.totalPaidOut = summary.paid.total
+
+  // Update referral stats
+  this.referralStats.totalEarnings = this.earningsInfo.totalEarned
+  this.referralStats.pendingEarnings =
+    summary.pending.total + summary.approved.total
+  this.referralStats.paidEarnings = summary.paid.total
+
+  return this.save()
+}
+
+// NEW: Method to check if user can receive payouts
+UserSchema.methods.canReceivePayouts = function () {
+  return (
+    this.stripeConnect?.accountId &&
+    this.stripeConnect.isVerified &&
+    this.stripeConnect.capabilities?.transfers === 'active' &&
+    this.stripeConnect.onboardingCompleted
+  )
+}
+
+// NEW: Method to get minimum payout amount
+UserSchema.methods.getMinimumPayoutAmount = function () {
+  return this.stripeConnect?.payoutSettings?.minimumAmount || 1000 // Default $10
+}
+
+// Virtual for referral URL
 UserSchema.virtual('referralUrl').get(function () {
   return `${
     process.env.FRONTEND_URL || 'http://localhost:5173'
   }/auth?ref=${this.referralCode}`
 })
 
-// Virtual to get subscription status (populated by middleware)
+// Virtual to get subscription status
 UserSchema.virtual('subscriptionStatus').get(function () {
   if (this.subscription) {
     return {
@@ -247,6 +492,35 @@ UserSchema.virtual('subscriptionStatus').get(function () {
   }
 })
 
+// NEW: Virtual for Connect account status
+UserSchema.virtual('connectStatus').get(function () {
+  if (!this.stripeConnect?.accountId) {
+    return {
+      status: 'not_connected',
+      canReceivePayouts: false,
+      needsVerification: false,
+    }
+  }
+
+  return {
+    status: this.stripeConnect.isVerified ? 'verified' : 'pending',
+    canReceivePayouts: this.canReceivePayouts(),
+    needsVerification: this.stripeConnect.requirementsNeeded.length > 0,
+    requirements: this.stripeConnect.requirementsNeeded,
+  }
+})
+
+// NEW: Virtual for formatted earnings
+UserSchema.virtual('formattedEarnings').get(function () {
+  const info = this.earningsInfo
+  return {
+    totalEarned: (info.totalEarned / 100).toFixed(2),
+    availableForPayout: (info.availableForPayout / 100).toFixed(2),
+    totalPaidOut: (info.totalPaidOut / 100).toFixed(2),
+    currency: this.stripeConnect?.payoutSettings?.currency || 'USD',
+  }
+})
+
 // Static method to find user by referral code
 UserSchema.statics.findByReferralCode = function (code) {
   return this.findOne({
@@ -256,9 +530,17 @@ UserSchema.statics.findByReferralCode = function (code) {
   })
 }
 
+// NEW: Static method to find users with pending Connect verification
+UserSchema.statics.findPendingVerification = function () {
+  return this.find({
+    'stripeConnect.accountId': { $exists: true },
+    'stripeConnect.isVerified': false,
+    'stripeConnect.onboardingCompleted': false,
+  })
+}
+
 // Query middleware to exclude deleted users by default
 UserSchema.pre(/^find/, function (next) {
-  // this points to the current query
   this.find({ isDeleted: { $ne: true } })
   next()
 })

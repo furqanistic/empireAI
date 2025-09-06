@@ -2,6 +2,7 @@
 import { useSelector } from 'react-redux'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import AdminPage from './pages/Admin/AdminPage'
+import PayoutDashboard from './pages/Admin/PayoutDashboard'
 import AffiliatePage from './pages/Affiliate/AffiliatePage'
 import AIBuilderPage from './pages/AIBuilder/AIBuilderPage'
 import NicheLaunchpad from './pages/AIBuilder/NicheLaunchpad'
@@ -171,6 +172,14 @@ const App = () => {
           element={
             <AdminRoute>
               <AdminPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/payout'
+          element={
+            <AdminRoute>
+              <PayoutDashboard />
             </AdminRoute>
           }
         />

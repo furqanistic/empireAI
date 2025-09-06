@@ -1,4 +1,4 @@
-// File: controllers/stripe.js - UPDATED SUCCESS URL & ADDED DEBUG
+// File: controllers/stripe.js - UPDATED WITH EARNINGS INTEGRATION
 import {
   createOrRetrieveCustomer,
   getAllPlans,
@@ -12,6 +12,11 @@ import {
 import { createError } from '../error.js'
 import Subscription from '../models/Subscription.js'
 import User from '../models/User.js'
+// NEW: Import earnings integration
+import {
+  approveEarningAfterPayment,
+  createEarningForSubscription,
+} from '../utils/earningsIntegration.js'
 
 // DEBUG ROUTE - Add this temporarily to check subscriptions
 export const debugSubscriptions = async (req, res, next) => {
@@ -137,9 +142,7 @@ export const createCheckoutSession = async (req, res, next) => {
   }
 }
 
-// Verify checkout session and create subscription
-// Replace the verifyCheckoutSession function in controllers/stripe.js with this fixed version:
-
+// Verify checkout session and create subscription - UPDATED WITH EARNINGS INTEGRATION
 export const verifyCheckoutSession = async (req, res, next) => {
   try {
     const { sessionId } = req.body
@@ -224,6 +227,14 @@ export const verifyCheckoutSession = async (req, res, next) => {
 
       // Verify the subscription was saved
       const savedSubscription = await Subscription.findById(subscription._id)
+
+      // NEW: Create earning for referral commission
+      try {
+        await createEarningForSubscription(subscription, user._id)
+      } catch (earningError) {
+        console.error('Error creating earning:', earningError)
+        // Don't fail the subscription creation if earning creation fails
+      }
     } catch (saveError) {
       console.error('Error saving subscription to database:', saveError)
       return next(
@@ -246,6 +257,19 @@ export const verifyCheckoutSession = async (req, res, next) => {
     next(
       createError(500, `Failed to verify checkout session: ${error.message}`)
     )
+  }
+}
+
+// NEW: Handle successful payments (for approving earnings)
+export const handleSuccessfulPayment = async (
+  paymentIntentId,
+  subscriptionId
+) => {
+  try {
+    // This would be called from a webhook handler
+    await approveEarningAfterPayment(subscriptionId, paymentIntentId)
+  } catch (error) {
+    console.error('Error handling successful payment:', error)
   }
 }
 
