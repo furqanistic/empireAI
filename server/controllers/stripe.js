@@ -20,13 +20,6 @@ export const debugSubscriptions = async (req, res, next) => {
       .populate('user', 'name email')
       .sort({ createdAt: -1 })
 
-    console.log(
-      'Debug: Found subscriptions for user:',
-      req.user._id,
-      'Count:',
-      subscriptions.length
-    )
-
     res.status(200).json({
       status: 'success',
       userId: req.user._id,
@@ -68,13 +61,6 @@ export const createCheckoutSession = async (req, res, next) => {
     const { planName, billingCycle = 'monthly' } = req.body
     const user = req.user
 
-    console.log('Creating checkout session for:', {
-      userId: user._id,
-      planName,
-      billingCycle,
-      email: user.email,
-    })
-
     if (!planName) {
       return next(createError(400, 'Plan name is required'))
     }
@@ -89,34 +75,24 @@ export const createCheckoutSession = async (req, res, next) => {
     })
 
     if (existingSubscription) {
-      console.log(
-        'User already has active subscription:',
-        existingSubscription._id
-      )
       return next(createError(400, 'You already have an active subscription'))
     }
 
     // Create or retrieve Stripe customer
     const customer = await createOrRetrieveCustomer(user)
-    console.log('Stripe customer:', customer.id)
 
     // Update user with Stripe customer ID if not already set
     if (!user.stripeCustomerId) {
       await User.findByIdAndUpdate(user._id, {
         stripeCustomerId: customer.id,
       })
-      console.log('Updated user with Stripe customer ID')
     }
 
     const priceId = getPriceId(planName, billingCycle)
-    console.log('Using price ID:', priceId)
 
     // UPDATED SUCCESS URL TO MATCH THE ACTUAL COMPONENT PATH
     const successUrl = `${process.env.FRONTEND_URL}/pricing/success?session_id={CHECKOUT_SESSION_ID}`
     const cancelUrl = `${process.env.FRONTEND_URL}/pricing?canceled=true`
-
-    console.log('Success URL:', successUrl)
-    console.log('Cancel URL:', cancelUrl)
 
     // Create checkout session
     const session = await stripe.checkout.sessions.create({
@@ -146,8 +122,6 @@ export const createCheckoutSession = async (req, res, next) => {
       },
     })
 
-    console.log('Checkout session created:', session.id)
-
     res.status(200).json({
       status: 'success',
       data: {
@@ -171,31 +145,14 @@ export const verifyCheckoutSession = async (req, res, next) => {
     const { sessionId } = req.body
     const user = req.user
 
-    console.log('=== VERIFICATION STARTED ===')
-    console.log('Verifying checkout session:', {
-      sessionId,
-      userId: user._id,
-      email: user.email,
-    })
-
     if (!sessionId) {
       console.error('No session ID provided')
       return next(createError(400, 'Session ID is required'))
     }
 
     // Retrieve the checkout session
-    console.log('Retrieving session from Stripe...')
     const session = await stripe.checkout.sessions.retrieve(sessionId, {
       expand: ['subscription', 'customer'],
-    })
-
-    console.log('Retrieved session:', {
-      id: session.id,
-      status: session.status,
-      payment_status: session.payment_status,
-      subscription_id: session.subscription?.id,
-      customer_id: session.customer?.id || session.customer,
-      metadata: session.metadata,
     })
 
     if (session.metadata.userId !== user._id.toString()) {
@@ -223,24 +180,10 @@ export const verifyCheckoutSession = async (req, res, next) => {
     // Get subscription details from Stripe
     const stripeSubscription = session.subscription
 
-    console.log('Stripe subscription details:', {
-      id: stripeSubscription.id,
-      status: stripeSubscription.status,
-      current_period_start: stripeSubscription.current_period_start,
-      current_period_end: stripeSubscription.current_period_end,
-      trial_start: stripeSubscription.trial_start,
-      trial_end: stripeSubscription.trial_end,
-    })
-
     // Check if subscription already exists
     let subscription = await Subscription.findOne({
       user: user._id,
     })
-
-    console.log(
-      'Existing subscription found:',
-      subscription ? subscription._id : 'None'
-    )
 
     // FIXED: Handle undefined period dates during trial
     const subscriptionData = {
@@ -270,27 +213,17 @@ export const verifyCheckoutSession = async (req, res, next) => {
         : null,
     }
 
-    console.log('Subscription data to save:', subscriptionData)
-
     try {
       if (subscription) {
-        console.log('Updating existing subscription:', subscription._id)
         Object.assign(subscription, subscriptionData)
         await subscription.save()
-        console.log('Subscription updated successfully')
       } else {
-        console.log('Creating new subscription')
         subscription = new Subscription(subscriptionData)
         await subscription.save()
-        console.log('New subscription created with ID:', subscription._id)
       }
 
       // Verify the subscription was saved
       const savedSubscription = await Subscription.findById(subscription._id)
-      console.log(
-        'Verification - subscription exists in DB:',
-        !!savedSubscription
-      )
     } catch (saveError) {
       console.error('Error saving subscription to database:', saveError)
       return next(
@@ -300,14 +233,6 @@ export const verifyCheckoutSession = async (req, res, next) => {
 
     // Populate the subscription for response
     await subscription.populate('user', 'name email')
-
-    console.log('Subscription saved successfully:', {
-      id: subscription._id,
-      plan: subscription.plan,
-      status: subscription.status,
-      isActive: subscription.isActive,
-    })
-    console.log('=== VERIFICATION COMPLETED ===')
 
     res.status(200).json({
       status: 'success',
@@ -332,13 +257,6 @@ export const getCurrentSubscription = async (req, res, next) => {
     const subscription = await Subscription.findOne({
       user: user._id,
     }).populate('user', 'name email')
-
-    console.log(
-      'Getting current subscription for user:',
-      user._id,
-      'Found:',
-      !!subscription
-    )
 
     if (!subscription) {
       return res.status(200).json({

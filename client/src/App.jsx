@@ -11,7 +11,10 @@ import DashboardPage from './pages/Dashboard/DashboardPage'
 import EarningsPage from './pages/Earnings/EarningsPage'
 import PricingPage from './pages/Pricing/PricingPage'
 import SubscriptionSuccess from './pages/Pricing/SubscriptionSuccess'
+import ProductCheckoutPage from './pages/Product/ProductCheckoutPage'
 import ProductPage from './pages/Product/ProductPage'
+import ProductSuccessPage from './pages/Product/ProductSuccessPage'
+import PurchasesPage from './pages/Product/PurchasesPage'
 import ProfilePage from './pages/Profile/ProfilePage'
 import { selectCurrentUser } from './redux/userSlice.js'
 
@@ -124,6 +127,9 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+        <Route path='/product/checkout/:id' element={<ProductCheckoutPage />} />
+        <Route path='/product/success' element={<ProductSuccessPage />} />
+        <Route path='/purchases' element={<PurchasesPage />} />
         <Route
           path='/profile'
           element={
