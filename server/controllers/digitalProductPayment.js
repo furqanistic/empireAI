@@ -1,4 +1,4 @@
-// File: controllers/digitalProductPayment.js - COMPLETE FILE
+// File: controllers/digitalProductPayment.js - FIXED WITH URL DEBUGGING
 
 import crypto from 'crypto'
 import dotenv from 'dotenv'
@@ -8,7 +8,9 @@ import { stripe } from '../config/stripe.js'
 import { createError } from '../error.js'
 import DigitalProduct from '../models/DigitalProduct.js'
 import User from '../models/User.js'
+
 dotenv.config({ quiet: true })
+
 // Create checkout session for a digital product
 export const createProductCheckoutSession = async (req, res, next) => {
   try {
@@ -63,6 +65,48 @@ export const createProductCheckoutSession = async (req, res, next) => {
 
     console.log('Product found for checkout:', product.name)
 
+    // FIXED: URL validation and construction
+    const frontendUrl = process.env.FRONTEND_URL
+
+    // Debug environment variables
+    console.log('=== URL DEBUG INFO ===')
+    console.log('FRONTEND_URL from env:', frontendUrl)
+    console.log('FRONTEND_URL type:', typeof frontendUrl)
+    console.log(
+      'FRONTEND_URL length:',
+      frontendUrl ? frontendUrl.length : 'undefined'
+    )
+
+    // Validate and clean the frontend URL
+    if (!frontendUrl) {
+      console.error('FRONTEND_URL environment variable is not set')
+      return next(
+        createError(500, 'Server configuration error: Frontend URL not set')
+      )
+    }
+
+    // Remove any trailing slashes and whitespace
+    const cleanFrontendUrl = frontendUrl.trim().replace(/\/+$/, '')
+
+    // Construct URLs with proper validation
+    const successUrl = `${cleanFrontendUrl}/product/success?session_id={CHECKOUT_SESSION_ID}&product=${product._id}`
+    const cancelUrl = `${cleanFrontendUrl}/product/checkout/${product._id}?canceled=true`
+
+    console.log('Constructed success_url:', successUrl)
+    console.log('Constructed cancel_url:', cancelUrl)
+
+    // Validate URLs before sending to Stripe
+    try {
+      new URL(successUrl.replace('{CHECKOUT_SESSION_ID}', 'test_session_id'))
+      new URL(cancelUrl)
+      console.log('URL validation passed')
+    } catch (urlError) {
+      console.error('URL validation failed:', urlError)
+      return next(
+        createError(500, `Invalid URL construction: ${urlError.message}`)
+      )
+    }
+
     // Create or get Stripe customer
     let customer
     try {
@@ -101,8 +145,8 @@ export const createProductCheckoutSession = async (req, res, next) => {
 
     console.log('Creating Stripe checkout session...')
 
-    // Create checkout session
-    const session = await stripe.checkout.sessions.create({
+    // Create checkout session with validated URLs
+    const sessionConfig = {
       customer: customer.id,
       payment_method_types: ['card'],
       line_items: [
@@ -123,8 +167,8 @@ export const createProductCheckoutSession = async (req, res, next) => {
         },
       ],
       mode: 'payment',
-      success_url: `${process.env.FRONTEND_URL}/product/success?session_id={CHECKOUT_SESSION_ID}&product=${product._id}`,
-      cancel_url: `${process.env.FRONTEND_URL}/product/checkout/${product._id}?canceled=true`,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
       metadata: {
         productId: product._id.toString(),
         productSlug: product.slug,
@@ -134,7 +178,6 @@ export const createProductCheckoutSession = async (req, res, next) => {
         customerLastName: customerInfo.lastName,
       },
       billing_address_collection: 'auto',
-      // REMOVED: shipping_address_collection (not needed for digital products)
       allow_promotion_codes: true,
       payment_intent_data: {
         metadata: {
@@ -142,7 +185,6 @@ export const createProductCheckoutSession = async (req, res, next) => {
           customerEmail: customerInfo.email,
         },
       },
-      // Additional settings for digital products
       invoice_creation: {
         enabled: true,
         invoice_data: {
@@ -152,7 +194,14 @@ export const createProductCheckoutSession = async (req, res, next) => {
           },
         },
       },
+    }
+
+    console.log('Session config URLs:', {
+      success_url: sessionConfig.success_url,
+      cancel_url: sessionConfig.cancel_url,
     })
+
+    const session = await stripe.checkout.sessions.create(sessionConfig)
 
     console.log('Stripe checkout session created:', session.id)
 
@@ -174,6 +223,7 @@ export const createProductCheckoutSession = async (req, res, next) => {
 
     // More specific error handling for Stripe errors
     if (error.type === 'StripeInvalidRequestError') {
+      console.error('Stripe error details:', error.message)
       return next(createError(400, `Stripe error: ${error.message}`))
     }
 
@@ -182,6 +232,10 @@ export const createProductCheckoutSession = async (req, res, next) => {
     )
   }
 }
+
+// Rest of the file remains the same...
+// (Include all other functions: verifyProductCheckoutSession, generateDownloadToken,
+//  downloadPurchasedFile, getUserPurchases, getProductAnalytics)
 
 // Verify product checkout session and process purchase
 export const verifyProductCheckoutSession = async (req, res, next) => {
