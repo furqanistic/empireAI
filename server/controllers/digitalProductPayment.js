@@ -1,13 +1,14 @@
 // File: controllers/digitalProductPayment.js - COMPLETE FILE
 
 import crypto from 'crypto'
+import dotenv from 'dotenv'
 import fs from 'fs'
 import path from 'path'
 import { stripe } from '../config/stripe.js'
 import { createError } from '../error.js'
 import DigitalProduct from '../models/DigitalProduct.js'
 import User from '../models/User.js'
-
+dotenv.config({ quiet: true })
 // Create checkout session for a digital product
 export const createProductCheckoutSession = async (req, res, next) => {
   try {
