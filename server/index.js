@@ -1,11 +1,16 @@
-// File: server/index.js (UPDATED)
+// File: server/index.js (FIXED)
+
+// CRITICAL FIX: Load dotenv FIRST, before any other imports
+import dotenv from 'dotenv'
+dotenv.config({ quiet: true })
+
+// Now import everything else AFTER dotenv is loaded
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
-import dotenv from 'dotenv'
 import express from 'express'
 import mongoose from 'mongoose'
 
-// Import routes
+// Import routes (these can now access environment variables)
 import authRoute from './routes/auth.js'
 import businessPlanRoute from './routes/businessPlan.js'
 import hookRoute from './routes/hook.js'
@@ -26,7 +31,6 @@ import {
 } from './middleware/hookMiddleware.js'
 
 const app = express()
-dotenv.config({ quiet: true })
 
 // CORS configuration (keep your existing setup)
 const isOriginAllowed = (origin) => {
@@ -35,14 +39,11 @@ const isOriginAllowed = (origin) => {
   const prodOrigins = ['https://ascndlabs.com', 'https://api.ascndlabs.com']
   const allowedOrigins =
     process.env.NODE_ENV === 'production' ? prodOrigins : devOrigins
-
   if (allowedOrigins.includes(origin)) return true
-
   if (process.env.NODE_ENV === 'production') {
     const subdomainPattern = /^https:\/\/[\w-]+\.ascndlabs\.com$/
     if (subdomainPattern.test(origin)) return true
   }
-
   return false
 }
 
@@ -114,6 +115,7 @@ const connect = () => {
 }
 
 const PORT = process.env.PORT || 8800
+
 app.listen(PORT, () => {
   connect()
   console.log(`🚀 Server running on port ${PORT}`)
@@ -122,4 +124,10 @@ app.listen(PORT, () => {
       process.env.GROQ_API_KEY ? '✅ Connected' : '❌ Missing API Key'
     }`
   )
+
+  // Debug: Log environment status
+  console.log('🔧 Environment Status:')
+  console.log(`   NODE_ENV: ${process.env.NODE_ENV}`)
+  console.log(`   FRONTEND_URL: ${process.env.FRONTEND_URL || '❌ NOT LOADED'}`)
+  console.log(`   MONGO: ${process.env.MONGO ? '✅ SET' : '❌ NOT SET'}`)
 })
