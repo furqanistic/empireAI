@@ -9,20 +9,19 @@ import cors from 'cors'
 import express from 'express'
 import mongoose from 'mongoose'
 
-// Import routes (these can now access environment variables)
 import authRoute from './routes/auth.js'
 import businessPlanRoute from './routes/businessPlan.js'
+import earningsRoutes from './routes/earnings.js'
 import hookRoute from './routes/hook.js'
 import notificationRoute from './routes/notification.js'
 import productRoute from './routes/product.js' // Your existing product routes
 import referralRoute from './routes/referral.js'
 import stripeRoute from './routes/stripe.js'
-
 // NEW IMPORTS
 import digitalProductsRoute from './routes/digitalProducts.js'
 import digitalProductWebhooksRoute from './routes/digitalProductWebhooks.js'
 import payoutRoute from './routes/payout.js' // NEW: Payout routes
-
+import stripeConnectWebhooksRoute from './routes/stripeConnectWebhooks.js'
 // Import middleware
 import {
   applySubscriptionLimits,
@@ -78,11 +77,11 @@ app.use('/api/referral/', referralRoute)
 app.use('/api/notifications/', notificationRoute)
 app.use('/api/stripe/', stripeRoute)
 app.use('/api/products/', productRoute) // Your existing products
-
+app.use('/api/webhooks/', stripeConnectWebhooksRoute)
 // NEW ROUTES
 app.use('/api/digital-products/', digitalProductsRoute)
 app.use('/api/payouts/', payoutRoute) // NEW: Payout management routes
-
+app.use('/api/earnings', earningsRoutes)
 // Hook routes with middleware
 app.use(
   '/api/hooks/',

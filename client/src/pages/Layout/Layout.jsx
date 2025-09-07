@@ -1,4 +1,4 @@
-// File: client/src/pages/Layout/Layout.jsx
+// File: client/src/pages/Layout/Layout.jsx - UPDATED WITH POINTS DISPLAY
 import NotificationDrawer from '@/components/Layout/NotificationDrawer.jsx'
 import {
   Bell,
@@ -19,11 +19,16 @@ import {
   User2,
   Users,
   X,
+  Zap,
 } from 'lucide-react'
 import React, { useState } from 'react'
 import { useSelector } from 'react-redux'
 import { Link, useLocation } from 'react-router-dom'
-import { useCurrentUser, useLogout } from '../../hooks/useAuth.js'
+import {
+  useCurrentUser,
+  useLogout,
+  usePointsStatus,
+} from '../../hooks/useAuth.js'
 import { useUnreadCount } from '../../hooks/useNotifications.js'
 import { selectIsAdmin } from '../../redux/userSlice.js'
 
@@ -41,6 +46,10 @@ const Layout = ({ children }) => {
   // Notification data
   const { data: unreadData } = useUnreadCount()
   const unreadCount = unreadData?.data?.unreadCount || 0
+
+  // Points data
+  const { data: pointsData, isLoading: pointsLoading } = usePointsStatus()
+  const userPoints = pointsData?.data?.points || 0
 
   // Get current location to determine active menu item
   const location = useLocation()
@@ -412,6 +421,25 @@ const Layout = ({ children }) => {
 
           {/* Right Section */}
           <div className='flex items-center gap-3'>
+            {/* Points Display */}
+            <div className='hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#121214] border border-[#1E1E21]'>
+              <Zap size={16} className='text-[#D4AF37]' />
+              <span className='text-[#D4AF37] font-bold text-sm'>
+                {pointsLoading ? '...' : userPoints.toLocaleString()}
+              </span>
+              <span className='text-gray-400 text-xs hidden md:inline'>
+                points
+              </span>
+            </div>
+
+            {/* Mobile Points Display */}
+            <div className='sm:hidden flex items-center gap-1 px-2 py-1 rounded-lg bg-[#121214] border border-[#1E1E21]'>
+              <Zap size={14} className='text-[#D4AF37]' />
+              <span className='text-[#D4AF37] font-bold text-xs'>
+                {pointsLoading ? '...' : userPoints.toLocaleString()}
+              </span>
+            </div>
+
             {/* Notifications */}
             <button
               onClick={() => setIsNotificationOpen(true)}

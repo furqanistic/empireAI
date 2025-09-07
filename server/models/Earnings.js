@@ -1,4 +1,4 @@
-// File: models/Earnings.js
+// File: models/Earnings.js - CREATE THIS FILE
 import mongoose from 'mongoose'
 
 const EarningsSchema = new mongoose.Schema(
@@ -11,7 +11,7 @@ const EarningsSchema = new mongoose.Schema(
       index: true,
     },
 
-    // User who made the purchase (referred user)
+    // User who was referred
     referredUser: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -22,19 +22,13 @@ const EarningsSchema = new mongoose.Schema(
     source: {
       type: String,
       enum: [
-        'referral_signup',
         'subscription_purchase',
         'subscription_renewal',
-        'product_sale',
+        'digital_product_purchase',
+        'referral_bonus',
       ],
       required: true,
-    },
-
-    // Transaction details
-    transactionType: {
-      type: String,
-      enum: ['commission', 'bonus', 'reward'],
-      default: 'commission',
+      index: true,
     },
 
     // Related subscription (if applicable)
@@ -43,13 +37,13 @@ const EarningsSchema = new mongoose.Schema(
       ref: 'Subscription',
     },
 
-    // Related product (if applicable)
-    product: {
+    // Related digital product (if applicable)
+    digitalProduct: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Product',
+      ref: 'DigitalProduct',
     },
 
-    // Financial details
+    // Commission details
     grossAmount: {
       type: Number,
       required: true, // Original transaction amount in cents
@@ -57,12 +51,12 @@ const EarningsSchema = new mongoose.Schema(
 
     commissionRate: {
       type: Number,
-      required: true, // Commission rate as decimal (e.g., 0.05 for 5%)
+      required: true, // Rate as decimal (e.g., 0.05 for 5%)
     },
 
     commissionAmount: {
       type: Number,
-      required: true, // Calculated commission in cents
+      required: true, // Commission earned in cents
     },
 
     currency: {
@@ -79,17 +73,7 @@ const EarningsSchema = new mongoose.Schema(
       index: true,
     },
 
-    // Payout information
-    payout: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Payout',
-    },
-
-    paidAt: {
-      type: Date,
-    },
-
-    // Approval workflow
+    // Approval details
     approvedAt: {
       type: Date,
     },
@@ -99,29 +83,69 @@ const EarningsSchema = new mongoose.Schema(
       ref: 'User',
     },
 
-    // External reference IDs
-    stripePaymentIntentId: {
-      type: String,
+    // Payment details
+    paidAt: {
+      type: Date,
+    },
+
+    payout: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Payout',
     },
 
     stripeTransferId: {
       type: String,
     },
 
-    // Additional metadata
-    metadata: {
-      clickId: String,
-      campaignId: String,
-      conversionData: mongoose.Schema.Types.Mixed,
+    stripePaymentIntentId: {
+      type: String,
     },
 
-    // Notes and descriptions
+    // Dispute details
+    disputedAt: {
+      type: Date,
+    },
+
+    disputedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+
+    disputeReason: {
+      type: String,
+    },
+
+    // Cancellation details
+    cancelledAt: {
+      type: Date,
+    },
+
+    cancelledBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+
+    cancellationReason: {
+      type: String,
+    },
+
+    // Description and metadata
     description: {
       type: String,
+      required: true,
     },
 
-    notes: {
+    adminNotes: {
       type: String,
+    },
+
+    metadata: {
+      planType: String,
+      billingCycle: String,
+      originalEarningId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Earnings',
+      },
     },
   },
   {
@@ -135,92 +159,31 @@ const EarningsSchema = new mongoose.Schema(
 EarningsSchema.index({ user: 1, status: 1 })
 EarningsSchema.index({ user: 1, createdAt: -1 })
 EarningsSchema.index({ referredUser: 1 })
-EarningsSchema.index({ status: 1, createdAt: -1 })
+EarningsSchema.index({ subscription: 1 })
+EarningsSchema.index({ digitalProduct: 1 })
 EarningsSchema.index({ payout: 1 })
-EarningsSchema.index({ source: 1 })
+EarningsSchema.index({ status: 1, createdAt: -1 })
+EarningsSchema.index({ source: 1, status: 1 })
+
+// Virtual for formatted amounts
+EarningsSchema.virtual('formattedAmounts').get(function () {
+  return {
+    gross: (this.grossAmount / 100).toFixed(2),
+    commission: (this.commissionAmount / 100).toFixed(2),
+    currency: this.currency,
+    rate: (this.commissionRate * 100).toFixed(1) + '%',
+  }
+})
 
 // Virtual to check if earning is payable
 EarningsSchema.virtual('isPayable').get(function () {
   return this.status === 'approved' && !this.payout
 })
 
-// Virtual to get formatted amounts
-EarningsSchema.virtual('formattedAmounts').get(function () {
-  return {
-    gross: (this.grossAmount / 100).toFixed(2),
-    commission: (this.commissionAmount / 100).toFixed(2),
-    currency: this.currency,
-  }
-})
-
-// Virtual to get age in days
-EarningsSchema.virtual('ageInDays').get(function () {
-  const now = new Date()
-  const timeDiff = now - this.createdAt
-  return Math.floor(timeDiff / (1000 * 60 * 60 * 24))
-})
-
-// Method to approve earning
-EarningsSchema.methods.approve = function (approvedBy) {
-  this.status = 'approved'
-  this.approvedAt = new Date()
-  this.approvedBy = approvedBy
-  return this.save()
-}
-
-// Method to mark as paid
-EarningsSchema.methods.markAsPaid = function (payoutId, transferId = null) {
-  this.status = 'paid'
-  this.paidAt = new Date()
-  this.payout = payoutId
-  if (transferId) {
-    this.stripeTransferId = transferId
-  }
-  return this.save()
-}
-
-// Method to dispute earning
-EarningsSchema.methods.dispute = function (reason) {
-  this.status = 'disputed'
-  this.notes = reason
-  return this.save()
-}
-
-// Method to cancel earning
-EarningsSchema.methods.cancel = function (reason) {
-  this.status = 'cancelled'
-  this.notes = reason
-  return this.save()
-}
-
-// Static method to calculate total earnings for a user
-EarningsSchema.statics.getTotalEarnings = async function (
-  userId,
-  status = null
-) {
-  const matchStage = { user: mongoose.Types.ObjectId(userId) }
-  if (status) {
-    matchStage.status = status
-  }
-
-  const result = await this.aggregate([
-    { $match: matchStage },
-    {
-      $group: {
-        _id: null,
-        total: { $sum: '$commissionAmount' },
-        count: { $sum: 1 },
-      },
-    },
-  ])
-
-  return result.length > 0 ? result[0] : { total: 0, count: 0 }
-}
-
-// Static method to get earnings summary by status
+// Static method to get earnings summary for a user
 EarningsSchema.statics.getEarningsSummary = async function (userId) {
-  const result = await this.aggregate([
-    { $match: { user: mongoose.Types.ObjectId(userId) } },
+  const summary = await this.aggregate([
+    { $match: { user: userId } },
     {
       $group: {
         _id: '$status',
@@ -230,7 +193,7 @@ EarningsSchema.statics.getEarningsSummary = async function (userId) {
     },
   ])
 
-  const summary = {
+  const result = {
     pending: { total: 0, count: 0 },
     approved: { total: 0, count: 0 },
     paid: { total: 0, count: 0 },
@@ -238,19 +201,38 @@ EarningsSchema.statics.getEarningsSummary = async function (userId) {
     cancelled: { total: 0, count: 0 },
   }
 
-  result.forEach((item) => {
-    if (summary[item._id]) {
-      summary[item._id] = {
+  summary.forEach((item) => {
+    if (result[item._id]) {
+      result[item._id] = {
         total: item.total,
         count: item.count,
       }
     }
   })
 
-  return summary
+  return result
 }
 
-// Static method to get payable earnings for a user
+// Static method to get recent earnings
+EarningsSchema.statics.getRecentEarnings = function (
+  userId,
+  days = 30,
+  limit = 10
+) {
+  const startDate = new Date()
+  startDate.setDate(startDate.getDate() - days)
+
+  return this.find({
+    user: userId,
+    createdAt: { $gte: startDate },
+  })
+    .populate('referredUser', 'name email')
+    .populate('subscription', 'plan status')
+    .sort({ createdAt: -1 })
+    .limit(limit)
+}
+
+// Static method to get payable earnings
 EarningsSchema.statics.getPayableEarnings = function (
   userId,
   minimumAmount = 0
@@ -260,59 +242,72 @@ EarningsSchema.statics.getPayableEarnings = function (
     status: 'approved',
     payout: { $exists: false },
     commissionAmount: { $gte: minimumAmount },
-  }).populate('referredUser', 'name email')
+  }).sort({ createdAt: 1 }) // Oldest first for FIFO
 }
 
-// Static method to get recent earnings
-EarningsSchema.statics.getRecentEarnings = function (
+// Static method to get earnings by date range
+EarningsSchema.statics.getEarningsByDateRange = function (
   userId,
-  days = 30,
-  limit = 10
+  startDate,
+  endDate,
+  status = null
 ) {
-  const dateThreshold = new Date()
-  dateThreshold.setDate(dateThreshold.getDate() - days)
-
-  return this.find({
+  const query = {
     user: userId,
-    createdAt: { $gte: dateThreshold },
-  })
+    createdAt: {
+      $gte: startDate,
+      $lte: endDate,
+    },
+  }
+
+  if (status) {
+    query.status = status
+  }
+
+  return this.find(query)
     .populate('referredUser', 'name email')
-    .populate('subscription', 'plan billingCycle')
+    .populate('subscription', 'plan status')
     .sort({ createdAt: -1 })
-    .limit(limit)
 }
 
-// Pre-save middleware to validate commission calculation
-EarningsSchema.pre('save', function (next) {
-  // Validate commission calculation
-  const expectedCommission = Math.floor(this.grossAmount * this.commissionRate)
-  if (Math.abs(this.commissionAmount - expectedCommission) > 1) {
-    // Allow 1 cent tolerance for rounding
-    next(new Error('Commission amount does not match calculation'))
-    return
+// Method to approve earning
+EarningsSchema.methods.approve = function (approvedBy = null) {
+  this.status = 'approved'
+  this.approvedAt = new Date()
+  if (approvedBy) {
+    this.approvedBy = approvedBy
   }
+  return this.save()
+}
 
-  // Set description if not provided
-  if (!this.description) {
-    switch (this.source) {
-      case 'referral_signup':
-        this.description = 'Referral signup bonus'
-        break
-      case 'subscription_purchase':
-        this.description = 'Subscription commission'
-        break
-      case 'subscription_renewal':
-        this.description = 'Renewal commission'
-        break
-      case 'product_sale':
-        this.description = 'Product sale commission'
-        break
-      default:
-        this.description = 'Commission earning'
-    }
+// Method to mark as paid
+EarningsSchema.methods.markAsPaid = function (payoutId, paidDate = null) {
+  this.status = 'paid'
+  this.paidAt = paidDate || new Date()
+  this.payout = payoutId
+  return this.save()
+}
+
+// Method to dispute earning
+EarningsSchema.methods.dispute = function (reason, disputedBy = null) {
+  this.status = 'disputed'
+  this.disputedAt = new Date()
+  this.disputeReason = reason
+  if (disputedBy) {
+    this.disputedBy = disputedBy
   }
+  return this.save()
+}
 
-  next()
-})
+// Method to cancel earning
+EarningsSchema.methods.cancel = function (reason, cancelledBy = null) {
+  this.status = 'cancelled'
+  this.cancelledAt = new Date()
+  this.cancellationReason = reason
+  if (cancelledBy) {
+    this.cancelledBy = cancelledBy
+  }
+  return this.save()
+}
 
 export default mongoose.model('Earnings', EarningsSchema)

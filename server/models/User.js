@@ -1,4 +1,4 @@
-// File: models/User.js - UPDATED WITH STRIPE CONNECT INTEGRATION
+// File: models/User.js - UPDATED WITH POINTS SYSTEM
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import mongoose from 'mongoose'
@@ -34,6 +34,34 @@ const UserSchema = new mongoose.Schema(
       type: Date,
     },
 
+    // Points System
+    points: {
+      type: Number,
+      default: 0,
+    },
+    lastDailyClaim: {
+      type: Date,
+      default: null,
+    },
+    totalPointsEarned: {
+      type: Number,
+      default: 0,
+    },
+    pointsSpent: {
+      type: Number,
+      default: 0,
+    },
+
+    // Streak tracking for daily claims
+    dailyClaimStreak: {
+      type: Number,
+      default: 0,
+    },
+    lastStreakClaim: {
+      type: Date,
+      default: null,
+    },
+
     // Stripe Integration Fields
     stripeCustomerId: {
       type: String,
@@ -41,7 +69,7 @@ const UserSchema = new mongoose.Schema(
       sparse: true, // Allows multiple null values but unique non-null values
     },
 
-    // NEW: Stripe Connect Fields for Payouts
+    // Stripe Connect Fields for Payouts
     stripeConnect: {
       accountId: {
         type: String,
@@ -197,7 +225,7 @@ const UserSchema = new mongoose.Schema(
       },
     },
 
-    // NEW: Earnings and Payout Information
+    // Earnings and Payout Information
     earningsInfo: {
       totalEarned: {
         type: Number,
@@ -275,6 +303,8 @@ UserSchema.index({ referredBy: 1 })
 UserSchema.index({ stripeCustomerId: 1 })
 UserSchema.index({ 'stripeConnect.accountId': 1 })
 UserSchema.index({ isDeleted: 1, isActive: 1 })
+UserSchema.index({ lastDailyClaim: 1 })
+UserSchema.index({ points: -1 })
 
 // Pre-save middleware to hash password
 UserSchema.pre('save', async function (next) {
@@ -350,6 +380,99 @@ UserSchema.methods.changedPasswordAfter = function (JWTTimestamp) {
   return false
 }
 
+// Method to check if user can claim daily points
+UserSchema.methods.canClaimDailyPoints = function () {
+  if (!this.lastDailyClaim) {
+    return { canClaim: true, hoursUntilNext: 0 }
+  }
+
+  const now = new Date()
+  const lastClaim = new Date(this.lastDailyClaim)
+  const hoursSinceLastClaim = (now - lastClaim) / (1000 * 60 * 60)
+
+  if (hoursSinceLastClaim >= 24) {
+    return { canClaim: true, hoursUntilNext: 0 }
+  }
+
+  const hoursUntilNext = Math.ceil(24 - hoursSinceLastClaim)
+  return { canClaim: false, hoursUntilNext }
+}
+
+// Method to claim daily points
+UserSchema.methods.claimDailyPoints = async function () {
+  const claimCheck = this.canClaimDailyPoints()
+
+  if (!claimCheck.canClaim) {
+    throw new Error(`You can claim again in ${claimCheck.hoursUntilNext} hours`)
+  }
+
+  const now = new Date()
+  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+
+  // Check if this continues a streak (claimed yesterday)
+  let isConsecutive = false
+  if (this.lastStreakClaim) {
+    const lastStreakClaim = new Date(this.lastStreakClaim)
+    const hoursSinceLastStreak = (now - lastStreakClaim) / (1000 * 60 * 60)
+
+    // If claimed between 20-48 hours ago, it's consecutive
+    if (hoursSinceLastStreak >= 20 && hoursSinceLastStreak <= 48) {
+      isConsecutive = true
+    }
+  }
+
+  // Update streak
+  if (isConsecutive) {
+    this.dailyClaimStreak += 1
+  } else {
+    this.dailyClaimStreak = 1 // Reset to 1 for this claim
+  }
+
+  // Calculate bonus points based on streak
+  let pointsToAward = 100 // Base daily points
+
+  // Bonus points for streaks
+  if (this.dailyClaimStreak >= 7) {
+    pointsToAward += 50 // Weekly streak bonus
+  }
+  if (this.dailyClaimStreak >= 30) {
+    pointsToAward += 100 // Monthly streak bonus
+  }
+
+  // Award points
+  this.points += pointsToAward
+  this.totalPointsEarned += pointsToAward
+  this.lastDailyClaim = now
+  this.lastStreakClaim = now
+
+  await this.save()
+
+  return {
+    pointsAwarded: pointsToAward,
+    totalPoints: this.points,
+    streak: this.dailyClaimStreak,
+    nextClaimIn: 24, // hours
+  }
+}
+
+// Method to spend points
+UserSchema.methods.spendPoints = async function (amount) {
+  if (this.points < amount) {
+    throw new Error('Insufficient points')
+  }
+
+  this.points -= amount
+  this.pointsSpent += amount
+
+  await this.save()
+
+  return {
+    pointsSpent: amount,
+    remainingPoints: this.points,
+    totalSpent: this.pointsSpent,
+  }
+}
+
 // Enhanced method to add a referral
 UserSchema.methods.addReferral = async function (
   referredUserId,
@@ -376,6 +499,11 @@ UserSchema.methods.addReferral = async function (
         this.referralStats.paidReferrals += 1
       }
 
+      // Award referral bonus points
+      const referralPoints = 250 // Points for successful referral
+      this.points += referralPoints
+      this.totalPointsEarned += referralPoints
+
       // Update conversion rate
       this.referralStats.conversionRate =
         (this.referralStats.paidReferrals / this.referralStats.totalReferrals) *
@@ -390,8 +518,8 @@ UserSchema.methods.addReferral = async function (
   }
 }
 
-// NEW: Method to update Stripe Connect account status
-UserSchema.methods.updateConnectAccountStatus = function (accountData) {
+// Method to update Stripe Connect account status
+UserSchema.methods.updateConnectAccountStatus = async function (accountData) {
   if (!this.stripeConnect) {
     this.stripeConnect = {}
   }
@@ -428,28 +556,34 @@ UserSchema.methods.updateConnectAccountStatus = function (accountData) {
   return this.save()
 }
 
-// NEW: Method to update earnings information
+// Method to update earnings information
 UserSchema.methods.updateEarningsInfo = async function () {
-  const Earnings = mongoose.model('Earnings')
+  try {
+    const Earnings = mongoose.model('Earnings')
 
-  // Get earnings summary
-  const summary = await Earnings.getEarningsSummary(this._id)
+    // Get earnings summary
+    const summary = await Earnings.getEarningsSummary(this._id)
 
-  this.earningsInfo.totalEarned =
-    summary.approved.total + summary.paid.total + summary.pending.total
-  this.earningsInfo.availableForPayout = summary.approved.total
-  this.earningsInfo.totalPaidOut = summary.paid.total
+    this.earningsInfo.totalEarned =
+      summary.approved.total + summary.paid.total + summary.pending.total
+    this.earningsInfo.availableForPayout = summary.approved.total
+    this.earningsInfo.totalPaidOut = summary.paid.total
 
-  // Update referral stats
-  this.referralStats.totalEarnings = this.earningsInfo.totalEarned
-  this.referralStats.pendingEarnings =
-    summary.pending.total + summary.approved.total
-  this.referralStats.paidEarnings = summary.paid.total
+    // Update referral stats
+    this.referralStats.totalEarnings = this.earningsInfo.totalEarned
+    this.referralStats.pendingEarnings =
+      summary.pending.total + summary.approved.total
+    this.referralStats.paidEarnings = summary.paid.total
 
-  return this.save()
+    return this.save()
+  } catch (error) {
+    console.error('Error updating earnings info:', error)
+    // Don't throw error to prevent breaking other operations
+    return this
+  }
 }
 
-// NEW: Method to check if user can receive payouts
+// Method to check if user can receive payouts
 UserSchema.methods.canReceivePayouts = function () {
   return (
     this.stripeConnect?.accountId &&
@@ -459,7 +593,7 @@ UserSchema.methods.canReceivePayouts = function () {
   )
 }
 
-// NEW: Method to get minimum payout amount
+// Method to get minimum payout amount
 UserSchema.methods.getMinimumPayoutAmount = function () {
   return this.stripeConnect?.payoutSettings?.minimumAmount || 1000 // Default $10
 }
@@ -469,6 +603,27 @@ UserSchema.virtual('referralUrl').get(function () {
   return `${
     process.env.FRONTEND_URL || 'http://localhost:5173'
   }/auth?ref=${this.referralCode}`
+})
+
+// Virtual for daily claim status
+UserSchema.virtual('dailyClaimStatus').get(function () {
+  const claimCheck = this.canClaimDailyPoints()
+  return {
+    canClaim: claimCheck.canClaim,
+    hoursUntilNext: claimCheck.hoursUntilNext,
+    streak: this.dailyClaimStreak,
+    lastClaim: this.lastDailyClaim,
+  }
+})
+
+// Virtual for points summary
+UserSchema.virtual('pointsSummary').get(function () {
+  return {
+    current: this.points,
+    totalEarned: this.totalPointsEarned,
+    totalSpent: this.pointsSpent,
+    dailyStreak: this.dailyClaimStreak,
+  }
 })
 
 // Virtual to get subscription status
@@ -492,7 +647,7 @@ UserSchema.virtual('subscriptionStatus').get(function () {
   }
 })
 
-// NEW: Virtual for Connect account status
+// Virtual for Connect account status
 UserSchema.virtual('connectStatus').get(function () {
   if (!this.stripeConnect?.accountId) {
     return {
@@ -510,7 +665,7 @@ UserSchema.virtual('connectStatus').get(function () {
   }
 })
 
-// NEW: Virtual for formatted earnings
+// Virtual for formatted earnings
 UserSchema.virtual('formattedEarnings').get(function () {
   const info = this.earningsInfo
   return {
@@ -530,13 +685,45 @@ UserSchema.statics.findByReferralCode = function (code) {
   })
 }
 
-// NEW: Static method to find users with pending Connect verification
+// Static method to find users with pending Connect verification
 UserSchema.statics.findPendingVerification = function () {
   return this.find({
     'stripeConnect.accountId': { $exists: true },
     'stripeConnect.isVerified': false,
     'stripeConnect.onboardingCompleted': false,
   })
+}
+
+// Static method to get top earners by points
+UserSchema.statics.getTopPointEarners = function (limit = 10) {
+  return this.find({ totalPointsEarned: { $gt: 0 } })
+    .select('name email points totalPointsEarned dailyClaimStreak')
+    .sort({ totalPointsEarned: -1 })
+    .limit(limit)
+}
+
+// Static method to get top earners
+UserSchema.statics.getTopEarners = function (limit = 10, period = 'all') {
+  const match = { 'earningsInfo.totalEarned': { $gt: 0 } }
+
+  if (period !== 'all') {
+    // Add date filtering if needed
+    const startDate = new Date()
+    switch (period) {
+      case 'month':
+        startDate.setMonth(startDate.getMonth() - 1)
+        break
+      case 'year':
+        startDate.setFullYear(startDate.getFullYear() - 1)
+        break
+    }
+    match.updatedAt = { $gte: startDate }
+  }
+
+  return this.find(match)
+    .select('name email earningsInfo referralStats')
+    .sort({ 'earningsInfo.totalEarned': -1 })
+    .limit(limit)
 }
 
 // Query middleware to exclude deleted users by default

@@ -4,6 +4,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Provider } from 'react-redux'
 import { PersistGate } from 'redux-persist/integration/react'
+import { Toaster } from 'sonner'
 import App from './App.jsx'
 import { injectStore } from './config/config.js'
 import './index.css'
@@ -39,6 +40,20 @@ createRoot(document.getElementById('root')).render(
       <PersistGate loading={null} persistor={persistor}>
         <QueryClientProvider client={queryClient}>
           <App />
+          <Toaster
+            position='top-right'
+            richColors
+            closeButton
+            theme='dark' // Match your dark theme
+            toastOptions={{
+              style: {
+                background: '#121214',
+                border: '1px solid #1E1E21',
+                color: '#EDEDED',
+              },
+              className: 'bg-[#121214] border-[#1E1E21] text-[#EDEDED]',
+            }}
+          />
         </QueryClientProvider>
       </PersistGate>
     </Provider>

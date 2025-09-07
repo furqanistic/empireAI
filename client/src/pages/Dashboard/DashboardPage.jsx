@@ -1,4 +1,4 @@
-// File: client/src/pages/Dashboard/DashboardPage.jsx
+// File: client/src/pages/Dashboard/DashboardPage.jsx - COMPLETE REWRITE
 import {
   Bot,
   CheckCircle,
@@ -11,68 +11,168 @@ import {
   Rocket,
   Shield,
   Star,
-  Target,
   TrendingUp,
   Users,
   Zap,
 } from 'lucide-react'
 import React, { useState } from 'react'
+import { Link } from 'react-router-dom'
+import { useClaimDailyPoints, usePointsStatus } from '../../hooks/useAuth.js'
 import Layout from '../Layout/Layout'
 
 const DashboardPage = () => {
-  const [isClaimingBonus, setIsClaimingBonus] = useState(false)
-  const [bonusClaimed, setBonusClaimed] = useState(false)
+  // Hooks for points functionality
+  const {
+    data: pointsData,
+    isLoading: pointsLoading,
+    refetch: refetchPoints,
+  } = usePointsStatus()
 
-  const handleClaimBonus = async () => {
+  const claimPointsMutation = useClaimDailyPoints()
+
+  // Extract points data with fallbacks
+  const pointsStatus = pointsData?.data || {}
+  const {
+    points = 0,
+    dailyClaimStreak = 0,
+    canClaimDaily = false,
+    hoursUntilNextClaim = 0,
+  } = pointsStatus
+
+  // Local state for UI feedback
+  const [isClaimingBonus, setIsClaimingBonus] = useState(false)
+  const [feedbackMessage, setFeedbackMessage] = useState(null)
+  const [feedbackType, setFeedbackType] = useState('success') // 'success' | 'error'
+
+  // Handle daily points claiming
+  const handleClaimDailyBonus = async () => {
+    if (!canClaimDaily || isClaimingBonus) return
+
     setIsClaimingBonus(true)
-    setTimeout(() => {
-      setBonusClaimed(true)
+    setFeedbackMessage(null)
+
+    try {
+      const result = await claimPointsMutation.mutateAsync()
+
+      // Refetch points data to update UI
+      await refetchPoints()
+
+      setFeedbackType('success')
+      setFeedbackMessage(
+        `Points claimed successfully! +${
+          result.data?.pointsAwarded || 100
+        } points`
+      )
+
+      // Auto-hide success message after 4 seconds
+      setTimeout(() => {
+        setFeedbackMessage(null)
+      }, 4000)
+    } catch (error) {
+      const errorMessage =
+        error.response?.data?.message || 'Failed to claim daily points'
+      setFeedbackType('error')
+      setFeedbackMessage(errorMessage)
+
+      // Auto-hide error message after 6 seconds
+      setTimeout(() => {
+        setFeedbackMessage(null)
+      }, 6000)
+    } finally {
       setIsClaimingBonus(false)
-    }, 1500)
+    }
   }
 
+  // Quick action card component
   const QuickActionCard = ({
     icon,
     title,
     description,
     badge,
     color = 'bg-[#D4AF37]',
+    path,
   }) => (
-    <div className='group bg-[#121214] border border-[#1E1E21] rounded-xl p-4 sm:p-5 hover:border-[#D4AF37]/40 hover:bg-[#1A1A1C]/50 transition-all duration-300 cursor-pointer relative'>
-      <div className='relative z-10'>
-        <div className='flex items-center gap-2 mb-3'>
-          <h3 className='text-[#EDEDED] font-semibold text-base sm:text-lg'>
-            {title}
-          </h3>
-          {badge && (
-            <span className='bg-[#D4AF37] text-black text-xs px-2 py-0.5 rounded-lg font-bold uppercase tracking-wider'>
-              {badge}
-            </span>
-          )}
-        </div>
-
-        <p className='text-gray-400 text-sm leading-relaxed mb-4'>
-          {description}
-        </p>
-
-        <div className='flex items-center justify-between'>
-          <div className='flex items-center text-[#D4AF37] text-sm font-medium group-hover:gap-2 transition-all duration-300'>
-            <span>Get Started</span>
-            <ChevronRight
-              size={16}
-              className='ml-1 group-hover:translate-x-1 transition-transform duration-300'
-            />
+    <Link to={path} className='block'>
+      <div className='group bg-[#121214] border border-[#1E1E21] rounded-xl p-4 sm:p-5 hover:border-[#D4AF37]/40 hover:bg-[#1A1A1C]/50 transition-all duration-300 cursor-pointer relative'>
+        <div className='relative z-10'>
+          <div className='flex items-center gap-2 mb-3'>
+            <h3 className='text-[#EDEDED] font-semibold text-base sm:text-lg'>
+              {title}
+            </h3>
+            {badge && (
+              <span className='bg-[#D4AF37] text-black text-xs px-2 py-0.5 rounded-lg font-bold uppercase tracking-wider'>
+                {badge}
+              </span>
+            )}
           </div>
 
-          <div
-            className={`${color} p-1.5 rounded-lg text-black group-hover:scale-110 transition-transform duration-300`}
-          >
-            {React.cloneElement(icon, { size: 16 })}
+          <p className='text-gray-400 text-sm leading-relaxed mb-4'>
+            {description}
+          </p>
+
+          <div className='flex items-center justify-between'>
+            <div className='flex items-center text-[#D4AF37] text-sm font-medium group-hover:gap-2 transition-all duration-300'>
+              <span>Get Started</span>
+              <ChevronRight
+                size={16}
+                className='ml-1 group-hover:translate-x-1 transition-transform duration-300'
+              />
+            </div>
+
+            <div
+              className={`${color} p-1.5 rounded-lg text-black group-hover:scale-110 transition-transform duration-300`}
+            >
+              {React.cloneElement(icon, { size: 16 })}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </Link>
   )
+
+  // Claim button component
+  const ClaimButton = ({ mobile = false }) => {
+    const buttonClasses = `
+      ${mobile ? 'w-full sm:hidden' : 'hidden sm:flex flex-shrink-0'} 
+      h-8 px-4 rounded-xl font-semibold text-sm transition-all duration-300 
+      flex items-center gap-2 justify-center
+      ${
+        !canClaimDaily
+          ? 'bg-gray-600 text-white cursor-not-allowed'
+          : isClaimingBonus
+          ? 'bg-[#D4AF37]/50 text-black cursor-wait'
+          : 'bg-[#D4AF37] text-black hover:bg-[#D4AF37]/90 hover:scale-105 shadow-lg hover:shadow-[#D4AF37]/20'
+      }
+    `
+
+    return (
+      <button
+        onClick={handleClaimDailyBonus}
+        disabled={!canClaimDaily || isClaimingBonus}
+        className={buttonClasses}
+      >
+        {isClaimingBonus ? (
+          <>
+            <div className='w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin' />
+            {!mobile && <span className='hidden sm:inline'>Claiming...</span>}
+            {mobile && <span>Claiming...</span>}
+          </>
+        ) : !canClaimDaily ? (
+          <>
+            <CheckCircle size={16} />
+            {hoursUntilNextClaim > 0
+              ? `${hoursUntilNextClaim}h left`
+              : 'Claimed Today!'}
+          </>
+        ) : (
+          <>
+            <Star size={16} />
+            Claim Now
+          </>
+        )}
+      </button>
+    )
+  }
 
   return (
     <Layout>
@@ -99,6 +199,7 @@ const DashboardPage = () => {
         <div className='grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6'>
           {/* Daily Check-in Bonus */}
           <div className='lg:col-span-2 bg-[#121214] border border-[#1E1E21] rounded-xl p-4 sm:p-6'>
+            {/* Header */}
             <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4'>
               <div className='flex items-center gap-3 sm:gap-4 mb-4 sm:mb-0'>
                 <div className='bg-gradient-to-br from-[#D4AF37] to-[#D4AF37]/80 p-2.5 rounded-xl flex-shrink-0'>
@@ -114,56 +215,57 @@ const DashboardPage = () => {
                   </p>
                 </div>
               </div>
-
-              <button
-                onClick={handleClaimBonus}
-                disabled={bonusClaimed || isClaimingBonus}
-                className={`hidden sm:flex h-8 px-4 rounded-xl font-semibold text-sm transition-all duration-300 items-center gap-2 justify-center flex-shrink-0 ${
-                  bonusClaimed
-                    ? 'bg-emerald-600 text-white cursor-not-allowed'
-                    : isClaimingBonus
-                    ? 'bg-[#D4AF37]/50 text-black cursor-wait'
-                    : 'bg-[#D4AF37] text-black hover:bg-[#D4AF37]/90 hover:scale-105 shadow-lg hover:shadow-[#D4AF37]/20'
-                }`}
-              >
-                {isClaimingBonus ? (
-                  <>
-                    <div className='w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin' />
-                    <span className='hidden sm:inline'>Claiming...</span>
-                  </>
-                ) : bonusClaimed ? (
-                  <>
-                    <CheckCircle size={16} />
-                    Claimed!
-                  </>
-                ) : (
-                  <>
-                    <Star size={16} />
-                    Claim Now
-                  </>
-                )}
-              </button>
+              <ClaimButton />
             </div>
 
-            {/* Streak & Bonus Info */}
+            {/* Streak & Status Info */}
             <div className='grid grid-cols-2 gap-3 mb-4'>
               <div className='bg-[#1A1A1C] rounded-lg p-3'>
                 <div className='flex items-center gap-2 mb-1'>
                   <div className='w-2 h-2 rounded-full bg-[#D4AF37]'></div>
                   <span className='text-gray-400 text-xs'>Current Streak</span>
                 </div>
-                <div className='text-[#D4AF37] font-bold text-lg'>7 days</div>
+                <div className='text-[#D4AF37] font-bold text-lg'>
+                  {pointsLoading ? '...' : `${dailyClaimStreak} days`}
+                </div>
               </div>
               <div className='bg-[#1A1A1C] rounded-lg p-3'>
                 <div className='flex items-center gap-2 mb-1'>
                   <div className='w-2 h-2 rounded-full bg-emerald-500'></div>
-                  <span className='text-gray-400 text-xs'>Next Milestone</span>
+                  <span className='text-gray-400 text-xs'>
+                    {canClaimDaily ? 'Available Now' : 'Next Claim'}
+                  </span>
                 </div>
                 <div className='text-emerald-400 font-bold text-lg'>
-                  10 days
+                  {canClaimDaily
+                    ? 'Ready!'
+                    : hoursUntilNextClaim > 0
+                    ? `${hoursUntilNextClaim}h`
+                    : 'Ready!'}
                 </div>
               </div>
             </div>
+
+            {/* Feedback Messages */}
+            {feedbackMessage && (
+              <div
+                className={`mb-4 p-3 rounded-lg border ${
+                  feedbackType === 'success'
+                    ? 'bg-emerald-500/10 border-emerald-500/20'
+                    : 'bg-red-500/10 border-red-500/20'
+                }`}
+              >
+                <p
+                  className={`text-sm ${
+                    feedbackType === 'success'
+                      ? 'text-emerald-400'
+                      : 'text-red-400'
+                  }`}
+                >
+                  {feedbackMessage}
+                </p>
+              </div>
+            )}
 
             {/* Benefits */}
             <div className='flex items-center justify-between text-sm mb-4 sm:mb-0'>
@@ -177,34 +279,7 @@ const DashboardPage = () => {
             </div>
 
             {/* Mobile Claim Button */}
-            <button
-              onClick={handleClaimBonus}
-              disabled={bonusClaimed || isClaimingBonus}
-              className={`w-full sm:hidden h-8 px-4 rounded-xl font-semibold text-sm transition-all duration-300 flex items-center gap-2 justify-center ${
-                bonusClaimed
-                  ? 'bg-emerald-600 text-white cursor-not-allowed'
-                  : isClaimingBonus
-                  ? 'bg-[#D4AF37]/50 text-black cursor-wait'
-                  : 'bg-[#D4AF37] text-black hover:bg-[#D4AF37]/90 hover:scale-105 shadow-lg hover:shadow-[#D4AF37]/20'
-              }`}
-            >
-              {isClaimingBonus ? (
-                <>
-                  <div className='w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin' />
-                  Claiming...
-                </>
-              ) : bonusClaimed ? (
-                <>
-                  <CheckCircle size={16} />
-                  Claimed!
-                </>
-              ) : (
-                <>
-                  <Star size={16} />
-                  Claim Now
-                </>
-              )}
-            </button>
+            <ClaimButton mobile />
           </div>
 
           {/* Empire Score */}
@@ -222,27 +297,27 @@ const DashboardPage = () => {
                 </h3>
               </div>
               <div className='text-xs text-emerald-400 font-medium'>
-                +24 today
+                Level 5
               </div>
             </div>
 
             <div className='text-2xl sm:text-3xl font-bold text-[#D4AF37] mb-2'>
-              1,247
+              {pointsLoading ? '...' : points.toLocaleString()}
             </div>
 
-            <div className='flex items-center justify-between'>
+            <div className='flex items-center justify-between mb-3'>
               <p className='text-gray-400 text-xs sm:text-sm'>
                 Complete tasks to grow
               </p>
               <div className='flex items-center gap-1'>
                 <div className='w-2 h-2 rounded-full bg-[#D4AF37]'></div>
                 <span className='text-xs text-[#D4AF37] font-medium'>
-                  Level 5
+                  {dailyClaimStreak}d streak
                 </span>
               </div>
             </div>
 
-            <div className='mt-3 bg-[#1A1A1C] rounded-lg h-1.5 overflow-hidden'>
+            <div className='bg-[#1A1A1C] rounded-lg h-1.5 overflow-hidden'>
               <div className='bg-[#D4AF37] h-full w-[62%] rounded-lg'></div>
             </div>
           </div>
@@ -264,12 +339,14 @@ const DashboardPage = () => {
               description='Create your first digital product with AI assistance and automated workflows'
               badge='Start Here'
               color='bg-[#D4AF37]'
+              path='/build'
             />
             <QuickActionCard
               icon={<DollarSign size={20} className='sm:w-6 sm:h-6' />}
-              title='Money OS'
+              title='Earnings'
               description='Track revenue streams, manage finances, and optimize your profit centers'
               color='bg-emerald-500'
+              path='/earn'
             />
             <QuickActionCard
               icon={<Users size={20} className='sm:w-6 sm:h-6' />}
@@ -277,6 +354,7 @@ const DashboardPage = () => {
               description='Build and manage your affiliate network to exponentially scale your reach'
               badge='Recruit'
               color='bg-blue-500'
+              path='/invite'
             />
           </div>
         </div>
@@ -345,12 +423,19 @@ const DashboardPage = () => {
               </div>
             </div>
 
-            <button className='w-full h-8 bg-[#5865F2] text-white rounded-xl font-semibold hover:bg-[#5865F2]/90 transition-all duration-300 flex items-center justify-center gap-2 text-sm'>
-              <MessageCircle size={16} />
-              <span className='hidden sm:inline'>Join Discord Community</span>
-              <span className='sm:hidden'>Join Discord</span>
-              <ExternalLink size={14} />
-            </button>
+            <a
+              href='https://discord.gg/zYurEefP'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='block w-full'
+            >
+              <button className='w-full h-8 bg-[#5865F2] text-white rounded-xl font-semibold hover:bg-[#5865F2]/90 transition-all duration-300 flex items-center justify-center gap-2 text-sm'>
+                <MessageCircle size={16} />
+                <span className='hidden sm:inline'>Join Discord Community</span>
+                <span className='sm:hidden'>Join Discord</span>
+                <ExternalLink size={14} />
+              </button>
+            </a>
           </div>
 
           {/* AI Strategic Command */}
@@ -399,10 +484,12 @@ const DashboardPage = () => {
                   Builder to establish your market presence.
                 </p>
 
-                <button className='bg-[#D4AF37] text-black h-8 px-4 rounded-xl font-semibold text-sm hover:bg-[#D4AF37]/90 transition-all duration-300 hover:scale-105 flex items-center gap-2 shadow-lg'>
-                  <Rocket size={14} />
-                  Launch First Mission
-                </button>
+                <Link to='/build'>
+                  <button className='bg-[#D4AF37] text-black h-8 px-4 rounded-xl font-semibold text-sm hover:bg-[#D4AF37]/90 transition-all duration-300 hover:scale-105 flex items-center gap-2 shadow-lg'>
+                    <Rocket size={14} />
+                    Launch First Mission
+                  </button>
+                </Link>
               </div>
             </div>
           </div>

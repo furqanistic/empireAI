@@ -1,4 +1,4 @@
-// File: controllers/earnings.js
+// File: controllers/earnings.js - ADD MISSING SUMMARY ENDPOINT
 import { calculateCommission, getCommissionRate } from '../config/stripe.js'
 import { createError } from '../error.js'
 import Earnings from '../models/Earnings.js'
@@ -101,6 +101,24 @@ export const autoApproveEarning = async (earningId) => {
   } catch (error) {
     console.error('Error auto-approving earning:', error)
     throw error
+  }
+}
+
+// Get earnings summary/stats - NEW ENDPOINT
+export const getEarningsSummary = async (req, res, next) => {
+  try {
+    const userId = req.user._id
+
+    // Get earnings summary using the static method
+    const summary = await Earnings.getEarningsSummary(userId)
+
+    res.status(200).json({
+      status: 'success',
+      data: summary,
+    })
+  } catch (error) {
+    console.error('Error getting earnings summary:', error)
+    next(createError(500, 'Failed to retrieve earnings summary'))
   }
 }
 

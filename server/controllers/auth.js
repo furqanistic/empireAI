@@ -1,4 +1,4 @@
-// File: controllers/auth.js
+// File: controllers/auth.js - UPDATED WITH POINTS SYSTEM
 import jwt from 'jsonwebtoken'
 import mongoose from 'mongoose'
 import { createError } from '../error.js'
@@ -115,6 +115,8 @@ export const signup = async (req, res, next) => {
       password,
       role: userRole,
       referredBy: referrerUser ? referrerUser._id : null,
+      points: 100, // Give new users starting points
+      totalPointsEarned: 100,
     }
 
     const [newUser] = await User.create([newUserData], { session })
@@ -195,6 +197,112 @@ export const signin = async (req, res, next) => {
   } catch (err) {
     console.error('Error in signin:', err)
     next(createError(500, 'An unexpected error occurred during login'))
+  }
+}
+
+// NEW: Claim daily points
+export const claimDailyPoints = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id)
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    // Check if user can claim points
+    const claimCheck = user.canClaimDailyPoints()
+
+    if (!claimCheck.canClaim) {
+      return next(
+        createError(
+          400,
+          `You can claim again in ${claimCheck.hoursUntilNext} hours`
+        )
+      )
+    }
+
+    // Claim the points
+    const claimResult = await user.claimDailyPoints()
+
+    // Create notification for successful claim
+    try {
+      await Notification.create({
+        user: user._id,
+        title: 'Daily Points Claimed!',
+        message: `You've earned ${claimResult.pointsAwarded} points! Current streak: ${claimResult.streak} days`,
+        type: 'points',
+        isRead: false,
+        metadata: {
+          pointsAwarded: claimResult.pointsAwarded,
+          streak: claimResult.streak,
+          totalPoints: claimResult.totalPoints,
+        },
+      })
+    } catch (notificationError) {
+      console.error('Failed to create points notification:', notificationError)
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Daily points claimed successfully!',
+      data: {
+        pointsAwarded: claimResult.pointsAwarded,
+        totalPoints: claimResult.totalPoints,
+        streak: claimResult.streak,
+        nextClaimIn: claimResult.nextClaimIn,
+      },
+    })
+  } catch (error) {
+    console.error('Error in claimDailyPoints:', error)
+    next(error)
+  }
+}
+
+// NEW: Get user points status
+export const getPointsStatus = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id)
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    const claimStatus = user.canClaimDailyPoints()
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        points: user.points,
+        totalPointsEarned: user.totalPointsEarned,
+        pointsSpent: user.pointsSpent,
+        dailyClaimStreak: user.dailyClaimStreak,
+        canClaimDaily: claimStatus.canClaim,
+        hoursUntilNextClaim: claimStatus.hoursUntilNext,
+        lastDailyClaim: user.lastDailyClaim,
+      },
+    })
+  } catch (error) {
+    console.error('Error in getPointsStatus:', error)
+    next(error)
+  }
+}
+
+// NEW: Get points leaderboard
+export const getPointsLeaderboard = async (req, res, next) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10
+    const topEarners = await User.getTopPointEarners(limit)
+
+    res.status(200).json({
+      status: 'success',
+      results: topEarners.length,
+      data: {
+        leaderboard: topEarners,
+      },
+    })
+  } catch (error) {
+    console.error('Error in getPointsLeaderboard:', error)
+    next(error)
   }
 }
 

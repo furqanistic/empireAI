@@ -1,9 +1,12 @@
-// File: server/routes/auth.js
+// File: server/routes/auth.js - UPDATED WITH POINTS ENDPOINTS
 import express from 'express'
 import {
   changePassword,
+  claimDailyPoints,
   deleteUser,
   getAllUsers,
+  getPointsLeaderboard,
+  getPointsStatus,
   getUserProfile,
   logout,
   signin,
@@ -25,6 +28,11 @@ router.use(verifyToken)
 router.get('/profile/:id', getUserProfile)
 router.put('/change-password', changePassword)
 router.post('/logout', logout)
+
+// Points system routes
+router.post('/claim-daily-points', claimDailyPoints)
+router.get('/points-status', getPointsStatus)
+router.get('/points-leaderboard', getPointsLeaderboard)
 
 // Self-profile management (users can update their own profile)
 router.put(

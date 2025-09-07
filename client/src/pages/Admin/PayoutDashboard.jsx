@@ -1,4 +1,5 @@
-// File: client/src/pages/Admin/PayoutDashboard.jsx
+// File: client/src/pages/Admin/PayoutDashboard.jsx - UPDATED WITH AXIOS INSTANCE
+import axiosInstance from '@/config/config'
 import {
   AlertCircle,
   ArrowUpRight,
@@ -8,103 +9,156 @@ import {
   DollarSign,
   Download,
   ExternalLink,
+  Loader2,
   Settings,
   TrendingUp,
   Users,
   Wallet,
   X,
 } from 'lucide-react'
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import Layout from '../Layout/Layout'
 
 const PayoutDashboard = () => {
   const [showRequestModal, setShowRequestModal] = useState(false)
   const [showConnectModal, setShowConnectModal] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  // Mock data - replace with actual API calls
-  const [connectStatus] = useState({
-    connected: false,
-    verified: false,
-    onboardingCompleted: false,
-    canReceivePayouts: false,
-    requirements: ['identity_document', 'bank_account'],
-    minimumPayoutAmount: 10.0,
-  })
+  // Data states
+  const [connectStatus, setConnectStatus] = useState(null)
+  const [earningsSummary, setEarningsSummary] = useState(null)
+  const [payoutHistory, setPayoutHistory] = useState([])
+  const [recentEarnings, setRecentEarnings] = useState([])
 
-  const [earningsSummary] = useState({
-    summary: {
-      pending: { total: 2450, count: 5, formatted: '24.50' },
-      approved: { total: 8750, count: 12, formatted: '87.50' },
-      paid: { total: 15600, count: 8, formatted: '156.00' },
-      formatted: { total: '268.50' },
-    },
-    userEarningsInfo: {
-      totalEarned: '268.50',
-      availableForPayout: '87.50',
-      totalPaidOut: '156.00',
-      currency: 'USD',
-    },
-    canRequestPayout: true,
-  })
+  // Load data on component mount
+  useEffect(() => {
+    loadDashboardData()
+  }, [])
 
-  const [payoutHistory] = useState([
-    {
-      _id: '1',
-      amount: 50.0,
-      status: 'paid',
-      requestedAt: '2024-01-15T10:00:00Z',
-      paidAt: '2024-01-17T14:30:00Z',
-      method: 'standard',
-      fees: { total: 0 },
-    },
-    {
-      _id: '2',
-      amount: 100.0,
-      status: 'processing',
-      requestedAt: '2024-01-20T09:15:00Z',
-      method: 'standard',
-      fees: { total: 0 },
-    },
-    {
-      _id: '3',
-      amount: 75.0,
-      status: 'pending',
-      requestedAt: '2024-01-22T16:45:00Z',
-      method: 'standard',
-      fees: { total: 0 },
-    },
-  ])
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true)
+      setError(null)
 
-  const [recentEarnings] = useState([
-    {
-      _id: '1',
-      commissionAmount: 2500,
-      source: 'subscription_purchase',
-      referredUser: { name: 'John Doe', email: 'john@example.com' },
-      createdAt: '2024-01-20T10:00:00Z',
-      status: 'approved',
-      description: 'Subscription commission for pro plan',
-    },
-    {
-      _id: '2',
-      commissionAmount: 1200,
-      source: 'subscription_renewal',
-      referredUser: { name: 'Jane Smith', email: 'jane@example.com' },
-      createdAt: '2024-01-18T14:30:00Z',
-      status: 'paid',
-      description: 'Renewal commission for starter plan',
-    },
-    {
-      _id: '3',
-      commissionAmount: 5000,
-      source: 'subscription_purchase',
-      referredUser: { name: 'Bob Wilson', email: 'bob@example.com' },
-      createdAt: '2024-01-15T09:15:00Z',
-      status: 'pending',
-      description: 'Subscription commission for empire plan',
-    },
-  ])
+      // Load all data in parallel using axiosInstance
+      const [connectResponse, earningsResponse, payoutsResponse] =
+        await Promise.all([
+          axiosInstance.get('/payouts/connect/status'),
+          axiosInstance.get('/payouts/earnings/summary'),
+          axiosInstance.get('/payouts/history?limit=10'),
+        ])
+
+      setConnectStatus(connectResponse.data.data)
+      setEarningsSummary(earningsResponse.data.data)
+      setPayoutHistory(payoutsResponse.data.data.payouts || [])
+      setRecentEarnings(earningsResponse.data.data.recentEarnings || [])
+    } catch (err) {
+      console.error('Error loading dashboard data:', err)
+      setError(
+        err.response?.data?.message ||
+          err.message ||
+          'Failed to load dashboard data'
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Create Connect account
+  const createConnectAccount = async () => {
+    try {
+      setLoading(true)
+      const response = await axiosInstance.post(
+        '/payouts/connect/create-account',
+        {
+          country: 'US',
+        }
+      )
+
+      // Redirect to Stripe onboarding
+      if (response.data.data.onboardingUrl) {
+        window.location.href = response.data.data.onboardingUrl
+      }
+    } catch (err) {
+      console.error('Error creating Connect account:', err)
+      setError(
+        err.response?.data?.message ||
+          err.message ||
+          'Failed to create Connect account'
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Get onboarding link
+  const getOnboardingLink = async () => {
+    try {
+      setLoading(true)
+      const response = await axiosInstance.get(
+        '/payouts/connect/onboarding-link'
+      )
+
+      if (response.data.data.onboardingUrl) {
+        window.location.href = response.data.data.onboardingUrl
+      }
+    } catch (err) {
+      console.error('Error getting onboarding link:', err)
+      setError(
+        err.response?.data?.message ||
+          err.message ||
+          'Failed to get onboarding link'
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Request payout
+  const requestPayout = async (amount, method = 'standard') => {
+    try {
+      setLoading(true)
+      const response = await axiosInstance.post('/payouts/request', {
+        amount: Math.round(parseFloat(amount) * 100), // Convert to cents
+        method,
+      })
+
+      // Refresh data after successful request
+      await loadDashboardData()
+      setShowRequestModal(false)
+
+      // Show success message (you can add a toast notification here)
+      alert('Payout request submitted successfully!')
+    } catch (err) {
+      console.error('Error requesting payout:', err)
+      setError(
+        err.response?.data?.message || err.message || 'Failed to request payout'
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Cancel payout
+  const cancelPayout = async (payoutId) => {
+    try {
+      setLoading(true)
+      await axiosInstance.delete(`/payouts/${payoutId}/cancel`)
+
+      // Refresh data
+      await loadDashboardData()
+      alert('Payout cancelled successfully!')
+    } catch (err) {
+      console.error('Error cancelling payout:', err)
+      setError(
+        err.response?.data?.message || err.message || 'Failed to cancel payout'
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // Status badge component
   const StatusBadge = ({ status, type = 'earning' }) => {
@@ -196,7 +250,7 @@ const PayoutDashboard = () => {
               </ul>
             </div>
 
-            {connectStatus.requirements.length > 0 && (
+            {connectStatus?.requirements?.length > 0 && (
               <div className='p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg'>
                 <h4 className='text-yellow-400 font-medium text-sm mb-2'>
                   Required Information:
@@ -226,13 +280,24 @@ const PayoutDashboard = () => {
               </button>
               <button
                 onClick={() => {
-                  console.log('Starting Stripe Connect onboarding...')
                   setShowConnectModal(false)
+                  if (connectStatus?.connected) {
+                    getOnboardingLink()
+                  } else {
+                    createConnectAccount()
+                  }
                 }}
-                className='flex-1 px-4 py-2 bg-[#D4AF37] text-black rounded-lg font-medium hover:bg-[#D4AF37]/90 transition-all duration-300 flex items-center justify-center gap-2'
+                disabled={loading}
+                className='flex-1 px-4 py-2 bg-[#D4AF37] text-black rounded-lg font-medium hover:bg-[#D4AF37]/90 transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50'
               >
-                Get Started
-                <ExternalLink size={14} />
+                {loading ? (
+                  <Loader2 size={14} className='animate-spin' />
+                ) : (
+                  <>
+                    Get Started
+                    <ExternalLink size={14} />
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -249,9 +314,9 @@ const PayoutDashboard = () => {
     if (!showRequestModal) return null
 
     const maxAmount = parseFloat(
-      earningsSummary.userEarningsInfo.availableForPayout
+      earningsSummary?.userEarningsInfo?.availableForPayout || '0'
     )
-    const minAmount = connectStatus.minimumPayoutAmount
+    const minAmount = connectStatus?.minimumPayoutAmount / 100 || 10
 
     return (
       <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'>
@@ -360,19 +425,20 @@ const PayoutDashboard = () => {
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  console.log('Requesting payout:', { amount, method })
-                  setShowRequestModal(false)
-                  setAmount('')
-                }}
+                onClick={() => requestPayout(amount, method)}
                 disabled={
+                  loading ||
                   !amount ||
                   parseFloat(amount) < minAmount ||
                   parseFloat(amount) > maxAmount
                 }
-                className='flex-1 px-4 py-2 bg-[#D4AF37] text-black rounded-lg font-medium hover:bg-[#D4AF37]/90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed'
+                className='flex-1 px-4 py-2 bg-[#D4AF37] text-black rounded-lg font-medium hover:bg-[#D4AF37]/90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2'
               >
-                Request Payout
+                {loading ? (
+                  <Loader2 size={14} className='animate-spin' />
+                ) : (
+                  'Request Payout'
+                )}
               </button>
             </div>
           </div>
@@ -381,11 +447,48 @@ const PayoutDashboard = () => {
     )
   }
 
+  // Loading state
+  if (loading && !connectStatus) {
+    return (
+      <Layout>
+        <div className='max-w-6xl mx-auto p-6 flex items-center justify-center min-h-screen'>
+          <div className='flex items-center gap-3 text-[#EDEDED]'>
+            <Loader2 size={24} className='animate-spin' />
+            Loading payout dashboard...
+          </div>
+        </div>
+      </Layout>
+    )
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <Layout>
+        <div className='max-w-6xl mx-auto p-6'>
+          <div className='bg-red-500/10 border border-red-500/20 rounded-xl p-6 text-center'>
+            <AlertCircle className='mx-auto mb-4 text-red-400' size={48} />
+            <h2 className='text-xl font-semibold text-red-400 mb-2'>
+              Error Loading Dashboard
+            </h2>
+            <p className='text-gray-400 mb-4'>{error}</p>
+            <button
+              onClick={loadDashboardData}
+              className='bg-[#D4AF37] text-black px-4 py-2 rounded-lg font-medium hover:bg-[#D4AF37]/90 transition-all duration-300'
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      </Layout>
+    )
+  }
+
   // Main dashboard content
   const OverviewTab = () => (
     <div className='space-y-6'>
       {/* Connect Account Status */}
-      {!connectStatus.connected && (
+      {!connectStatus?.connected && (
         <div className='bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-xl p-6'>
           <div className='flex items-start justify-between'>
             <div>
@@ -410,80 +513,83 @@ const PayoutDashboard = () => {
       )}
 
       {/* Earnings Summary Cards */}
-      <div className='grid grid-cols-1 md:grid-cols-4 gap-4'>
-        <div className='bg-[#121214] border border-[#1E1E21] rounded-xl p-4'>
-          <div className='flex items-center justify-between mb-2'>
-            <h4 className='text-gray-400 text-sm'>Total Earned</h4>
-            <TrendingUp className='text-green-400' size={16} />
+      {earningsSummary && (
+        <div className='grid grid-cols-1 md:grid-cols-4 gap-4'>
+          <div className='bg-[#121214] border border-[#1E1E21] rounded-xl p-4'>
+            <div className='flex items-center justify-between mb-2'>
+              <h4 className='text-gray-400 text-sm'>Total Earned</h4>
+              <TrendingUp className='text-green-400' size={16} />
+            </div>
+            <div className='text-2xl font-bold text-[#EDEDED]'>
+              ${earningsSummary.userEarningsInfo.totalEarned}
+            </div>
+            <div className='text-xs text-gray-400 mt-1'>
+              {earningsSummary.summary.pending.count +
+                earningsSummary.summary.approved.count +
+                earningsSummary.summary.paid.count}{' '}
+              commissions
+            </div>
           </div>
-          <div className='text-2xl font-bold text-[#EDEDED]'>
-            ${earningsSummary.userEarningsInfo.totalEarned}
-          </div>
-          <div className='text-xs text-gray-400 mt-1'>
-            {earningsSummary.summary.pending.count +
-              earningsSummary.summary.approved.count +
-              earningsSummary.summary.paid.count}{' '}
-            commissions
-          </div>
-        </div>
 
-        <div className='bg-[#121214] border border-[#1E1E21] rounded-xl p-4'>
-          <div className='flex items-center justify-between mb-2'>
-            <h4 className='text-gray-400 text-sm'>Available</h4>
-            <Wallet className='text-blue-400' size={16} />
+          <div className='bg-[#121214] border border-[#1E1E21] rounded-xl p-4'>
+            <div className='flex items-center justify-between mb-2'>
+              <h4 className='text-gray-400 text-sm'>Available</h4>
+              <Wallet className='text-blue-400' size={16} />
+            </div>
+            <div className='text-2xl font-bold text-[#EDEDED]'>
+              ${earningsSummary.userEarningsInfo.availableForPayout}
+            </div>
+            <div className='text-xs text-gray-400 mt-1'>
+              {earningsSummary.summary.approved.count} approved
+            </div>
           </div>
-          <div className='text-2xl font-bold text-[#EDEDED]'>
-            ${earningsSummary.userEarningsInfo.availableForPayout}
-          </div>
-          <div className='text-xs text-gray-400 mt-1'>
-            {earningsSummary.summary.approved.count} approved
-          </div>
-        </div>
 
-        <div className='bg-[#121214] border border-[#1E1E21] rounded-xl p-4'>
-          <div className='flex items-center justify-between mb-2'>
-            <h4 className='text-gray-400 text-sm'>Pending</h4>
-            <Clock className='text-yellow-400' size={16} />
+          <div className='bg-[#121214] border border-[#1E1E21] rounded-xl p-4'>
+            <div className='flex items-center justify-between mb-2'>
+              <h4 className='text-gray-400 text-sm'>Pending</h4>
+              <Clock className='text-yellow-400' size={16} />
+            </div>
+            <div className='text-2xl font-bold text-[#EDEDED]'>
+              ${earningsSummary.summary.pending.formatted}
+            </div>
+            <div className='text-xs text-gray-400 mt-1'>
+              {earningsSummary.summary.pending.count} pending
+            </div>
           </div>
-          <div className='text-2xl font-bold text-[#EDEDED]'>
-            ${earningsSummary.summary.pending.formatted}
-          </div>
-          <div className='text-xs text-gray-400 mt-1'>
-            {earningsSummary.summary.pending.count} pending
-          </div>
-        </div>
 
-        <div className='bg-[#121214] border border-[#1E1E21] rounded-xl p-4'>
-          <div className='flex items-center justify-between mb-2'>
-            <h4 className='text-gray-400 text-sm'>Paid Out</h4>
-            <DollarSign className='text-green-400' size={16} />
-          </div>
-          <div className='text-2xl font-bold text-[#EDEDED]'>
-            ${earningsSummary.userEarningsInfo.totalPaidOut}
-          </div>
-          <div className='text-xs text-gray-400 mt-1'>
-            {earningsSummary.summary.paid.count} payouts
+          <div className='bg-[#121214] border border-[#1E1E21] rounded-xl p-4'>
+            <div className='flex items-center justify-between mb-2'>
+              <h4 className='text-gray-400 text-sm'>Paid Out</h4>
+              <DollarSign className='text-green-400' size={16} />
+            </div>
+            <div className='text-2xl font-bold text-[#EDEDED]'>
+              ${earningsSummary.userEarningsInfo.totalPaidOut}
+            </div>
+            <div className='text-xs text-gray-400 mt-1'>
+              {earningsSummary.summary.paid.count} payouts
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Quick Actions */}
       <div className='flex flex-col sm:flex-row gap-4'>
         <button
           onClick={() =>
-            connectStatus.canReceivePayouts
+            connectStatus?.canReceivePayouts
               ? setShowRequestModal(true)
               : setShowConnectModal(true)
           }
           disabled={
-            !connectStatus.canReceivePayouts &&
-            parseFloat(earningsSummary.userEarningsInfo.availableForPayout) <
-              connectStatus.minimumPayoutAmount
+            !connectStatus?.canReceivePayouts &&
+            parseFloat(
+              earningsSummary?.userEarningsInfo?.availableForPayout || '0'
+            ) < (connectStatus?.minimumPayoutAmount / 100 || 10)
           }
           className='flex-1 bg-[#D4AF37] text-black px-6 py-3 rounded-xl font-semibold hover:bg-[#D4AF37]/90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2'
         >
           <ArrowUpRight size={16} />
-          {connectStatus.canReceivePayouts
+          {connectStatus?.canReceivePayouts
             ? 'Request Payout'
             : 'Set Up Payouts'}
         </button>
@@ -498,38 +604,40 @@ const PayoutDashboard = () => {
       </div>
 
       {/* Recent Earnings */}
-      <div className='bg-[#121214] border border-[#1E1E21] rounded-xl p-6'>
-        <h3 className='text-[#EDEDED] font-semibold mb-4'>Recent Earnings</h3>
-        <div className='space-y-3'>
-          {recentEarnings.slice(0, 3).map((earning) => (
-            <div
-              key={earning._id}
-              className='flex items-center justify-between p-3 bg-[#1A1A1C] rounded-lg'
-            >
-              <div className='flex-1'>
-                <div className='text-[#EDEDED] font-medium text-sm'>
-                  {earning.referredUser.name}
+      {recentEarnings?.length > 0 && (
+        <div className='bg-[#121214] border border-[#1E1E21] rounded-xl p-6'>
+          <h3 className='text-[#EDEDED] font-semibold mb-4'>Recent Earnings</h3>
+          <div className='space-y-3'>
+            {recentEarnings.slice(0, 3).map((earning) => (
+              <div
+                key={earning._id}
+                className='flex items-center justify-between p-3 bg-[#1A1A1C] rounded-lg'
+              >
+                <div className='flex-1'>
+                  <div className='text-[#EDEDED] font-medium text-sm'>
+                    {earning.referredUser?.name || 'Unknown User'}
+                  </div>
+                  <div className='text-gray-400 text-xs'>
+                    {earning.description}
+                  </div>
                 </div>
-                <div className='text-gray-400 text-xs'>
-                  {earning.description}
+                <div className='text-right'>
+                  <div className='text-[#EDEDED] font-semibold'>
+                    ${(earning.commissionAmount / 100).toFixed(2)}
+                  </div>
+                  <StatusBadge status={earning.status} type='earning' />
                 </div>
               </div>
-              <div className='text-right'>
-                <div className='text-[#EDEDED] font-semibold'>
-                  ${(earning.commissionAmount / 100).toFixed(2)}
-                </div>
-                <StatusBadge status={earning.status} type='earning' />
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
+          <button
+            onClick={() => setActiveTab('earnings')}
+            className='w-full mt-4 text-[#D4AF37] text-sm font-medium hover:text-[#D4AF37]/80 transition-colors duration-300'
+          >
+            View All Earnings →
+          </button>
         </div>
-        <button
-          onClick={() => setActiveTab('earnings')}
-          className='w-full mt-4 text-[#D4AF37] text-sm font-medium hover:text-[#D4AF37]/80 transition-colors duration-300'
-        >
-          View All Earnings →
-        </button>
-      </div>
+      )}
     </div>
   )
 
@@ -546,66 +654,76 @@ const PayoutDashboard = () => {
       </div>
 
       <div className='bg-[#121214] border border-[#1E1E21] rounded-xl overflow-hidden'>
-        <div className='overflow-x-auto'>
-          <table className='w-full'>
-            <thead>
-              <tr className='border-b border-[#1E1E21]'>
-                <th className='text-left text-gray-400 text-xs font-medium uppercase tracking-wider px-6 py-4'>
-                  Referral
-                </th>
-                <th className='text-left text-gray-400 text-xs font-medium uppercase tracking-wider px-6 py-4'>
-                  Source
-                </th>
-                <th className='text-left text-gray-400 text-xs font-medium uppercase tracking-wider px-6 py-4'>
-                  Amount
-                </th>
-                <th className='text-left text-gray-400 text-xs font-medium uppercase tracking-wider px-6 py-4'>
-                  Status
-                </th>
-                <th className='text-left text-gray-400 text-xs font-medium uppercase tracking-wider px-6 py-4'>
-                  Date
-                </th>
-              </tr>
-            </thead>
-            <tbody className='divide-y divide-[#1E1E21]'>
-              {recentEarnings.map((earning) => (
-                <tr
-                  key={earning._id}
-                  className='hover:bg-[#1A1A1C]/50 transition-all duration-200'
-                >
-                  <td className='px-6 py-4'>
-                    <div>
-                      <div className='text-[#EDEDED] font-medium text-sm'>
-                        {earning.referredUser.name}
-                      </div>
-                      <div className='text-gray-400 text-xs'>
-                        {earning.referredUser.email}
-                      </div>
-                    </div>
-                  </td>
-                  <td className='px-6 py-4'>
-                    <div className='text-[#EDEDED] text-sm'>
-                      {earning.source
-                        .replace('_', ' ')
-                        .replace(/\b\w/g, (l) => l.toUpperCase())}
-                    </div>
-                  </td>
-                  <td className='px-6 py-4'>
-                    <div className='text-[#EDEDED] font-semibold'>
-                      ${(earning.commissionAmount / 100).toFixed(2)}
-                    </div>
-                  </td>
-                  <td className='px-6 py-4'>
-                    <StatusBadge status={earning.status} type='earning' />
-                  </td>
-                  <td className='px-6 py-4 text-gray-400 text-sm'>
-                    {formatDate(earning.createdAt)}
-                  </td>
+        {recentEarnings?.length > 0 ? (
+          <div className='overflow-x-auto'>
+            <table className='w-full'>
+              <thead>
+                <tr className='border-b border-[#1E1E21]'>
+                  <th className='text-left text-gray-400 text-xs font-medium uppercase tracking-wider px-6 py-4'>
+                    Referral
+                  </th>
+                  <th className='text-left text-gray-400 text-xs font-medium uppercase tracking-wider px-6 py-4'>
+                    Source
+                  </th>
+                  <th className='text-left text-gray-400 text-xs font-medium uppercase tracking-wider px-6 py-4'>
+                    Amount
+                  </th>
+                  <th className='text-left text-gray-400 text-xs font-medium uppercase tracking-wider px-6 py-4'>
+                    Status
+                  </th>
+                  <th className='text-left text-gray-400 text-xs font-medium uppercase tracking-wider px-6 py-4'>
+                    Date
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className='divide-y divide-[#1E1E21]'>
+                {recentEarnings.map((earning) => (
+                  <tr
+                    key={earning._id}
+                    className='hover:bg-[#1A1A1C]/50 transition-all duration-200'
+                  >
+                    <td className='px-6 py-4'>
+                      <div>
+                        <div className='text-[#EDEDED] font-medium text-sm'>
+                          {earning.referredUser?.name || 'Unknown User'}
+                        </div>
+                        <div className='text-gray-400 text-xs'>
+                          {earning.referredUser?.email || 'No email'}
+                        </div>
+                      </div>
+                    </td>
+                    <td className='px-6 py-4'>
+                      <div className='text-[#EDEDED] text-sm'>
+                        {earning.source
+                          .replace('_', ' ')
+                          .replace(/\b\w/g, (l) => l.toUpperCase())}
+                      </div>
+                    </td>
+                    <td className='px-6 py-4'>
+                      <div className='text-[#EDEDED] font-semibold'>
+                        ${(earning.commissionAmount / 100).toFixed(2)}
+                      </div>
+                    </td>
+                    <td className='px-6 py-4'>
+                      <StatusBadge status={earning.status} type='earning' />
+                    </td>
+                    <td className='px-6 py-4 text-gray-400 text-sm'>
+                      {formatDate(earning.createdAt)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className='p-8 text-center'>
+            <DollarSign className='mx-auto mb-4 text-gray-400' size={48} />
+            <h4 className='text-[#EDEDED] font-medium mb-2'>No Earnings Yet</h4>
+            <p className='text-gray-400 text-sm'>
+              Start referring users to earn commissions!
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -614,7 +732,7 @@ const PayoutDashboard = () => {
     <div className='space-y-6'>
       <div className='flex justify-between items-center'>
         <h3 className='text-xl font-semibold text-[#EDEDED]'>Payout History</h3>
-        {connectStatus.canReceivePayouts && (
+        {connectStatus?.canReceivePayouts && (
           <button
             onClick={() => setShowRequestModal(true)}
             className='bg-[#D4AF37] text-black px-4 py-2 rounded-lg font-medium hover:bg-[#D4AF37]/90 transition-all duration-300'
@@ -625,62 +743,86 @@ const PayoutDashboard = () => {
       </div>
 
       <div className='bg-[#121214] border border-[#1E1E21] rounded-xl overflow-hidden'>
-        <div className='overflow-x-auto'>
-          <table className='w-full'>
-            <thead>
-              <tr className='border-b border-[#1E1E21]'>
-                <th className='text-left text-gray-400 text-xs font-medium uppercase tracking-wider px-6 py-4'>
-                  Amount
-                </th>
-                <th className='text-left text-gray-400 text-xs font-medium uppercase tracking-wider px-6 py-4'>
-                  Method
-                </th>
-                <th className='text-left text-gray-400 text-xs font-medium uppercase tracking-wider px-6 py-4'>
-                  Status
-                </th>
-                <th className='text-left text-gray-400 text-xs font-medium uppercase tracking-wider px-6 py-4'>
-                  Requested
-                </th>
-                <th className='text-left text-gray-400 text-xs font-medium uppercase tracking-wider px-6 py-4'>
-                  Completed
-                </th>
-              </tr>
-            </thead>
-            <tbody className='divide-y divide-[#1E1E21]'>
-              {payoutHistory.map((payout) => (
-                <tr
-                  key={payout._id}
-                  className='hover:bg-[#1A1A1C]/50 transition-all duration-200'
-                >
-                  <td className='px-6 py-4'>
-                    <div className='text-[#EDEDED] font-semibold'>
-                      ${payout.amount.toFixed(2)}
-                    </div>
-                    {payout.fees.total > 0 && (
-                      <div className='text-gray-400 text-xs'>
-                        Fee: ${payout.fees.total.toFixed(2)}
-                      </div>
-                    )}
-                  </td>
-                  <td className='px-6 py-4'>
-                    <div className='text-[#EDEDED] text-sm capitalize'>
-                      {payout.method}
-                    </div>
-                  </td>
-                  <td className='px-6 py-4'>
-                    <StatusBadge status={payout.status} type='payout' />
-                  </td>
-                  <td className='px-6 py-4 text-gray-400 text-sm'>
-                    {formatDate(payout.requestedAt)}
-                  </td>
-                  <td className='px-6 py-4 text-gray-400 text-sm'>
-                    {payout.paidAt ? formatDate(payout.paidAt) : '-'}
-                  </td>
+        {payoutHistory?.length > 0 ? (
+          <div className='overflow-x-auto'>
+            <table className='w-full'>
+              <thead>
+                <tr className='border-b border-[#1E1E21]'>
+                  <th className='text-left text-gray-400 text-xs font-medium uppercase tracking-wider px-6 py-4'>
+                    Amount
+                  </th>
+                  <th className='text-left text-gray-400 text-xs font-medium uppercase tracking-wider px-6 py-4'>
+                    Method
+                  </th>
+                  <th className='text-left text-gray-400 text-xs font-medium uppercase tracking-wider px-6 py-4'>
+                    Status
+                  </th>
+                  <th className='text-left text-gray-400 text-xs font-medium uppercase tracking-wider px-6 py-4'>
+                    Requested
+                  </th>
+                  <th className='text-left text-gray-400 text-xs font-medium uppercase tracking-wider px-6 py-4'>
+                    Completed
+                  </th>
+                  <th className='text-left text-gray-400 text-xs font-medium uppercase tracking-wider px-6 py-4'>
+                    Actions
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className='divide-y divide-[#1E1E21]'>
+                {payoutHistory.map((payout) => (
+                  <tr
+                    key={payout._id}
+                    className='hover:bg-[#1A1A1C]/50 transition-all duration-200'
+                  >
+                    <td className='px-6 py-4'>
+                      <div className='text-[#EDEDED] font-semibold'>
+                        ${(payout.amount / 100).toFixed(2)}
+                      </div>
+                      {payout.fees?.total > 0 && (
+                        <div className='text-gray-400 text-xs'>
+                          Fee: ${(payout.fees.total / 100).toFixed(2)}
+                        </div>
+                      )}
+                    </td>
+                    <td className='px-6 py-4'>
+                      <div className='text-[#EDEDED] text-sm capitalize'>
+                        {payout.method}
+                      </div>
+                    </td>
+                    <td className='px-6 py-4'>
+                      <StatusBadge status={payout.status} type='payout' />
+                    </td>
+                    <td className='px-6 py-4 text-gray-400 text-sm'>
+                      {formatDate(payout.requestedAt)}
+                    </td>
+                    <td className='px-6 py-4 text-gray-400 text-sm'>
+                      {payout.paidAt ? formatDate(payout.paidAt) : '-'}
+                    </td>
+                    <td className='px-6 py-4'>
+                      {payout.status === 'pending' && (
+                        <button
+                          onClick={() => cancelPayout(payout._id)}
+                          disabled={loading}
+                          className='text-red-400 hover:text-red-300 text-xs disabled:opacity-50'
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className='p-8 text-center'>
+            <Wallet className='mx-auto mb-4 text-gray-400' size={48} />
+            <h4 className='text-[#EDEDED] font-medium mb-2'>No Payouts Yet</h4>
+            <p className='text-gray-400 text-sm'>
+              Request your first payout when you have available earnings.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -1,4 +1,4 @@
-// File: client/src/services/authServices.js - UPDATED WITH STRIPE
+// File: client/src/services/authServices.js - COMPLETE WITH ALL FEATURES
 import axiosInstance from '../config/config.js'
 
 export const authService = {
@@ -35,8 +35,14 @@ export const authService = {
     )
     return response.data
   },
+  // Delete user (admin)
   deleteUser: async (userId) => {
     const response = await axiosInstance.delete(`/auth/admin/users/${userId}`)
+    return response.data
+  },
+  // Get all users (admin)
+  getAllUsers: async (params = {}) => {
+    const response = await axiosInstance.get('/auth/all-users', { params })
     return response.data
   },
 }
@@ -115,7 +121,45 @@ export const notificationService = {
   },
 }
 
-// NEW: Stripe Service
+// Points Service
+export const pointsService = {
+  // Claim daily points
+  claimDailyPoints: async () => {
+    const response = await axiosInstance.post('/auth/claim-daily-points')
+    return response.data
+  },
+
+  // Get points status
+  getPointsStatus: async () => {
+    const response = await axiosInstance.get('/auth/points-status')
+    return response.data
+  },
+
+  // Get points leaderboard
+  getPointsLeaderboard: async (params = {}) => {
+    const response = await axiosInstance.get('/auth/points-leaderboard', {
+      params,
+    })
+    return response.data
+  },
+
+  // Spend points (for future use)
+  spendPoints: async (amount, description) => {
+    const response = await axiosInstance.post('/points/spend', {
+      amount,
+      description,
+    })
+    return response.data
+  },
+
+  // Get points history
+  getPointsHistory: async (params = {}) => {
+    const response = await axiosInstance.get('/points/history', { params })
+    return response.data
+  },
+}
+
+// Stripe Service
 export const stripeService = {
   // Get all available subscription plans
   getPlans: async () => {
@@ -188,6 +232,257 @@ export const stripeService = {
     const response = await axiosInstance.get('/stripe/admin/subscriptions', {
       params,
     })
+    return response.data
+  },
+}
+
+// Earnings Service
+export const earningsService = {
+  // Get user's earnings with filtering and pagination
+  getUserEarnings: async (params = {}) => {
+    const response = await axiosInstance.get('/earnings', { params })
+    return response.data
+  },
+
+  // Get specific earning details
+  getEarningDetails: async (earningId) => {
+    const response = await axiosInstance.get(`/earnings/${earningId}`)
+    return response.data
+  },
+
+  // Get earnings analytics
+  getEarningsAnalytics: async (period = '30') => {
+    const response = await axiosInstance.get('/earnings/analytics', {
+      params: { period },
+    })
+    return response.data
+  },
+
+  // Get earnings summary/stats
+  getEarningsSummary: async () => {
+    const response = await axiosInstance.get('/earnings/summary')
+    return response.data
+  },
+
+  // Export earnings data
+  exportEarnings: async (params = {}) => {
+    const response = await axiosInstance.get('/earnings/export', {
+      params,
+      responseType: 'blob',
+    })
+    return response
+  },
+
+  // Request payout
+  requestPayout: async (amount) => {
+    const response = await axiosInstance.post('/earnings/request-payout', {
+      amount,
+    })
+    return response.data
+  },
+
+  // Get payout history
+  getPayoutHistory: async (params = {}) => {
+    const response = await axiosInstance.get('/earnings/payouts', { params })
+    return response.data
+  },
+
+  // Admin functions
+  admin: {
+    // Get all earnings (admin only)
+    getAllEarnings: async (params = {}) => {
+      const response = await axiosInstance.get('/earnings/admin/all', {
+        params,
+      })
+      return response.data
+    },
+
+    // Approve earning
+    approveEarning: async (earningId) => {
+      const response = await axiosInstance.put(
+        `/earnings/admin/${earningId}/approve`
+      )
+      return response.data
+    },
+
+    // Bulk approve earnings
+    bulkApproveEarnings: async (earningIds) => {
+      const response = await axiosInstance.put('/earnings/admin/bulk-approve', {
+        earningIds,
+      })
+      return response.data
+    },
+
+    // Dispute earning
+    disputeEarning: async (earningId, reason) => {
+      const response = await axiosInstance.put(
+        `/earnings/admin/${earningId}/dispute`,
+        {
+          reason,
+        }
+      )
+      return response.data
+    },
+
+    // Cancel earning
+    cancelEarning: async (earningId, reason) => {
+      const response = await axiosInstance.put(
+        `/earnings/admin/${earningId}/cancel`,
+        {
+          reason,
+        }
+      )
+      return response.data
+    },
+
+    // Process payout
+    processPayout: async (payoutId) => {
+      const response = await axiosInstance.put(
+        `/earnings/admin/payouts/${payoutId}/process`
+      )
+      return response.data
+    },
+
+    // Get payout requests
+    getPayoutRequests: async (params = {}) => {
+      const response = await axiosInstance.get('/earnings/admin/payouts', {
+        params,
+      })
+      return response.data
+    },
+  },
+}
+
+// Analytics Service
+export const analyticsService = {
+  // Get dashboard analytics
+  getDashboardAnalytics: async (period = '30') => {
+    const response = await axiosInstance.get('/analytics/dashboard', {
+      params: { period },
+    })
+    return response.data
+  },
+
+  // Get user activity
+  getUserActivity: async (params = {}) => {
+    const response = await axiosInstance.get('/analytics/activity', { params })
+    return response.data
+  },
+
+  // Get conversion metrics
+  getConversionMetrics: async (period = '30') => {
+    const response = await axiosInstance.get('/analytics/conversions', {
+      params: { period },
+    })
+    return response.data
+  },
+
+  // Admin analytics
+  admin: {
+    // Get platform overview
+    getPlatformOverview: async (period = '30') => {
+      const response = await axiosInstance.get('/analytics/admin/overview', {
+        params: { period },
+      })
+      return response.data
+    },
+
+    // Get user metrics
+    getUserMetrics: async (params = {}) => {
+      const response = await axiosInstance.get('/analytics/admin/users', {
+        params,
+      })
+      return response.data
+    },
+
+    // Get revenue metrics
+    getRevenueMetrics: async (params = {}) => {
+      const response = await axiosInstance.get('/analytics/admin/revenue', {
+        params,
+      })
+      return response.data
+    },
+  },
+}
+
+// Product Service (for future use)
+export const productService = {
+  // Get all products
+  getProducts: async (params = {}) => {
+    const response = await axiosInstance.get('/products', { params })
+    return response.data
+  },
+
+  // Get single product
+  getProduct: async (productId) => {
+    const response = await axiosInstance.get(`/products/${productId}`)
+    return response.data
+  },
+
+  // Create product (user)
+  createProduct: async (productData) => {
+    const response = await axiosInstance.post('/products', productData)
+    return response.data
+  },
+
+  // Update product
+  updateProduct: async (productId, productData) => {
+    const response = await axiosInstance.put(
+      `/products/${productId}`,
+      productData
+    )
+    return response.data
+  },
+
+  // Delete product
+  deleteProduct: async (productId) => {
+    const response = await axiosInstance.delete(`/products/${productId}`)
+    return response.data
+  },
+
+  // Get user's products
+  getUserProducts: async (params = {}) => {
+    const response = await axiosInstance.get('/products/my-products', {
+      params,
+    })
+    return response.data
+  },
+}
+
+// Support Service
+export const supportService = {
+  // Create support ticket
+  createTicket: async (ticketData) => {
+    const response = await axiosInstance.post('/support/tickets', ticketData)
+    return response.data
+  },
+
+  // Get user's tickets
+  getUserTickets: async (params = {}) => {
+    const response = await axiosInstance.get('/support/tickets', { params })
+    return response.data
+  },
+
+  // Get single ticket
+  getTicket: async (ticketId) => {
+    const response = await axiosInstance.get(`/support/tickets/${ticketId}`)
+    return response.data
+  },
+
+  // Reply to ticket
+  replyToTicket: async (ticketId, message) => {
+    const response = await axiosInstance.post(
+      `/support/tickets/${ticketId}/reply`,
+      { message }
+    )
+    return response.data
+  },
+
+  // Close ticket
+  closeTicket: async (ticketId) => {
+    const response = await axiosInstance.put(
+      `/support/tickets/${ticketId}/close`
+    )
     return response.data
   },
 }
