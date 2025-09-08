@@ -11,6 +11,7 @@ import ViralHookFactory from './pages/AIBuilder/ViralHookFactory'
 import AuthPage from './pages/Auth/AuthPage'
 import DashboardPage from './pages/Dashboard/DashboardPage'
 import EarningsPage from './pages/Earnings/EarningsPage'
+import HomePage from './pages/Home/HomePage'
 import PricingPage from './pages/Pricing/PricingPage'
 import SubscriptionSuccess from './pages/Pricing/SubscriptionSuccess'
 import ProductCheckoutPage from './pages/Product/ProductCheckoutPage'
@@ -63,15 +64,10 @@ const App = () => {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public Routes */}
-        <Route
-          path='/'
-          element={
-            <PublicRoute>
-              <AuthPage />
-            </PublicRoute>
-          }
-        />
+        {/* Public Homepage - Always accessible */}
+        <Route path='/' element={<HomePage />} />
+
+        {/* Auth Route - Only for non-authenticated users */}
         <Route
           path='/auth'
           element={
@@ -186,8 +182,8 @@ const App = () => {
 
         <Route path='/pricing/success' element={<SubscriptionSuccess />} />
 
-        {/* Catch all route - redirect to auth */}
-        <Route path='*' element={<Navigate to='/auth' replace />} />
+        {/* Catch all route - redirect to homepage */}
+        <Route path='*' element={<Navigate to='/' replace />} />
       </Routes>
     </BrowserRouter>
   )

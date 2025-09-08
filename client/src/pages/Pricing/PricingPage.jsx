@@ -49,7 +49,7 @@ const PricingPage = () => {
     const stripeMapping = {
       Starter: 'starter',
       Pro: 'pro',
-      Ultimate: 'empire',
+      Empire: 'empire',
     }
     return stripeMapping[localPlan] || localPlan.toLowerCase()
   }
@@ -351,13 +351,13 @@ const PricingPage = () => {
       affiliateEarnings: { l1: '4.80', l2: '1.20' },
     },
     {
-      plan: 'Ultimate',
+      plan: 'Empire',
       monthlyPrice: 25,
       yearlyPrice: 250,
       description: 'For empire builders who want total domination.',
       features: [
         'Everything in Pro',
-        'Ultimate AI Life OS',
+        'Empire AI Life OS',
         'Full Automation Suite',
         'Empire Architect AI',
         'Direct Mentor Access',
@@ -365,7 +365,7 @@ const PricingPage = () => {
         '1-on-1 Strategy Calls',
       ],
       icon: <Star />,
-      buttonText: 'Go Ultimate',
+      buttonText: 'Go Empire',
       affiliateEarnings: { l1: '10.00', l2: '2.50' },
     },
   ]

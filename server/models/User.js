@@ -1,4 +1,4 @@
-// File: models/User.js - UPDATED WITH POINTS SYSTEM
+// File: models/User.js - COMPLETE MODEL WITH DISCORD INTEGRATION
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import mongoose from 'mongoose'
@@ -60,6 +60,56 @@ const UserSchema = new mongoose.Schema(
     lastStreakClaim: {
       type: Date,
       default: null,
+    },
+
+    // Discord Integration
+    discord: {
+      discordId: {
+        type: String,
+        unique: true,
+        sparse: true, // Allows multiple null values
+      },
+      username: String,
+      discriminator: String,
+      avatar: String,
+      email: String, // Discord email (might be different from main email)
+      isConnected: {
+        type: Boolean,
+        default: false,
+      },
+      connectedAt: Date,
+      lastRoleUpdate: Date,
+      currentRoles: [String], // Array of role IDs currently assigned
+    },
+
+    // Subscription plan
+    subscription: {
+      plan: {
+        type: String,
+        enum: ['free', 'starter', 'pro', 'empire'],
+        default: 'free',
+      },
+      status: {
+        type: String,
+        enum: ['active', 'inactive', 'cancelled', 'trial'],
+        default: 'inactive',
+      },
+      startDate: Date,
+      endDate: Date,
+      isActive: {
+        type: Boolean,
+        default: false,
+      },
+      isTrialActive: {
+        type: Boolean,
+        default: false,
+      },
+      trialStartDate: Date,
+      trialEndDate: Date,
+      daysRemaining: {
+        type: Number,
+        default: 0,
+      },
     },
 
     // Stripe Integration Fields
@@ -302,6 +352,7 @@ UserSchema.index({ referralCode: 1 })
 UserSchema.index({ referredBy: 1 })
 UserSchema.index({ stripeCustomerId: 1 })
 UserSchema.index({ 'stripeConnect.accountId': 1 })
+UserSchema.index({ 'discord.discordId': 1 })
 UserSchema.index({ isDeleted: 1, isActive: 1 })
 UserSchema.index({ lastDailyClaim: 1 })
 UserSchema.index({ points: -1 })
@@ -398,7 +449,7 @@ UserSchema.methods.canClaimDailyPoints = function () {
   return { canClaim: false, hoursUntilNext }
 }
 
-// Method to claim daily points
+// Method to claim daily points with Discord bonus
 UserSchema.methods.claimDailyPoints = async function () {
   const claimCheck = this.canClaimDailyPoints()
 
@@ -439,6 +490,11 @@ UserSchema.methods.claimDailyPoints = async function () {
     pointsToAward += 100 // Monthly streak bonus
   }
 
+  // Discord connection bonus
+  if (this.discord?.isConnected) {
+    pointsToAward += 25 // Extra 25 points for Discord users
+  }
+
   // Award points
   this.points += pointsToAward
   this.totalPointsEarned += pointsToAward
@@ -452,6 +508,7 @@ UserSchema.methods.claimDailyPoints = async function () {
     totalPoints: this.points,
     streak: this.dailyClaimStreak,
     nextClaimIn: 24, // hours
+    discordBonus: this.discord?.isConnected ? 25 : 0,
   }
 }
 
@@ -471,6 +528,28 @@ UserSchema.methods.spendPoints = async function (amount) {
     remainingPoints: this.points,
     totalSpent: this.pointsSpent,
   }
+}
+
+// Method to get Discord role based on subscription
+UserSchema.methods.getDiscordRole = function () {
+  const roleMapping = {
+    free: process.env.DISCORD_ROLE_FREE,
+    starter: process.env.DISCORD_ROLE_BASIC,
+    pro: process.env.DISCORD_ROLE_PREMIUM,
+    empire: process.env.DISCORD_ROLE_ENTERPRISE,
+  }
+
+  return roleMapping[this.subscription?.plan || 'free']
+}
+
+// Method to check if Discord roles need updating
+UserSchema.methods.needsRoleUpdate = function () {
+  if (!this.discord?.isConnected) return false
+
+  const expectedRole = this.getDiscordRole()
+  const hasExpectedRole = this.discord.currentRoles?.includes(expectedRole)
+
+  return !hasExpectedRole
 }
 
 // Enhanced method to add a referral
@@ -613,6 +692,7 @@ UserSchema.virtual('dailyClaimStatus').get(function () {
     hoursUntilNext: claimCheck.hoursUntilNext,
     streak: this.dailyClaimStreak,
     lastClaim: this.lastDailyClaim,
+    discordBonus: this.discord?.isConnected ? 25 : 0,
   }
 })
 
@@ -676,6 +756,28 @@ UserSchema.virtual('formattedEarnings').get(function () {
   }
 })
 
+// Virtual for Discord status
+UserSchema.virtual('discordStatus').get(function () {
+  if (!this.discord?.isConnected) {
+    return {
+      isConnected: false,
+      needsConnection: true,
+    }
+  }
+
+  return {
+    isConnected: true,
+    username: this.discord.username,
+    discriminator: this.discord.discriminator,
+    avatar: this.discord.avatar,
+    connectedAt: this.discord.connectedAt,
+    currentRoles: this.discord.currentRoles || [],
+    lastRoleUpdate: this.discord.lastRoleUpdate,
+    expectedRole: this.getDiscordRole(),
+    needsRoleUpdate: this.needsRoleUpdate(),
+  }
+})
+
 // Static method to find user by referral code
 UserSchema.statics.findByReferralCode = function (code) {
   return this.findOne({
@@ -697,7 +799,9 @@ UserSchema.statics.findPendingVerification = function () {
 // Static method to get top earners by points
 UserSchema.statics.getTopPointEarners = function (limit = 10) {
   return this.find({ totalPointsEarned: { $gt: 0 } })
-    .select('name email points totalPointsEarned dailyClaimStreak')
+    .select(
+      'name email points totalPointsEarned dailyClaimStreak discord.isConnected'
+    )
     .sort({ totalPointsEarned: -1 })
     .limit(limit)
 }
@@ -721,7 +825,7 @@ UserSchema.statics.getTopEarners = function (limit = 10, period = 'all') {
   }
 
   return this.find(match)
-    .select('name email earningsInfo referralStats')
+    .select('name email earningsInfo referralStats discord.isConnected')
     .sort({ 'earningsInfo.totalEarned': -1 })
     .limit(limit)
 }

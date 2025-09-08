@@ -14,12 +14,14 @@ import {
   updateUser,
 } from '../controllers/auth.js'
 import { restrictTo, verifyToken } from '../middleware/authMiddleware.js'
-
+import discordRoutes from './discord.js'
 const router = express.Router()
 
 // Public routes
 router.post('/signup', signup)
 router.post('/signin', signin)
+
+router.use('/discord', discordRoutes)
 
 // Protected routes (require authentication)
 router.use(verifyToken)
