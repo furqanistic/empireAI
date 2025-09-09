@@ -1,4 +1,4 @@
-// File: routes/discord.js - REST API Integration
+// File: routes/discord.js - ADD THE MISSING CONNECT ROUTE
 import express from 'express'
 import {
   disconnectDiscord,
@@ -7,37 +7,30 @@ import {
   handleDiscordCallback,
   startDiscordAuth,
   syncAllDiscordRoles,
+  syncUserDiscordRoles,
   updateDiscordRoles,
 } from '../controllers/discordAuth.js'
 import { restrictTo, verifyToken } from '../middleware/authMiddleware.js'
 
 const router = express.Router()
 
-// Public route for OAuth callback (no authentication required)
+// Public Discord OAuth routes
+router.get('/auth', verifyToken, startDiscordAuth)
+router.post('/connect', verifyToken, startDiscordAuth) // ADD THIS LINE - Missing connect route
 router.get('/callback', handleDiscordCallback)
 
 // Protected routes (require authentication)
 router.use(verifyToken)
 
-// Discord OAuth routes
-router.get('/connect', startDiscordAuth)
-
-// Get Discord connection status
+// User Discord management routes
 router.get('/status', getDiscordStatus)
-
-// Disconnect Discord account
-router.delete('/disconnect', disconnectDiscord)
-
-// Get Discord server invite link
+router.post('/disconnect', disconnectDiscord)
+router.post('/sync-roles', syncUserDiscordRoles)
 router.get('/invite', getDiscordInvite)
 
-// Admin routes
+// Admin only routes
 router.use(restrictTo('admin'))
-
-// Update Discord roles for specific user (admin only)
 router.put('/roles/:userId', updateDiscordRoles)
-
-// Sync all Discord roles (admin only)
 router.post('/sync-all-roles', syncAllDiscordRoles)
 
 export default router

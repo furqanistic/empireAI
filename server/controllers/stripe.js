@@ -1,4 +1,4 @@
-// File: controllers/stripe.js - UPDATED WITH EARNINGS INTEGRATION
+// File: controllers/stripe.js - ORIGINAL WITH MINIMAL FIX
 import {
   createOrRetrieveCustomer,
   getAllPlans,
@@ -18,6 +18,68 @@ import {
   createEarningForSubscription,
 } from '../utils/earningsIntegration.js'
 
+// ADDED: Simple helper function to sync User model subscription field
+const updateUserSubscriptionField = async (userId, subscription) => {
+  try {
+    // Status mapping code (as before)
+    const statusMapping = {
+      trialing: 'trial',
+      active: 'active',
+      past_due: 'active',
+      canceled: 'cancelled',
+      unpaid: 'inactive',
+      incomplete: 'inactive',
+      incomplete_expired: 'inactive',
+    }
+
+    const updateData = {
+      subscription: {
+        plan: subscription.plan,
+        status: statusMapping[subscription.status] || 'inactive',
+        startDate: subscription.currentPeriodStart,
+        endDate: subscription.currentPeriodEnd,
+        isActive: subscription.isActive,
+        isTrialActive: subscription.isTrialActive,
+        trialStartDate: subscription.trialStart,
+        trialEndDate: subscription.trialEnd,
+        daysRemaining: subscription.daysRemaining,
+      },
+    }
+
+    const user = await User.findByIdAndUpdate(userId, updateData, { new: true })
+    console.log(
+      `Updated User subscription field for user ${userId} to ${subscription.plan}`
+    )
+
+    // ADD THIS: Automatic Discord role update
+    if (user?.discord?.isConnected) {
+      try {
+        const { updateUserDiscordRoles } = await import('./discordAuth.js')
+        const discordResult = await updateUserDiscordRoles(user)
+
+        if (discordResult.success) {
+          console.log(
+            `Auto-updated Discord roles for ${user.name}: ${JSON.stringify(
+              discordResult.actions
+            )}`
+          )
+        } else {
+          console.log(
+            `Failed to auto-update Discord roles for ${user.name}: ${discordResult.reason}`
+          )
+        }
+      } catch (discordError) {
+        console.error('Error auto-updating Discord roles:', discordError)
+        // Don't throw error to avoid breaking subscription flow
+      }
+    }
+
+    return user
+  } catch (error) {
+    console.error('Error updating user subscription field:', error)
+    return null
+  }
+}
 // DEBUG ROUTE - Add this temporarily to check subscriptions
 export const debugSubscriptions = async (req, res, next) => {
   try {
@@ -142,7 +204,7 @@ export const createCheckoutSession = async (req, res, next) => {
   }
 }
 
-// Verify checkout session and create subscription - UPDATED WITH EARNINGS INTEGRATION
+// Verify checkout session and create subscription - UPDATED WITH USER SYNC
 export const verifyCheckoutSession = async (req, res, next) => {
   try {
     const { sessionId } = req.body
@@ -228,6 +290,9 @@ export const verifyCheckoutSession = async (req, res, next) => {
       // Verify the subscription was saved
       const savedSubscription = await Subscription.findById(subscription._id)
 
+      // ADDED: Update User model's subscription field
+      await updateUserSubscriptionField(user._id, subscription)
+
       // NEW: Create earning for referral commission
       try {
         await createEarningForSubscription(subscription, user._id)
@@ -299,6 +364,9 @@ export const getCurrentSubscription = async (req, res, next) => {
           subscription.stripeSubscriptionId
         )
         await subscription.updateFromStripe(stripeSubscription)
+
+        // ADDED: Update User model's subscription field
+        await updateUserSubscriptionField(user._id, subscription)
       } catch (error) {
         console.error('Error syncing with Stripe:', error)
         // Continue with database data if Stripe sync fails
@@ -382,6 +450,9 @@ export const updateSubscription = async (req, res, next) => {
     subscription.amount = getAmount(planName, billingCycle)
     await subscription.updateFromStripe(updatedStripeSubscription)
 
+    // ADDED: Update User model's subscription field
+    await updateUserSubscriptionField(user._id, subscription)
+
     await subscription.populate('user', 'name email')
 
     res.status(200).json({
@@ -433,6 +504,21 @@ export const cancelSubscription = async (req, res, next) => {
     // Update subscription in database
     await subscription.updateFromStripe(stripeSubscription)
 
+    // ADDED: Update User model's subscription field
+    if (immediate) {
+      // Set to free plan if canceled immediately
+      const freeSubscriptionData = {
+        plan: 'free',
+        status: 'inactive',
+        isActive: false,
+        isTrialActive: false,
+        daysRemaining: 0,
+      }
+      await updateUserSubscriptionField(user._id, freeSubscriptionData)
+    } else {
+      await updateUserSubscriptionField(user._id, subscription)
+    }
+
     await subscription.populate('user', 'name email')
 
     res.status(200).json({
@@ -478,6 +564,9 @@ export const reactivateSubscription = async (req, res, next) => {
 
     // Update subscription in database
     await subscription.updateFromStripe(stripeSubscription)
+
+    // ADDED: Update User model's subscription field
+    await updateUserSubscriptionField(user._id, subscription)
 
     await subscription.populate('user', 'name email')
 
@@ -581,6 +670,9 @@ export const syncWithStripe = async (req, res, next) => {
 
     // Update local subscription
     await subscription.updateFromStripe(stripeSubscription)
+
+    // ADDED: Update User model's subscription field
+    await updateUserSubscriptionField(user._id, subscription)
 
     await subscription.populate('user', 'name email')
 

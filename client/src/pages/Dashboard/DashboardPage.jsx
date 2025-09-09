@@ -1,5 +1,6 @@
-// File: client/src/pages/Dashboard/DashboardPage.jsx - COMPLETE REWRITE
+// File: client/src/pages/Dashboard/DashboardPage.jsx - REDESIGNED LAYOUT
 import {
+  Award,
   Bot,
   CheckCircle,
   ChevronRight,
@@ -9,14 +10,19 @@ import {
   Gift,
   MessageCircle,
   Rocket,
+  Settings,
   Shield,
   Star,
   TrendingUp,
   Users,
+  X,
   Zap,
 } from 'lucide-react'
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
+
+import DiscordConnection from '@/components/Discord/DiscordConnection.jsx'
+import axiosInstance from '@/config/config'
 import { useClaimDailyPoints, usePointsStatus } from '../../hooks/useAuth.js'
 import Layout from '../Layout/Layout'
 
@@ -43,6 +49,11 @@ const DashboardPage = () => {
   const [isClaimingBonus, setIsClaimingBonus] = useState(false)
   const [feedbackMessage, setFeedbackMessage] = useState(null)
   const [feedbackType, setFeedbackType] = useState('success') // 'success' | 'error'
+
+  // Discord modal state
+  const [showDiscordModal, setShowDiscordModal] = useState(false)
+  const [discordStatus, setDiscordStatus] = useState(null)
+  const [discordLoading, setDiscordLoading] = useState(true)
 
   // Handle daily points claiming
   const handleClaimDailyBonus = async () => {
@@ -82,6 +93,32 @@ const DashboardPage = () => {
       setIsClaimingBonus(false)
     }
   }
+
+  // Handle Discord modal
+  const handleDiscordExpand = () => {
+    setShowDiscordModal(true)
+  }
+
+  const handleDiscordModalClose = () => {
+    setShowDiscordModal(false)
+  }
+
+  // Fetch Discord status
+  React.useEffect(() => {
+    const fetchDiscordStatus = async () => {
+      try {
+        const response = await axiosInstance.get('/auth/discord/status')
+        setDiscordStatus(response.data.data.discord)
+      } catch (error) {
+        console.error('Error fetching Discord status:', error)
+        setDiscordStatus(null)
+      } finally {
+        setDiscordLoading(false)
+      }
+    }
+
+    fetchDiscordStatus()
+  }, [])
 
   // Quick action card component
   const QuickActionCard = ({
@@ -195,7 +232,7 @@ const DashboardPage = () => {
           </div>
         </div>
 
-        {/* Daily Bonus & Stats Row */}
+        {/* Daily Bonus & Stats Row (2 cards only) */}
         <div className='grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6'>
           {/* Daily Check-in Bonus */}
           <div className='lg:col-span-2 bg-[#121214] border border-[#1E1E21] rounded-xl p-4 sm:p-6'>
@@ -319,6 +356,174 @@ const DashboardPage = () => {
 
             <div className='bg-[#1A1A1C] rounded-lg h-1.5 overflow-hidden'>
               <div className='bg-[#D4AF37] h-full w-[62%] rounded-lg'></div>
+            </div>
+          </div>
+        </div>
+
+        {/* NEW DISCORD SECTION - Compact & Consistent */}
+        <div className='bg-gradient-to-r from-[#5865F2]/8 via-[#5865F2]/12 to-[#5865F2]/8 border border-[#5865F2]/20 rounded-xl p-6'>
+          <div className='grid grid-cols-1 lg:grid-cols-12 gap-6 items-center'>
+            {/* Left: Branding & Info - Fixed width */}
+            <div className='lg:col-span-4 text-center lg:text-left'>
+              <div className='flex items-center justify-center lg:justify-start gap-4 mb-3'>
+                <div className='w-12 h-12 bg-[#5865F2] rounded-xl flex items-center justify-center'>
+                  <MessageCircle size={20} className='text-white' />
+                </div>
+                <div>
+                  <h2 className='text-xl font-bold text-[#EDEDED] mb-1'>
+                    Discord Empire
+                  </h2>
+                  <p className='text-[#5865F2] text-sm font-medium'>
+                    Join 2,847+ Builders
+                  </p>
+                </div>
+              </div>
+              <p className='text-gray-400 text-sm leading-relaxed mb-3 lg:mb-0'>
+                Connect for exclusive roles, +25 daily bonus, and community
+                access
+              </p>
+            </div>
+
+            {/* Center: Status - Perfectly Centered with fixed width */}
+            <div className='lg:col-span-4 flex justify-center'>
+              <div className='w-full max-w-xs'>
+                {discordLoading ? (
+                  <div className='flex items-center justify-center py-4'>
+                    <div className='w-6 h-6 border-2 border-[#5865F2]/30 border-t-[#5865F2] rounded-full animate-spin'></div>
+                  </div>
+                ) : discordStatus?.isConnected ? (
+                  <div className='bg-[#121214]/50 border border-[#1E1E21] rounded-xl p-4'>
+                    <div className='flex items-center gap-3 mb-3'>
+                      {discordStatus.avatar ? (
+                        <img
+                          src={`https://cdn.discordapp.com/avatars/${discordStatus.discordId}/${discordStatus.avatar}.png?size=32`}
+                          alt='Discord Avatar'
+                          className='w-8 h-8 rounded-full border border-[#5865F2]'
+                          onError={(e) => {
+                            e.target.src = `https://cdn.discordapp.com/embed/avatars/${
+                              (discordStatus.discriminator || '0') % 5
+                            }.png`
+                          }}
+                        />
+                      ) : (
+                        <div className='w-8 h-8 rounded-full bg-[#5865F2]/20 flex items-center justify-center'>
+                          <MessageCircle size={16} className='text-[#5865F2]' />
+                        </div>
+                      )}
+                      <div className='flex-1 min-w-0'>
+                        <div className='text-[#EDEDED] font-semibold text-sm truncate'>
+                          {discordStatus.username}
+                        </div>
+                        <div className='flex items-center gap-2'>
+                          <div className='w-1.5 h-1.5 rounded-full bg-emerald-500'></div>
+                          <span className='text-emerald-400 text-xs'>
+                            Connected
+                          </span>
+                        </div>
+                      </div>
+                      <Award
+                        size={16}
+                        className='text-[#D4AF37] flex-shrink-0'
+                      />
+                    </div>
+
+                    {/* Compact Role & Bonus Info */}
+                    <div className='grid grid-cols-2 gap-2'>
+                      <div className='text-center bg-[#1A1A1C] rounded-lg p-2'>
+                        <div className='text-[#5865F2] font-bold text-sm'>
+                          Role Active
+                        </div>
+                        <div className='text-gray-400 text-xs'>
+                          Server Status
+                        </div>
+                      </div>
+                      <div className='text-center bg-[#1A1A1C] rounded-lg p-2'>
+                        <div className='text-[#D4AF37] font-bold text-sm'>
+                          +25 pts
+                        </div>
+                        <div className='text-gray-400 text-xs'>Daily Bonus</div>
+                      </div>
+                    </div>
+
+                    {/* Compact Warnings */}
+                    {(discordStatus.needsRoleUpdate ||
+                      discordStatus.isInServer === false) && (
+                      <div className='bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-2 mt-3 flex items-center gap-2'>
+                        <span className='text-yellow-500 text-sm flex-shrink-0'>
+                          ⚠️
+                        </span>
+                        <span className='text-yellow-200 text-xs'>
+                          {discordStatus.isInServer === false
+                            ? 'Join server for roles'
+                            : 'Role update needed'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className='bg-[#121214]/50 border border-[#1E1E21] rounded-xl p-4 text-center'>
+                    <div className='text-[#EDEDED] font-semibold mb-2'>
+                      Not Connected
+                    </div>
+                    <div className='grid grid-cols-2 gap-2 mb-3'>
+                      <div className='bg-[#1A1A1C] rounded-lg p-2'>
+                        <div className='text-[#D4AF37] text-sm'>⭐</div>
+                        <div className='text-gray-300 text-xs'>+25 Bonus</div>
+                      </div>
+                      <div className='bg-[#1A1A1C] rounded-lg p-2'>
+                        <div className='text-[#5865F2] text-sm'>🎯</div>
+                        <div className='text-gray-300 text-xs'>Roles</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right: Actions & Stats - Fixed width */}
+            <div className='lg:col-span-4 space-y-3'>
+              <div className='flex flex-col sm:flex-row lg:flex-col gap-3'>
+                <button
+                  onClick={handleDiscordExpand}
+                  className='flex-1 bg-[#5865F2] text-white px-6 py-3 rounded-xl font-semibold text-sm hover:bg-[#5865F2]/90 transition-all duration-300 flex items-center justify-center gap-2'
+                >
+                  {discordStatus?.isConnected ? (
+                    <>
+                      <Settings size={16} />
+                      Manage Discord
+                    </>
+                  ) : (
+                    <>
+                      <MessageCircle size={16} />
+                      Connect Discord
+                    </>
+                  )}
+                </button>
+
+                <a
+                  href='https://discord.gg/zYurEefP'
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  className='flex-1 bg-[#121214] border border-[#5865F2]/30 text-[#5865F2] px-6 py-3 rounded-xl font-semibold text-sm hover:bg-[#5865F2]/5 transition-all duration-300 flex items-center justify-center gap-2'
+                >
+                  <MessageCircle size={16} />
+                  Join Server
+                  <ExternalLink size={12} />
+                </a>
+              </div>
+
+              {/* Compact Stats */}
+              <div className='flex items-center justify-center gap-4 text-xs'>
+                <div className='text-center'>
+                  <div className='text-[#EDEDED] font-bold'>2.8K+</div>
+                  <div className='text-gray-400'>Members</div>
+                </div>
+                <div className='w-px h-6 bg-[#1E1E21]'></div>
+                <div className='text-center'>
+                  <div className='text-emerald-400 font-bold'>24/7</div>
+                  <div className='text-gray-400'>Active</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -495,6 +700,37 @@ const DashboardPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Discord Modal */}
+      {showDiscordModal && (
+        <div
+          className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-hidden'
+          onClick={handleDiscordModalClose}
+        >
+          <div
+            className='w-full max-w-2xl max-h-[85vh] relative bg-transparent'
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button - Enhanced & Fixed Position */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                handleDiscordModalClose()
+              }}
+              className='absolute top-2 right-4 z-[60] w-10 h-10 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center text-white shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-white'
+              aria-label='Close Discord Modal'
+            >
+              <X size={18} className='stroke-2' />
+            </button>
+
+            {/* Scrollable Content Container */}
+            <div className='max-h-[85vh] overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent pr-2'>
+              {/* Discord Connection Component */}
+              <DiscordConnection />
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   )
 }

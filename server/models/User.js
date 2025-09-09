@@ -91,7 +91,15 @@ const UserSchema = new mongoose.Schema(
       },
       status: {
         type: String,
-        enum: ['active', 'inactive', 'cancelled', 'trial'],
+        enum: [
+          'active',
+          'inactive',
+          'cancelled',
+          'trial',
+          'trialing',
+          'past_due',
+          'unpaid',
+        ], // ✅ Added Stripe statuses
         default: 'inactive',
       },
       startDate: Date,

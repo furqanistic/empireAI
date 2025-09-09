@@ -64,11 +64,11 @@ export const SUBSCRIPTION_PLANS = {
     },
   },
   empire: {
-    name: 'Ultimate', // Display name for frontend
+    name: 'Empire', // Display name for frontend
     description: 'For empire builders who want total domination.',
     features: [
       'Everything in Pro',
-      'Ultimate AI Life OS',
+      'Empire AI Life OS',
       'Full Automation Suite',
       'Empire Architect AI',
       'Direct Mentor Access',

@@ -1,10 +1,98 @@
-// File: controllers/discordAuth.js - REST API Integration
+// File: controllers/discordAuth.js - UPDATED WITH SUBSCRIPTION INTEGRATION
 import { createError } from '../error.js'
 import User from '../models/User.js'
 import discordService from '../services/discordService.js'
 
+// UPDATED: Consistent role mapping with subscription plans
+const ROLE_MAPPING = {
+  free: process.env.DISCORD_ROLE_FREE,
+  starter: process.env.DISCORD_ROLE_STARTER,
+  pro: process.env.DISCORD_ROLE_PRO,
+  empire: process.env.DISCORD_ROLE_EMPIRE,
+}
+
+// Helper function to get expected role for a plan
+const getExpectedRole = (plan) => {
+  return ROLE_MAPPING[plan] || ROLE_MAPPING.free
+}
+
+// Helper function to update Discord roles based on subscription
+const updateUserDiscordRoles = async (user) => {
+  if (!user.discord?.isConnected || !user.discord?.discordId) {
+    return { success: false, reason: 'Discord not connected' }
+  }
+
+  try {
+    const currentPlan = user.subscription?.plan || 'free'
+    const expectedRole = getExpectedRole(currentPlan)
+    const currentRoles = user.discord.currentRoles || []
+
+    // Get all subscription-related roles
+    const allSubscriptionRoles = Object.values(ROLE_MAPPING).filter(Boolean)
+
+    // Remove all subscription roles first
+    const rolesToRemove = currentRoles.filter(
+      (roleId) =>
+        allSubscriptionRoles.includes(roleId) && roleId !== expectedRole
+    )
+
+    for (const roleId of rolesToRemove) {
+      try {
+        await discordService.removeRoleFromMember(
+          user.discord.discordId,
+          roleId
+        )
+      } catch (error) {
+        console.error(`Failed to remove role ${roleId}:`, error.message)
+      }
+    }
+
+    // Add the correct role if not already present
+    if (expectedRole && !currentRoles.includes(expectedRole)) {
+      try {
+        await discordService.addRoleToMember(
+          user.discord.discordId,
+          expectedRole
+        )
+      } catch (error) {
+        console.error(`Failed to add role ${expectedRole}:`, error.message)
+        return { success: false, reason: error.message }
+      }
+    }
+
+    // Update user's current roles in database
+    try {
+      const updatedRoles = await discordService.getUserRoles(
+        user.discord.discordId
+      )
+      user.discord.currentRoles = updatedRoles
+      user.discord.lastRoleUpdate = new Date()
+      await user.save()
+    } catch (error) {
+      console.error('Failed to update user roles in database:', error)
+    }
+
+    return {
+      success: true,
+      plan: currentPlan,
+      expectedRole,
+      actions: {
+        removed: rolesToRemove,
+        added:
+          expectedRole && !currentRoles.includes(expectedRole)
+            ? [expectedRole]
+            : [],
+      },
+    }
+  } catch (error) {
+    console.error('Error updating Discord roles:', error)
+    return { success: false, reason: error.message }
+  }
+}
+
 // Start Discord OAuth process
 export const startDiscordAuth = async (req, res, next) => {
+  console.log('object')
   try {
     if (!req.user || !req.user.id) {
       return next(
@@ -23,6 +111,7 @@ export const startDiscordAuth = async (req, res, next) => {
     const redirectUri = `${
       process.env.BACKEND_URL || 'http://localhost:8800'
     }/api/auth/discord/callback`
+
     const authUrl = discordService.getOAuthURL(redirectUri, state)
 
     res.status(200).json({
@@ -35,7 +124,7 @@ export const startDiscordAuth = async (req, res, next) => {
   }
 }
 
-// Handle Discord OAuth callback
+// Handle Discord OAuth callback - UPDATED WITH SUBSCRIPTION ROLE SYNC
 export const handleDiscordCallback = async (req, res, next) => {
   try {
     const { code, state, error } = req.query
@@ -79,10 +168,10 @@ export const handleDiscordCallback = async (req, res, next) => {
       )
     }
 
-    // Exchange code for access token
     const redirectUri = `${
-      process.env.BACKEND_URL || 'http://localhost:5000'
+      process.env.BACKEND_URL || 'http://localhost:8800'
     }/api/auth/discord/callback`
+
     const tokenData = await discordService.exchangeCodeForToken(
       code,
       redirectUri
@@ -118,7 +207,7 @@ export const handleDiscordCallback = async (req, res, next) => {
 
     await user.save()
 
-    // Try to add user to guild and assign roles
+    // Try to add user to guild and assign roles based on current subscription
     try {
       // Add user to guild (if not already in it)
       await discordService.addUserToGuild(
@@ -126,21 +215,12 @@ export const handleDiscordCallback = async (req, res, next) => {
         tokenData.access_token
       )
 
-      // Assign Discord role based on current subscription
-      const roleResult = await discordService.updateUserRoles(
-        discordUser.id,
-        user.subscription?.plan || 'free',
-        []
-      )
-
-      // Update user with current roles
-      const currentRoles = await discordService.getUserRoles(discordUser.id)
-      user.discord.currentRoles = currentRoles
-      user.discord.lastRoleUpdate = new Date()
-      await user.save()
+      // UPDATED: Assign Discord role based on current subscription using our helper
+      const roleResult = await updateUserDiscordRoles(user)
 
       console.log(
-        `Discord account linked and roles updated for user ${user.email}`
+        `Discord account linked for ${user.email}. Role update result:`,
+        roleResult
       )
     } catch (roleError) {
       console.error('Error updating Discord roles after linking:', roleError)
@@ -156,7 +236,7 @@ export const handleDiscordCallback = async (req, res, next) => {
   }
 }
 
-// Get Discord connection status
+// Get Discord connection status - UPDATED WITH SUBSCRIPTION INFO
 export const getDiscordStatus = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id)
@@ -164,6 +244,9 @@ export const getDiscordStatus = async (req, res, next) => {
     if (!user) {
       return next(createError(404, 'User not found'))
     }
+
+    const currentPlan = user.subscription?.plan || 'free'
+    const expectedRole = getExpectedRole(currentPlan)
 
     const discordStatus = {
       isConnected: user.discord?.isConnected || false,
@@ -173,8 +256,10 @@ export const getDiscordStatus = async (req, res, next) => {
       connectedAt: user.discord?.connectedAt,
       currentRoles: user.discord?.currentRoles || [],
       lastRoleUpdate: user.discord?.lastRoleUpdate,
-      expectedRole: user.getDiscordRole(),
-      needsRoleUpdate: user.needsRoleUpdate(),
+      expectedRole,
+      currentPlan,
+      needsRoleUpdate:
+        expectedRole && !user.discord?.currentRoles?.includes(expectedRole),
     }
 
     // Check if user is actually in the Discord server
@@ -205,7 +290,7 @@ export const getDiscordStatus = async (req, res, next) => {
   }
 }
 
-// Disconnect Discord account
+// Disconnect Discord account - UPDATED ROLE MAPPING
 export const disconnectDiscord = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id)
@@ -222,14 +307,9 @@ export const disconnectDiscord = async (req, res, next) => {
 
     // Remove all subscription roles from Discord
     try {
-      const roleMapping = {
-        free: process.env.DISCORD_ROLE_FREE,
-        basic: process.env.DISCORD_ROLE_BASIC,
-        premium: process.env.DISCORD_ROLE_PREMIUM,
-        enterprise: process.env.DISCORD_ROLE_ENTERPRISE,
-      }
+      const allSubscriptionRoles = Object.values(ROLE_MAPPING).filter(Boolean)
 
-      for (const roleId of Object.values(roleMapping)) {
+      for (const roleId of allSubscriptionRoles) {
         if (roleId && user.discord.currentRoles?.includes(roleId)) {
           try {
             await discordService.removeRoleFromMember(discordId, roleId)
@@ -271,7 +351,41 @@ export const disconnectDiscord = async (req, res, next) => {
   }
 }
 
-// Update Discord roles manually (admin function)
+// UPDATED: Manual role sync for single user
+export const syncUserDiscordRoles = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id)
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    if (!user.discord?.isConnected) {
+      return next(createError(400, 'Discord account not connected'))
+    }
+
+    const result = await updateUserDiscordRoles(user)
+
+    if (result.success) {
+      res.status(200).json({
+        status: 'success',
+        message: 'Discord roles synced successfully',
+        data: {
+          plan: result.plan,
+          actions: result.actions,
+          currentRoles: user.discord.currentRoles,
+        },
+      })
+    } else {
+      next(createError(500, `Failed to sync Discord roles: ${result.reason}`))
+    }
+  } catch (error) {
+    console.error('Error syncing user Discord roles:', error)
+    next(error)
+  }
+}
+
+// UPDATED: Admin function to update specific user's Discord roles
 export const updateDiscordRoles = async (req, res, next) => {
   try {
     const { userId } = req.params
@@ -289,31 +403,26 @@ export const updateDiscordRoles = async (req, res, next) => {
       )
     }
 
-    const newPlan = plan || user.subscription?.plan || 'free'
+    // If plan is provided, temporarily update user's subscription plan for role calculation
+    if (plan && ['free', 'starter', 'pro', 'empire'].includes(plan)) {
+      if (!user.subscription) {
+        user.subscription = {}
+      }
+      user.subscription.plan = plan
+      await user.save()
+    }
 
-    // Update Discord roles
-    const roleResult = await discordService.updateUserRoles(
-      user.discord.discordId,
-      newPlan,
-      user.discord.currentRoles || []
-    )
-
-    // Update user with new roles
-    const currentRoles = await discordService.getUserRoles(
-      user.discord.discordId
-    )
-    user.discord.currentRoles = currentRoles
-    user.discord.lastRoleUpdate = new Date()
-    await user.save()
+    const result = await updateUserDiscordRoles(user)
 
     res.status(200).json({
       status: 'success',
       message: 'Discord roles updated successfully',
       data: {
         user: user.name,
-        plan: newPlan,
-        roleResult,
-        currentRoles,
+        plan: user.subscription?.plan || 'free',
+        success: result.success,
+        actions: result.actions,
+        currentRoles: user.discord.currentRoles,
       },
     })
   } catch (error) {
@@ -322,7 +431,7 @@ export const updateDiscordRoles = async (req, res, next) => {
   }
 }
 
-// Sync all Discord roles (admin function)
+// UPDATED: Sync all Discord roles with subscription plans
 export const syncAllDiscordRoles = async (req, res, next) => {
   try {
     const usersWithDiscord = await User.find({
@@ -331,11 +440,11 @@ export const syncAllDiscordRoles = async (req, res, next) => {
     })
 
     const results = []
+    let successCount = 0
+    let errorCount = 0
 
     for (const user of usersWithDiscord) {
       try {
-        const expectedPlan = user.subscription?.plan || 'free'
-
         // Check if user is still in server
         const isInServer = await discordService.isUserInServer(
           user.discord.discordId
@@ -348,31 +457,31 @@ export const syncAllDiscordRoles = async (req, res, next) => {
             status: 'not_in_server',
             message: 'User no longer in Discord server',
           })
+          errorCount++
           continue
         }
 
-        // Update roles
-        const roleResult = await discordService.updateUserRoles(
-          user.discord.discordId,
-          expectedPlan,
-          user.discord.currentRoles || []
-        )
+        // Update roles based on current subscription
+        const result = await updateUserDiscordRoles(user)
 
-        // Update user record
-        const currentRoles = await discordService.getUserRoles(
-          user.discord.discordId
-        )
-        user.discord.currentRoles = currentRoles
-        user.discord.lastRoleUpdate = new Date()
-        await user.save()
-
-        results.push({
-          userId: user._id,
-          username: user.discord.username,
-          status: 'updated',
-          plan: expectedPlan,
-          actions: roleResult.actions,
-        })
+        if (result.success) {
+          results.push({
+            userId: user._id,
+            username: user.discord.username,
+            status: 'updated',
+            plan: result.plan,
+            actions: result.actions,
+          })
+          successCount++
+        } else {
+          results.push({
+            userId: user._id,
+            username: user.discord.username,
+            status: 'error',
+            error: result.reason,
+          })
+          errorCount++
+        }
 
         // Add delay to avoid rate limiting
         await discordService.delay(1000)
@@ -384,13 +493,21 @@ export const syncAllDiscordRoles = async (req, res, next) => {
           status: 'error',
           error: error.message,
         })
+        errorCount++
       }
     }
 
     res.status(200).json({
       status: 'success',
-      message: `Synced roles for ${usersWithDiscord.length} users`,
-      data: { results },
+      message: `Discord role sync completed: ${successCount} successful, ${errorCount} errors`,
+      data: {
+        results,
+        summary: {
+          total: usersWithDiscord.length,
+          successful: successCount,
+          errors: errorCount,
+        },
+      },
     })
   } catch (error) {
     console.error('Error syncing all Discord roles:', error)
@@ -412,3 +529,6 @@ export const getDiscordInvite = async (req, res, next) => {
     next(error)
   }
 }
+
+// EXPORT the helper function for use in subscription sync
+export { updateUserDiscordRoles }

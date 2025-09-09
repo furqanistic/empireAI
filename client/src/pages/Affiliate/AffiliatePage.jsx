@@ -321,13 +321,13 @@ const AffiliatePage = () => {
                 </div>
               </div>
 
-              {/* Ultimate Plan */}
+              {/* Empire Plan */}
               <div className='bg-[#1A1A1C] border border-[#1E1E21] rounded-lg p-5 text-center transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 hover:border-purple-500/30'>
                 <div className='text-2xl font-extrabold text-purple-400 mb-2'>
                   40%
                 </div>
                 <div className='text-[#EDEDED] text-base font-semibold mb-1'>
-                  Ultimate Plan
+                  Empire Plan
                 </div>
                 <div className='text-gray-400 text-sm mb-3'>
                   Premium features
