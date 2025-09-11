@@ -1,4 +1,4 @@
-// File: server/index.js (UPDATED WITH DISCORD ROUTES)
+// File: server/index.js (UPDATED WITH CHAT ROUTES)
 // CRITICAL FIX: Load dotenv FIRST, before any other imports
 import dotenv from 'dotenv'
 dotenv.config({ quiet: true })
@@ -13,16 +13,19 @@ import businessPlanRoute from './routes/businessPlan.js'
 import earningsRoutes from './routes/earnings.js'
 import hookRoute from './routes/hook.js'
 import notificationRoute from './routes/notification.js'
-import productRoute from './routes/product.js' // Your existing product routes
+import productRoute from './routes/product.js'
 import referralRoute from './routes/referral.js'
 import stripeRoute from './routes/stripe.js'
 
 // NEW IMPORTS
 import digitalProductsRoute from './routes/digitalProducts.js'
 import digitalProductWebhooksRoute from './routes/digitalProductWebhooks.js'
-import discordRoute from './routes/discord.js' // ADDED: Discord routes
-import payoutRoute from './routes/payout.js' // NEW: Payout routes
+import discordRoute from './routes/discord.js'
+import payoutRoute from './routes/payout.js'
 import stripeConnectWebhooksRoute from './routes/stripeConnectWebhooks.js'
+
+// CHAT INTEGRATION - ADD THIS
+import chatRoute from './routes/chat.js'
 
 // Import middleware
 import {
@@ -30,6 +33,15 @@ import {
   checkSubscriptionAccess,
   logHookActivity,
 } from './middleware/hookMiddleware.js'
+
+// CHAT MIDDLEWARE - ADD THIS
+import {
+  applyChatRateLimit,
+  attachChatUsage,
+  checkChatAccess,
+  logChatActivity,
+  validateMessageLength,
+} from './middleware/chatMiddleware.js'
 
 const app = express()
 
@@ -79,13 +91,16 @@ app.use('/api/auth/', authRoute)
 app.use('/api/referral/', referralRoute)
 app.use('/api/notifications/', notificationRoute)
 app.use('/api/stripe/', stripeRoute)
-app.use('/api/products/', productRoute) // Your existing products
+app.use('/api/products/', productRoute)
 
 // NEW ROUTES
 app.use('/api/digital-products/', digitalProductsRoute)
-app.use('/api/payouts/', payoutRoute) // NEW: Payout management routes
+app.use('/api/payouts/', payoutRoute)
 app.use('/api/earnings', earningsRoutes)
-app.use('/api/auth/discord/', discordRoute) // ADDED: Discord integration routes
+app.use('/api/auth/discord/', discordRoute)
+
+// CHAT ROUTES WITH MIDDLEWARE - ADD THIS
+app.use('/api/chat/', chatRoute)
 
 // Hook routes with middleware
 app.use(
@@ -103,11 +118,22 @@ app.get('/health', (req, res) => {
     status: 'success',
     message: 'Server is running',
     timestamp: new Date().toISOString(),
-    discord: {
-      configured: !!(
-        process.env.DISCORD_CLIENT_ID && process.env.DISCORD_BOT_TOKEN
-      ),
-      guildId: process.env.DISCORD_GUILD_ID ? 'Set' : 'Missing',
+    services: {
+      groq: {
+        configured: !!process.env.GROQ_API_KEY,
+        status: process.env.GROQ_API_KEY ? 'Ready' : 'Missing API Key',
+      },
+      discord: {
+        configured: !!(
+          process.env.DISCORD_CLIENT_ID && process.env.DISCORD_BOT_TOKEN
+        ),
+        guildId: process.env.DISCORD_GUILD_ID ? 'Set' : 'Missing',
+      },
+      chat: {
+        enabled: true,
+        model: 'llama-3.3-70b-versatile',
+        status: 'Ready',
+      },
     },
   })
 })
@@ -156,6 +182,13 @@ app.listen(PORT, () => {
     }`
   )
 
+  // Chat service status check
+  console.log(
+    `💬 Chat Service: ${
+      process.env.GROQ_API_KEY ? '✅ Ready' : '❌ GROQ API Key Required'
+    }`
+  )
+
   // Discord configuration check
   const discordConfigured = !!(
     process.env.DISCORD_CLIENT_ID &&
@@ -169,18 +202,4 @@ app.listen(PORT, () => {
       discordConfigured ? '✅ Configured' : '❌ Missing Config'
     }`
   )
-
-  if (!discordConfigured) {
-    console.warn(
-      '⚠️  Discord integration requires the following environment variables:'
-    )
-    console.warn('   - DISCORD_CLIENT_ID')
-    console.warn('   - DISCORD_CLIENT_SECRET')
-    console.warn('   - DISCORD_BOT_TOKEN')
-    console.warn('   - DISCORD_GUILD_ID')
-    console.warn('   - DISCORD_ROLE_FREE (optional)')
-    console.warn('   - DISCORD_ROLE_BASIC (optional)')
-    console.warn('   - DISCORD_ROLE_PREMIUM (optional)')
-    console.warn('   - DISCORD_ROLE_ENTERPRISE (optional)')
-  }
 })
