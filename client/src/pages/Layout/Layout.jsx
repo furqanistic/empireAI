@@ -1,4 +1,5 @@
-// File: client/src/pages/Layout/Layout.jsx - UPDATED WITH POINTS DISPLAY
+// File: client/src/pages/Layout/Layout.jsx - UPDATED WITH CHATBOT INTEGRATION
+import AscendAIChatbot from '@/components/Layout/AscendAIChatbot.jsx'
 import NotificationDrawer from '@/components/Layout/NotificationDrawer.jsx'
 import {
   Bell,
@@ -519,6 +520,9 @@ const Layout = ({ children }) => {
       <main className='flex-1 overflow-auto pt-14 md:pt-16 bg-[#0B0B0C]'>
         {children}
       </main>
+
+      {/* Ascend AI Chatbot - Added at the very end */}
+      <AscendAIChatbot />
     </div>
   )
 }

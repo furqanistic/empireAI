@@ -6,7 +6,6 @@ import User from '../models/User.js'
 export const verifyToken = async (req, res, next) => {
   try {
     let token
-
     // Check for token in different places
     if (
       req.headers.authorization &&

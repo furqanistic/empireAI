@@ -40,8 +40,6 @@ class DiscordService {
       console.error('Missing Discord environment variables:', missing)
       throw new Error(`Missing Discord config: ${missing.join(', ')}`)
     }
-
-    console.log('Discord service initialized successfully')
   }
 
   // Generate OAuth URL for Discord authentication
