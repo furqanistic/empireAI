@@ -47,9 +47,6 @@ const updateUserSubscriptionField = async (userId, subscription) => {
     }
 
     const user = await User.findByIdAndUpdate(userId, updateData, { new: true })
-    console.log(
-      `Updated User subscription field for user ${userId} to ${subscription.plan}`
-    )
 
     // ADD THIS: Automatic Discord role update
     if (user?.discord?.isConnected) {

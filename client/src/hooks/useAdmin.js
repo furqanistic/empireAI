@@ -1,4 +1,4 @@
-// File: client/src/hooks/useAdmin.js
+// File: client/src/hooks/useAdmin.js - FIXED WITH PROPER ERROR HANDLING
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { adminService } from '../services/adminService.js'
 
@@ -8,8 +8,8 @@ export const useGetAllUsers = (params = {}, enabled = true) => {
     queryKey: ['admin', 'users', params],
     queryFn: () => adminService.getAllUsers(params),
     enabled,
-    staleTime: 60 * 1000, // 1 minute
-    cacheTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 60 * 1000,
+    cacheTime: 5 * 60 * 1000,
   })
 }
 
@@ -19,8 +19,8 @@ export const useGetAdminStats = (enabled = true) => {
     queryKey: ['admin', 'stats'],
     queryFn: adminService.getAdminStats,
     enabled,
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    cacheTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 2 * 60 * 1000,
+    cacheTime: 10 * 60 * 1000,
   })
 }
 
@@ -31,17 +31,93 @@ export const useUpdateUser = () => {
   return useMutation({
     mutationFn: ({ userId, userData }) =>
       adminService.updateUser(userId, userData),
-    onSuccess: (data) => {
-      // Invalidate users queries
+    onSuccess: (data, variables) => {
+      // Invalidate and refetch relevant queries
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] })
-      queryClient.invalidateQueries({ queryKey: ['user'] })
+
+      // Update the specific user in cache
+      queryClient.setQueryData(['admin', 'user', variables.userId], data)
     },
     onError: (error) => {
       const errorMessage =
         error.response?.data?.message || 'Failed to update user'
       console.error('Update user error:', error)
-      alert(errorMessage)
+      // Return error for component to handle
+      throw new Error(errorMessage)
+    },
+  })
+}
+
+// Update user subscription (admin only)
+export const useUpdateUserSubscription = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ userId, subscriptionData }) =>
+      adminService.updateUserSubscription(userId, subscriptionData),
+    onSuccess: (data, variables) => {
+      // Invalidate all relevant queries to ensure fresh data
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] })
+      queryClient.invalidateQueries({ queryKey: ['user', variables.userId] })
+
+      // Force refetch to get updated data
+      queryClient.refetchQueries({ queryKey: ['admin', 'users'] })
+    },
+    onError: (error) => {
+      const errorMessage =
+        error.response?.data?.message || 'Failed to update subscription'
+      console.error('Update subscription error:', error)
+      throw new Error(errorMessage)
+    },
+  })
+}
+
+// Cancel user subscription (admin only)
+export const useCancelUserSubscription = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ userId, immediate }) =>
+      adminService.cancelUserSubscription(userId, immediate),
+    onSuccess: (data, variables) => {
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] })
+      queryClient.invalidateQueries({ queryKey: ['user', variables.userId] })
+
+      // Force immediate refetch
+      queryClient.refetchQueries({ queryKey: ['admin', 'users'] })
+    },
+    onError: (error) => {
+      const errorMessage =
+        error.response?.data?.message || 'Failed to cancel subscription'
+      console.error('Cancel subscription error:', error)
+      throw new Error(errorMessage)
+    },
+  })
+}
+
+// Reactivate user subscription (admin only)
+export const useReactivateUserSubscription = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (userId) => adminService.reactivateUserSubscription(userId),
+    onSuccess: (data, userId) => {
+      // Invalidate and refetch
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] })
+      queryClient.invalidateQueries({ queryKey: ['user', userId] })
+
+      queryClient.refetchQueries({ queryKey: ['admin', 'users'] })
+    },
+    onError: (error) => {
+      const errorMessage =
+        error.response?.data?.message || 'Failed to reactivate subscription'
+      console.error('Reactivate subscription error:', error)
+      throw new Error(errorMessage)
     },
   })
 }
@@ -53,7 +129,6 @@ export const useDeleteUser = () => {
   return useMutation({
     mutationFn: adminService.deleteUser,
     onSuccess: () => {
-      // Invalidate users queries
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] })
     },
@@ -73,7 +148,6 @@ export const useCreateUser = () => {
   return useMutation({
     mutationFn: adminService.createUser,
     onSuccess: () => {
-      // Invalidate users queries
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] })
     },
@@ -92,8 +166,8 @@ export const useGetPayouts = (params = {}, enabled = true) => {
     queryKey: ['admin', 'payouts', params],
     queryFn: () => adminService.getPayouts(params),
     enabled,
-    staleTime: 60 * 1000, // 1 minute
-    cacheTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 60 * 1000,
+    cacheTime: 5 * 60 * 1000,
   })
 }
 

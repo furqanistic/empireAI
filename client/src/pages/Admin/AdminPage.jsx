@@ -1,8 +1,10 @@
 // File: client/src/pages/Admin/AdminPage.jsx
+import EditUserModal from '@/components/Admin/EditUserModal'
 import {
   BarChart3,
   CheckCircle,
   ChevronDown,
+  Crown,
   DollarSign,
   Edit,
   Eye,
@@ -19,14 +21,17 @@ import {
 import React, { useCallback, useState } from 'react'
 import {
   useApprovePayout,
+  useCancelUserSubscription,
   useCompletePayout,
   useCreateUser,
   useDeleteUser,
   useGetAdminStats,
   useGetAllUsers,
   useGetPayouts,
+  useReactivateUserSubscription,
   useRejectPayout,
   useUpdateUser,
+  useUpdateUserSubscription,
 } from '../../hooks/useAdmin'
 import Layout from '../Layout/Layout'
 
@@ -60,6 +65,10 @@ const AdminPage = () => {
   const approvePayoutMutation = useApprovePayout()
   const rejectPayoutMutation = useRejectPayout()
   const completePayoutMutation = useCompletePayout()
+  // NEW: Subscription management mutations
+  const updateUserSubscriptionMutation = useUpdateUserSubscription()
+  const cancelUserSubscriptionMutation = useCancelUserSubscription()
+  const reactivateUserSubscriptionMutation = useReactivateUserSubscription()
 
   // Extract data with fallbacks
   const stats = statsData?.data || {
@@ -87,7 +96,20 @@ const AdminPage = () => {
     results: payoutsData?.results || 0,
   }
 
-  // Add User Modal Component
+  // Subscription plans configuration
+  const subscriptionPlans = [
+    { value: 'free', label: 'Free' },
+    { value: 'starter', label: 'Starter' },
+    { value: 'pro', label: 'Pro' },
+    { value: 'empire', label: 'Empire' },
+  ]
+
+  const billingCycles = [
+    { value: 'monthly', label: 'Monthly' },
+    { value: 'yearly', label: 'Yearly' },
+  ]
+
+  // Add User Modal Component (same as before)
   const AddUserModal = ({ show, onClose }) => {
     const [formData, setFormData] = useState({
       name: '',
@@ -208,138 +230,7 @@ const AdminPage = () => {
     )
   }
 
-  // Edit User Modal Component
-  const EditUserModal = ({ show, user, onClose }) => {
-    const [formData, setFormData] = useState({
-      name: user?.name || '',
-      email: user?.email || '',
-      role: user?.role || 'user',
-      isActive: user?.isActive ?? true,
-    })
-
-    React.useEffect(() => {
-      if (user) {
-        setFormData({
-          name: user.name || '',
-          email: user.email || '',
-          role: user.role || 'user',
-          isActive: user.isActive ?? true,
-        })
-      }
-    }, [user])
-
-    const handleSubmit = (e) => {
-      e.preventDefault()
-      updateUserMutation.mutate(
-        { userId: user._id, userData: formData },
-        {
-          onSuccess: () => {
-            onClose()
-          },
-        }
-      )
-    }
-
-    if (!show || !user) return null
-
-    return (
-      <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'>
-        <div className='bg-[#121214] border border-[#1E1E21] rounded-xl max-w-md w-full p-6'>
-          <div className='flex items-center justify-between mb-4'>
-            <h3 className='text-lg font-semibold text-[#EDEDED]'>Edit User</h3>
-            <button
-              onClick={onClose}
-              className='text-gray-400 hover:text-[#EDEDED]'
-            >
-              <X size={20} />
-            </button>
-          </div>
-
-          <form onSubmit={handleSubmit} className='space-y-4'>
-            <div>
-              <label className='block text-sm font-medium text-gray-400 mb-1'>
-                Name
-              </label>
-              <input
-                type='text'
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-                className='w-full bg-[#1A1A1C] border border-[#1E1E21] rounded-lg px-3 py-2 text-[#EDEDED] focus:outline-none focus:border-[#D4AF37]/40'
-                required
-              />
-            </div>
-
-            <div>
-              <label className='block text-sm font-medium text-gray-400 mb-1'>
-                Email
-              </label>
-              <input
-                type='email'
-                value={formData.email}
-                onChange={(e) =>
-                  setFormData({ ...formData, email: e.target.value })
-                }
-                className='w-full bg-[#1A1A1C] border border-[#1E1E21] rounded-lg px-3 py-2 text-[#EDEDED] focus:outline-none focus:border-[#D4AF37]/40'
-                required
-              />
-            </div>
-
-            <div>
-              <label className='block text-sm font-medium text-gray-400 mb-1'>
-                Role
-              </label>
-              <select
-                value={formData.role}
-                onChange={(e) =>
-                  setFormData({ ...formData, role: e.target.value })
-                }
-                className='w-full bg-[#1A1A1C] border border-[#1E1E21] rounded-lg px-3 py-2 text-[#EDEDED] focus:outline-none focus:border-[#D4AF37]/40'
-              >
-                <option value='user'>User</option>
-                <option value='admin'>Admin</option>
-              </select>
-            </div>
-
-            <div className='flex items-center gap-2'>
-              <input
-                type='checkbox'
-                id='isActive'
-                checked={formData.isActive}
-                onChange={(e) =>
-                  setFormData({ ...formData, isActive: e.target.checked })
-                }
-                className='w-4 h-4 text-[#D4AF37] bg-[#1A1A1C] border-[#1E1E21] rounded focus:ring-[#D4AF37]'
-              />
-              <label htmlFor='isActive' className='text-sm text-gray-400'>
-                Active Account
-              </label>
-            </div>
-
-            <div className='flex gap-3 pt-4'>
-              <button
-                type='button'
-                onClick={onClose}
-                className='flex-1 px-4 py-2 border border-[#1E1E21] rounded-lg text-gray-400 hover:text-[#EDEDED] hover:border-[#D4AF37]/40 transition-all duration-300'
-              >
-                Cancel
-              </button>
-              <button
-                type='submit'
-                disabled={updateUserMutation.isPending}
-                className='flex-1 px-4 py-2 bg-[#D4AF37] text-black rounded-lg font-medium hover:bg-[#D4AF37]/90 transition-all duration-300 disabled:opacity-50'
-              >
-                {updateUserMutation.isPending ? 'Updating...' : 'Update User'}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    )
-  }
-
-  // User Detail Modal Component
+  // User Detail Modal Component (same as before with minor subscription info additions)
   const UserDetailModal = ({ show, user, onClose }) => {
     if (!show || !user) return null
 
@@ -400,7 +291,7 @@ const AdminPage = () => {
                 </div>
               </div>
 
-              {/* Subscription Info */}
+              {/* Enhanced Subscription Info */}
               <div>
                 <h4 className='text-sm font-medium text-[#D4AF37] mb-3'>
                   Subscription
@@ -408,16 +299,38 @@ const AdminPage = () => {
                 <div className='space-y-2'>
                   <div className='flex justify-between'>
                     <span className='text-gray-400'>Plan:</span>
-                    <span className='text-[#EDEDED]'>
+                    <span className='text-[#EDEDED] capitalize'>
                       {user.subscription?.plan || 'Free'}
                     </span>
                   </div>
                   <div className='flex justify-between'>
                     <span className='text-gray-400'>Status:</span>
-                    <span className='text-[#EDEDED]'>
+                    <span
+                      className={`${
+                        user.subscription?.isActive
+                          ? 'text-green-400'
+                          : 'text-gray-400'
+                      }`}
+                    >
                       {user.subscription?.status || 'No subscription'}
                     </span>
                   </div>
+                  {user.subscription?.isActive && (
+                    <>
+                      <div className='flex justify-between'>
+                        <span className='text-gray-400'>Days Remaining:</span>
+                        <span className='text-[#EDEDED]'>
+                          {user.subscription?.daysRemaining || 0}
+                        </span>
+                      </div>
+                      <div className='flex justify-between'>
+                        <span className='text-gray-400'>End Date:</span>
+                        <span className='text-[#EDEDED]'>
+                          {formatDate(user.subscription?.endDate)}
+                        </span>
+                      </div>
+                    </>
+                  )}
                   <div className='flex justify-between'>
                     <span className='text-gray-400'>Total Spent:</span>
                     <span className='text-[#EDEDED]'>
@@ -521,7 +434,7 @@ const AdminPage = () => {
     )
   }
 
-  // Payout Detail Modal Component
+  // Payout Detail Modal Component (same as before)
   const PayoutDetailModal = ({ show, payout, onClose }) => {
     if (!show || !payout) return null
 
@@ -721,6 +634,46 @@ const AdminPage = () => {
     )
   }
 
+  // NEW: Subscription Badge Component
+  const SubscriptionBadge = ({ plan, isActive }) => {
+    const planConfig = {
+      free: {
+        color: 'bg-gray-500/10 text-gray-400',
+        label: 'Free',
+        icon: User,
+      },
+      starter: {
+        color: 'bg-blue-500/10 text-blue-400',
+        label: 'Starter',
+        icon: User,
+      },
+      pro: {
+        color: 'bg-purple-500/10 text-purple-400',
+        label: 'Pro',
+        icon: Shield,
+      },
+      empire: {
+        color: 'bg-yellow-500/10 text-yellow-400',
+        label: 'Empire',
+        icon: Crown,
+      },
+    }
+
+    const config = planConfig[plan] || planConfig.free
+    const IconComponent = config.icon
+
+    return (
+      <span
+        className={`px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1 ${
+          config.color
+        } ${!isActive ? 'opacity-50' : ''}`}
+      >
+        <IconComponent size={12} />
+        {config.label}
+      </span>
+    )
+  }
+
   const DropdownButton = ({ value, options, onChange }) => (
     <div className='relative'>
       <select
@@ -861,7 +814,7 @@ const AdminPage = () => {
               Admin Dashboard
             </h1>
             <p className='text-gray-400'>
-              Manage users, roles, plans, and payouts
+              Manage users, roles, subscriptions, and payouts
             </p>
           </div>
 
@@ -1008,7 +961,7 @@ const AdminPage = () => {
                           Status
                         </th>
                         <th className='text-left text-gray-400 text-xs font-medium uppercase tracking-wider px-6 py-4'>
-                          Plan
+                          Subscription
                         </th>
                         <th className='text-left text-gray-400 text-xs font-medium uppercase tracking-wider px-6 py-4'>
                           Referrals
@@ -1054,8 +1007,17 @@ const AdminPage = () => {
                               type='user'
                             />
                           </td>
-                          <td className='px-6 py-4 text-[#EDEDED] text-sm'>
-                            {user.subscription?.plan || 'Free'}
+                          <td className='px-6 py-4'>
+                            <SubscriptionBadge
+                              plan={user.subscription?.plan || 'free'}
+                              isActive={user.subscription?.isActive}
+                            />
+                            {user.subscription?.isActive && (
+                              <div className='text-xs text-gray-400 mt-1'>
+                                {user.subscription?.daysRemaining || 0} days
+                                left
+                              </div>
+                            )}
                           </td>
                           <td className='px-6 py-4 text-[#EDEDED]'>
                             {user.referralStats?.totalReferrals || 0}
@@ -1078,7 +1040,7 @@ const AdminPage = () => {
                                   handleUserAction('edit', user._id)
                                 }
                                 className='text-gray-400 hover:text-blue-400 transition-colors duration-200 p-1'
-                                title='Edit user'
+                                title='Edit user & subscription'
                               >
                                 <Edit size={14} />
                               </button>
@@ -1146,7 +1108,7 @@ const AdminPage = () => {
               </div>
             )}
 
-            {/* Payouts Tab */}
+            {/* Payouts Tab - Same as before */}
             {activeTab === 'payouts' && (
               <div>
                 <div className='p-4 sm:p-6 border-b border-[#1E1E21]'>
@@ -1350,6 +1312,12 @@ const AdminPage = () => {
           show={!!editingUser}
           user={editingUser}
           onClose={() => setEditingUser(null)}
+          updateUserMutation={updateUserMutation}
+          updateUserSubscriptionMutation={updateUserSubscriptionMutation}
+          cancelUserSubscriptionMutation={cancelUserSubscriptionMutation}
+          reactivateUserSubscriptionMutation={
+            reactivateUserSubscriptionMutation
+          }
         />
 
         <UserDetailModal

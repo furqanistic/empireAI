@@ -1,5 +1,6 @@
-// File: server/routes/auth.js - UPDATED WITH POINTS ENDPOINTS
+// File: server/routes/auth.js - UPDATED WITH ADMIN STATS ENDPOINT
 import express from 'express'
+import { getAdminStats } from '../controllers/admin.js' // Import admin stats
 import {
   changePassword,
   claimDailyPoints,
@@ -15,12 +16,12 @@ import {
 } from '../controllers/auth.js'
 import { restrictTo, verifyToken } from '../middleware/authMiddleware.js'
 import discordRoutes from './discord.js'
+
 const router = express.Router()
 
 // Public routes
 router.post('/signup', signup)
 router.post('/signin', signin)
-
 router.use('/discord', discordRoutes)
 
 // Protected routes (require authentication)
@@ -70,5 +71,6 @@ router.get('/all-users', getAllUsers)
 router.post('/create-user', signup)
 router.put('/admin/users/:id', updateUser)
 router.delete('/admin/users/:id', deleteUser)
+router.get('/admin/stats', getAdminStats) // Add admin stats endpoint
 
 export default router

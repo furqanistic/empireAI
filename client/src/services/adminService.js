@@ -1,4 +1,4 @@
-// File: client/src/services/adminService.js
+// File: client/src/services/adminService.js - ENHANCED WITH SUBSCRIPTION MANAGEMENT
 import axiosInstance from '../config/config.js'
 
 export const adminService = {
@@ -19,6 +19,32 @@ export const adminService = {
     const response = await axiosInstance.put(
       `/auth/admin/users/${userId}`,
       userData
+    )
+    return response.data
+  },
+
+  // NEW: Update user subscription plan (admin only)
+  updateUserSubscription: async (userId, subscriptionData) => {
+    const response = await axiosInstance.put(
+      `/admin/users/${userId}/subscription`,
+      subscriptionData
+    )
+    return response.data
+  },
+
+  // NEW: Cancel user subscription (admin only)
+  cancelUserSubscription: async (userId, immediate = false) => {
+    const response = await axiosInstance.post(
+      `/admin/users/${userId}/subscription/cancel`,
+      { immediate }
+    )
+    return response.data
+  },
+
+  // NEW: Reactivate user subscription (admin only)
+  reactivateUserSubscription: async (userId) => {
+    const response = await axiosInstance.post(
+      `/admin/users/${userId}/subscription/reactivate`
     )
     return response.data
   },

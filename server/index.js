@@ -8,6 +8,7 @@ import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import express from 'express'
 import mongoose from 'mongoose'
+import adminRoutes from './routes/admin.js'
 import authRoute from './routes/auth.js'
 import businessPlanRoute from './routes/businessPlan.js'
 import earningsRoutes from './routes/earnings.js'
@@ -16,7 +17,6 @@ import notificationRoute from './routes/notification.js'
 import productRoute from './routes/product.js'
 import referralRoute from './routes/referral.js'
 import stripeRoute from './routes/stripe.js'
-
 // NEW IMPORTS
 import digitalProductsRoute from './routes/digitalProducts.js'
 import digitalProductWebhooksRoute from './routes/digitalProductWebhooks.js'
@@ -98,6 +98,7 @@ app.use('/api/digital-products/', digitalProductsRoute)
 app.use('/api/payouts/', payoutRoute)
 app.use('/api/earnings', earningsRoutes)
 app.use('/api/auth/discord/', discordRoute)
+app.use('/api/admin', adminRoutes)
 
 // CHAT ROUTES WITH MIDDLEWARE - ADD THIS
 app.use('/api/chat/', chatRoute)
