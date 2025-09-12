@@ -172,7 +172,7 @@ const EditUserModal = ({
 
   return (
     <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'>
-      <div className='bg-gray-900 border border-gray-800 rounded-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto'>
+      <div className='bg-[#0f0f10] border border-black rounded-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto scroll-thin'>
         <div className='flex items-center justify-between mb-4'>
           <h3 className='text-lg font-semibold text-white'>Edit User</h3>
           <button
@@ -261,14 +261,14 @@ const EditUserModal = ({
             <button
               onClick={onClose}
               disabled={isUpdating}
-              className='flex-1 px-4 py-2 border border-gray-700 rounded-lg text-gray-400 hover:text-white disabled:opacity-50'
+              className='h-8 flex-1 flex items-center justify-center px-4 py-2 border text-sm border-gray-700 rounded-lg text-gray-400 hover:text-white disabled:opacity-50'
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
               disabled={isUpdating}
-              className='flex-1 px-4 py-2 bg-yellow-600 text-black rounded-lg font-medium hover:bg-yellow-500 disabled:opacity-50 flex items-center justify-center gap-2'
+              className='h-8 flex-1 px-4 py-2 bg-[#d4af37] text-black rounded-lg font-medium text-sm hover:bg-yellow-500 disabled:opacity-50 flex items-center justify-center gap-2'
             >
               {isUpdating && <Loader2 className='animate-spin' size={16} />}
               {isUpdating ? 'Updating...' : 'Update User'}
@@ -382,7 +382,7 @@ const EditUserModal = ({
               <button
                 onClick={handleSubscriptionUpdate}
                 disabled={isUpdating}
-                className='flex-1 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2'
+                className='h-8 flex-1 px-3 py-2 bg-[#d4af37] text-black text-sm rounded-lg font-medium hover:bg-[#b89522] disabled:opacity-50 flex items-center justify-center gap-2'
               >
                 {isUpdating && <Loader2 className='animate-spin' size={14} />}
                 Update Plan
