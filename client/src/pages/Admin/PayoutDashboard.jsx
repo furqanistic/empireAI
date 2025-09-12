@@ -793,11 +793,9 @@ const PayoutDashboard = () => {
             {connectStatus?.requirements?.length > 0 && (
               <div className='mt-4 p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg'>
                 <h4 className='text-orange-400 text-sm font-medium mb-1'>
-                  Action Required:
+                  Action Required: Please complete your bank details to finish
+                  your submission.
                 </h4>
-                <p className='text-gray-400 text-xs'>
-                  {connectStatus.messages?.requirements}
-                </p>
               </div>
             )}
           </div>
