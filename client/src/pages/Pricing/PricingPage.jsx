@@ -633,18 +633,6 @@ const PricingPage = () => {
               a 14-day free trial.
             </p>
 
-            <div className='flex flex-col sm:flex-row items-center justify-center gap-4'>
-              <button
-                onClick={() => handleGetStarted('Pro')}
-                className='w-full sm:w-auto bg-[#D4AF37] text-black h-10 px-6 rounded-xl font-semibold text-sm hover:bg-[#D4AF37]/90 transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-[#D4AF37]/20'
-              >
-                {currentUser ? 'Start Free Trial' : 'Get Started'}
-              </button>
-              <button className='w-full sm:w-auto bg-[#1E1E21] text-[#EDEDED] h-10 px-6 rounded-xl font-semibold text-sm hover:bg-[#2A2A2D] transition-all duration-300 border border-[#1E1E21]'>
-                Schedule Demo
-              </button>
-            </div>
-
             <div className='flex items-center justify-center gap-6 text-sm text-gray-400'>
               <div className='flex items-center gap-2'>
                 <Check size={16} className='text-[#D4AF37]' />
