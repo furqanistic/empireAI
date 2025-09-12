@@ -1,87 +1,51 @@
-// File: client/src/services/chatServices.js
+// File: client/src/services/chatService.js
 import axiosInstance from '../config/config.js'
 
 export const chatService = {
-  // Create a new chat conversation
-  createChat: async (chatData) => {
-    const response = await axiosInstance.post('/chat/', chatData)
-    return response.data
-  },
-
-  // Send a message to a chat
-  sendMessage: async (chatId, messageData) => {
-    const response = await axiosInstance.post(
-      `/chat/${chatId}/message`,
-      messageData
-    )
+  // Create new chat
+  createChat: async () => {
+    const response = await axiosInstance.post('/chat/create')
     return response.data
   },
 
   // Get user's chat history
-  getChatHistory: async (params = {}) => {
-    const response = await axiosInstance.get('/chat/history', { params })
+  getChatHistory: async () => {
+    const response = await axiosInstance.get('/chat/history')
     return response.data
   },
 
-  // Get specific chat conversation
-  getChat: async (chatId, params = {}) => {
-    const response = await axiosInstance.get(`/chat/${chatId}`, { params })
+  // Get specific chat by ID
+  getChat: async (chatId) => {
+    const response = await axiosInstance.get(`/chat/${chatId}`)
     return response.data
   },
 
-  // Update chat settings
-  updateChat: async (chatId, updateData) => {
-    const response = await axiosInstance.patch(`/chat/${chatId}`, updateData)
+  // Send message to chat
+  sendMessage: async (chatId, message) => {
+    const endpoint =
+      chatId === 'new' || !chatId
+        ? '/chat/new/message'
+        : `/chat/${chatId}/message`
+
+    const response = await axiosInstance.post(endpoint, { message })
     return response.data
   },
 
-  // Delete chat conversation
+  // Delete specific chat
   deleteChat: async (chatId) => {
     const response = await axiosInstance.delete(`/chat/${chatId}`)
     return response.data
   },
 
-  // Clear chat messages
-  clearChat: async (chatId) => {
-    const response = await axiosInstance.post(`/chat/${chatId}/clear`)
+  // Clear all chats
+  clearAllChats: async () => {
+    const response = await axiosInstance.delete('/chat/clear/all')
     return response.data
   },
 
-  // Get user's chat statistics
-  getUserChatStats: async () => {
-    const response = await axiosInstance.get('/chat/stats')
-    return response.data
-  },
-
-  // Get chat categories with counts
-  getChatCategories: async () => {
-    const response = await axiosInstance.get('/chat/categories')
-    return response.data
-  },
-
-  // Send quick action message
-  sendQuickAction: async (chatId, quickAction) => {
-    const response = await axiosInstance.post(`/chat/${chatId}/message`, {
-      quickAction,
-    })
-    return response.data
-  },
-
-  // Test chat service connection (admin only)
-  testChatConnection: async () => {
-    const response = await axiosInstance.get('/chat/test-connection')
-    return response.data
-  },
-
-  // Get chat analytics (admin only)
-  getChatAnalytics: async () => {
-    const response = await axiosInstance.get('/chat/admin/analytics')
-    return response.data
-  },
-
-  // Get all chat conversations (admin only)
-  getAllChats: async (params = {}) => {
-    const response = await axiosInstance.get('/chat/admin/all', { params })
+  // Test connection
+  testConnection: async () => {
+    const response = await axiosInstance.get('/chat/test')
     return response.data
   },
 }

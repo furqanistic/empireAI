@@ -1,183 +1,108 @@
 // File: controllers/chatController.js
 import { createError } from '../error.js'
 import Chat from '../models/Chat.js'
-import User from '../models/User.js'
 import chatService from '../services/chatService.js'
 
-// Create a new chat conversation
+// Create new chat
 export const createChat = async (req, res, next) => {
   try {
-    const { title, initialMessage, category } = req.body
-    const userId = req.user.id
-
-    // Validate initial message if provided
-    if (initialMessage) {
-      const validation = chatService.validateMessage(initialMessage)
-      if (!validation.isValid) {
-        return next(createError(400, validation.reason))
-      }
-    }
-
-    // Create new chat
     const newChat = new Chat({
-      user: userId,
-      title: title || 'New Conversation',
-      category: category || 'other',
-      ipAddress: req.ip || req.connection.remoteAddress,
-      userAgent: req.get('User-Agent'),
+      user: req.user.id,
+      title: 'New Chat',
+      messages: [],
     })
-
-    // Add initial message if provided
-    if (initialMessage) {
-      await newChat.addMessage('user', initialMessage)
-
-      // Generate AI response
-      try {
-        const userContext = await getUserContext(userId)
-        const aiResponse = await chatService.generateChatResponse({
-          messages: newChat.getRecentMessages(1),
-          userContext,
-        })
-
-        await newChat.addMessage('bot', aiResponse.content, {
-          model: aiResponse.model,
-          processingTime: aiResponse.processingTime,
-          tokenUsage: aiResponse.usage,
-        })
-      } catch (aiError) {
-        console.error('AI Response Error:', aiError)
-        // Still save the chat even if AI fails
-        await newChat.addMessage(
-          'bot',
-          "I apologize, but I'm experiencing technical difficulties. Let me help you once the issue is resolved."
-        )
-      }
-    }
 
     await newChat.save()
 
     res.status(201).json({
-      status: 'success',
-      data: {
-        chat: newChat,
-      },
+      success: true,
+      data: newChat,
     })
   } catch (error) {
-    console.error('Create Chat Error:', error)
-    next(createError(500, 'Failed to create new chat conversation'))
+    console.error('Create chat error:', error)
+    next(createError(500, 'Failed to create chat'))
   }
 }
 
-// Send a message and get AI response
+// Send message and get AI response
 export const sendMessage = async (req, res, next) => {
   try {
-    const { id } = req.params
-    const { message, quickAction } = req.body
-    const userId = req.user.id
+    const { chatId } = req.params
+    const { message } = req.body
 
-    if (!message && !quickAction) {
-      return next(
-        createError(400, 'Message content or quick action is required')
-      )
+    if (!message || !message.trim()) {
+      return next(createError(400, 'Message is required'))
     }
 
-    // Find the chat
-    const chat = await Chat.findOne({
-      _id: id,
-      user: userId,
-      isActive: true,
-    })
-
-    if (!chat) {
-      return next(createError(404, 'Chat conversation not found'))
-    }
-
-    let userMessage = message
-    let aiResponse
-
-    try {
-      // Handle quick actions
-      if (quickAction) {
-        const userContext = await getUserContext(userId)
-        aiResponse = await chatService.generateQuickActionResponse(
-          quickAction,
-          userContext
-        )
-        userMessage = getQuickActionMessage(quickAction)
-      } else {
-        // Validate user message
-        const validation = chatService.validateMessage(message)
-        if (!validation.isValid) {
-          return next(createError(400, validation.reason))
-        }
-
-        // Add user message
-        await chat.addMessage('user', userMessage)
-
-        // Generate AI response
-        const userContext = await getUserContext(userId)
-        const recentMessages = chat.getRecentMessages(10) // Get last 10 messages for context
-
-        aiResponse = await chatService.generateChatResponse({
-          messages: recentMessages,
-          userContext,
-          temperature: chat.aiConfig.temperature,
-          maxTokens: chat.aiConfig.maxTokens,
-        })
+    // Find or create chat
+    let chat
+    if (chatId && chatId !== 'new') {
+      chat = await Chat.findOne({ _id: chatId, user: req.user.id })
+      if (!chat) {
+        return next(createError(404, 'Chat not found'))
       }
+    } else {
+      // Create new chat
+      chat = new Chat({
+        user: req.user.id,
+        title: 'New Chat',
+        messages: [],
+      })
+    }
+
+    // Add user message
+    const userMessage = {
+      role: 'user',
+      content: message.trim(),
+      timestamp: new Date(),
+    }
+    chat.messages.push(userMessage)
+
+    // Get recent messages for context (last 10)
+    const recentMessages = chat.messages.slice(-10).map((msg) => ({
+      role: msg.role,
+      content: msg.content,
+    }))
+
+    // Generate AI response
+    try {
+      const aiResponse = await chatService.generateResponse(recentMessages)
 
       // Add AI response
-      await chat.addMessage('bot', aiResponse.content, {
-        model: aiResponse.model,
-        processingTime: aiResponse.processingTime,
-        tokenUsage: aiResponse.usage,
-      })
+      const botMessage = {
+        role: 'assistant',
+        content: aiResponse,
+        timestamp: new Date(),
+      }
+      chat.messages.push(botMessage)
 
-      // Generate follow-up suggestions
-      const category = chatService.categorizeMessage(userMessage)
-      const followUpSuggestions = chatService.generateFollowUpSuggestions(
-        chat.messages,
-        category
-      )
+      // Update lastActivity
+      chat.lastActivity = new Date()
 
-      res.status(200).json({
-        status: 'success',
+      await chat.save()
+
+      res.json({
+        success: true,
         data: {
-          chat,
-          lastMessage: chat.lastMessage,
-          aiResponse: {
-            content: aiResponse.content,
-            processingTime: aiResponse.processingTime,
-            tokenUsage: aiResponse.usage,
-          },
-          followUpSuggestions,
+          chatId: chat._id,
+          message: botMessage,
         },
       })
     } catch (aiError) {
-      console.error('AI Response Error:', aiError)
+      console.error('AI generation error:', aiError)
+      // Still save user message even if AI fails
+      await chat.save()
 
-      // Add user message even if AI fails
-      if (message && !quickAction) {
-        await chat.addMessage('user', userMessage)
-      }
-
-      // Add error response
-      await chat.addMessage(
-        'bot',
-        "I apologize, but I'm experiencing technical difficulties right now. Please try sending your message again in a moment."
-      )
-
-      res.status(200).json({
-        status: 'success',
+      res.json({
+        success: false,
+        error: 'AI temporarily unavailable',
         data: {
-          chat,
-          lastMessage: chat.lastMessage,
-          error: 'AI response temporarily unavailable',
+          chatId: chat._id,
         },
       })
     }
   } catch (error) {
-    console.error('Send Message Error:', error)
+    console.error('Send message error:', error)
     next(createError(500, 'Failed to send message'))
   }
 }
@@ -185,383 +110,98 @@ export const sendMessage = async (req, res, next) => {
 // Get user's chat history
 export const getChatHistory = async (req, res, next) => {
   try {
-    const userId = req.user.id
-    const page = parseInt(req.query.page) || 1
-    const limit = parseInt(req.query.limit) || 20
-    const category = req.query.category
-    const search = req.query.search
-    const skip = (page - 1) * limit
-
-    // Build query
-    const query = {
-      user: userId,
+    const chats = await Chat.find({
+      user: req.user.id,
       isActive: true,
-    }
-
-    if (category && category !== 'all') {
-      query.category = category
-    }
-
-    if (search) {
-      query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { 'messages.content': { $regex: search, $options: 'i' } },
-      ]
-    }
-
-    // Get chats with pagination
-    const chats = await Chat.find(query)
+    })
       .sort({ lastActivity: -1 })
-      .skip(skip)
-      .limit(limit)
-      .select('title lastActivity messageCount category lastMessage tags')
-      .lean()
+      .select('title lastActivity createdAt messages')
+      .limit(50)
 
-    const totalChats = await Chat.countDocuments(query)
-
-    res.status(200).json({
-      status: 'success',
-      results: chats.length,
-      totalResults: totalChats,
-      totalPages: Math.ceil(totalChats / limit),
-      currentPage: page,
-      data: {
-        chats,
-      },
+    res.json({
+      success: true,
+      data: chats,
     })
   } catch (error) {
-    console.error('Get Chat History Error:', error)
-    next(createError(500, 'Failed to retrieve chat history'))
+    console.error('Get history error:', error)
+    next(createError(500, 'Failed to get chat history'))
   }
 }
 
-// Get specific chat conversation
+// Get specific chat
 export const getChat = async (req, res, next) => {
   try {
-    const { id } = req.params
-    const userId = req.user.id
-    const messagesLimit = parseInt(req.query.messagesLimit) || 50
+    const { chatId } = req.params
 
     const chat = await Chat.findOne({
-      _id: id,
-      user: userId,
-      isActive: true,
+      _id: chatId,
+      user: req.user.id,
     })
 
     if (!chat) {
-      return next(createError(404, 'Chat conversation not found'))
+      return next(createError(404, 'Chat not found'))
     }
 
-    // Limit messages if requested
-    if (messagesLimit > 0 && chat.messages.length > messagesLimit) {
-      chat.messages = chat.messages.slice(-messagesLimit)
-    }
-
-    res.status(200).json({
-      status: 'success',
-      data: {
-        chat,
-      },
+    res.json({
+      success: true,
+      data: chat,
     })
   } catch (error) {
-    console.error('Get Chat Error:', error)
-    next(createError(500, 'Failed to retrieve chat conversation'))
+    console.error('Get chat error:', error)
+    next(createError(500, 'Failed to get chat'))
   }
 }
 
-// Update chat settings
-export const updateChat = async (req, res, next) => {
-  try {
-    const { id } = req.params
-    const { title, category, tags, aiConfig } = req.body
-    const userId = req.user.id
-
-    const chat = await Chat.findOne({
-      _id: id,
-      user: userId,
-      isActive: true,
-    })
-
-    if (!chat) {
-      return next(createError(404, 'Chat conversation not found'))
-    }
-
-    // Update allowed fields
-    if (title) chat.title = title
-    if (category) chat.category = category
-    if (tags) chat.tags = tags
-    if (aiConfig) {
-      // Validate AI config values
-      if (aiConfig.temperature !== undefined) {
-        if (aiConfig.temperature < 0 || aiConfig.temperature > 2) {
-          return next(createError(400, 'Temperature must be between 0 and 2'))
-        }
-        chat.aiConfig.temperature = aiConfig.temperature
-      }
-      if (aiConfig.maxTokens !== undefined) {
-        if (aiConfig.maxTokens < 100 || aiConfig.maxTokens > 2000) {
-          return next(
-            createError(400, 'Max tokens must be between 100 and 2000')
-          )
-        }
-        chat.aiConfig.maxTokens = aiConfig.maxTokens
-      }
-    }
-
-    await chat.save()
-
-    res.status(200).json({
-      status: 'success',
-      data: {
-        chat,
-      },
-    })
-  } catch (error) {
-    console.error('Update Chat Error:', error)
-    next(createError(500, 'Failed to update chat conversation'))
-  }
-}
-
-// Delete chat conversation
+// Delete chat
 export const deleteChat = async (req, res, next) => {
   try {
-    const { id } = req.params
-    const userId = req.user.id
+    const { chatId } = req.params
 
-    const chat = await Chat.findOneAndDelete({
-      _id: id,
-      user: userId,
+    const result = await Chat.findOneAndDelete({
+      _id: chatId,
+      user: req.user.id,
     })
 
-    if (!chat) {
-      return next(createError(404, 'Chat conversation not found'))
+    if (!result) {
+      return next(createError(404, 'Chat not found'))
     }
 
-    res.status(200).json({
-      status: 'success',
-      message: 'Chat conversation deleted successfully',
+    res.json({
+      success: true,
+      message: 'Chat deleted',
     })
   } catch (error) {
-    console.error('Delete Chat Error:', error)
-    next(createError(500, 'Failed to delete chat conversation'))
+    console.error('Delete chat error:', error)
+    next(createError(500, 'Failed to delete chat'))
   }
 }
 
-// Get user's chat statistics
-export const getUserChatStats = async (req, res, next) => {
+// Clear all chats
+export const clearAllChats = async (req, res, next) => {
   try {
-    const userId = req.user.id
+    await Chat.deleteMany({ user: req.user.id })
 
-    const stats = await Chat.getUserStats(userId)
-
-    // Get recent activity
-    const recentChats = await Chat.find({
-      user: userId,
-      isActive: true,
-      lastActivity: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
-    }).countDocuments()
-
-    res.status(200).json({
-      status: 'success',
-      data: {
-        stats: {
-          ...stats,
-          recentActivity: recentChats,
-        },
-      },
+    res.json({
+      success: true,
+      message: 'All chats cleared',
     })
   } catch (error) {
-    console.error('Get User Chat Stats Error:', error)
-    next(createError(500, 'Failed to retrieve chat statistics'))
+    console.error('Clear chats error:', error)
+    next(createError(500, 'Failed to clear chats'))
   }
 }
 
-// Clear chat messages (keep chat but remove messages)
-export const clearChat = async (req, res, next) => {
+// Test connection
+export const testConnection = async (req, res, next) => {
   try {
-    const { id } = req.params
-    const userId = req.user.id
+    const result = await chatService.testConnection()
 
-    const chat = await Chat.findOne({
-      _id: id,
-      user: userId,
-      isActive: true,
-    })
-
-    if (!chat) {
-      return next(createError(404, 'Chat conversation not found'))
-    }
-
-    // Clear messages and reset counters
-    chat.messages = []
-    chat.messageCount = 0
-    chat.totalTokensUsed = 0
-    chat.totalProcessingTime = 0
-    chat.lastActivity = new Date()
-
-    // Add welcome message
-    await chat.addMessage(
-      'bot',
-      "Chat cleared! I'm ready to help you with your empire-building goals. What would you like to work on?"
-    )
-
-    await chat.save()
-
-    res.status(200).json({
-      status: 'success',
-      message: 'Chat cleared successfully',
-      data: {
-        chat,
-      },
+    res.json({
+      success: true,
+      data: result,
     })
   } catch (error) {
-    console.error('Clear Chat Error:', error)
-    next(createError(500, 'Failed to clear chat conversation'))
+    console.error('Test connection error:', error)
+    next(createError(500, error.message))
   }
-}
-
-// Get chat categories with counts
-export const getChatCategories = async (req, res, next) => {
-  try {
-    const userId = req.user.id
-
-    const categories = await Chat.aggregate([
-      { $match: { user: new mongoose.Types.ObjectId(userId), isActive: true } },
-      { $group: { _id: '$category', count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-    ])
-
-    const formattedCategories = categories.map((cat) => ({
-      category: cat._id,
-      count: cat.count,
-    }))
-
-    res.status(200).json({
-      status: 'success',
-      data: {
-        categories: formattedCategories,
-      },
-    })
-  } catch (error) {
-    console.error('Get Chat Categories Error:', error)
-    next(createError(500, 'Failed to retrieve chat categories'))
-  }
-}
-
-// Admin: Get all chats
-export const getAllChats = async (req, res, next) => {
-  try {
-    const page = parseInt(req.query.page) || 1
-    const limit = parseInt(req.query.limit) || 20
-    const skip = (page - 1) * limit
-
-    const chats = await Chat.find()
-      .populate('user', 'name email subscription.plan')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .select('-messages') // Exclude messages for performance
-
-    const totalChats = await Chat.countDocuments()
-
-    res.status(200).json({
-      status: 'success',
-      results: chats.length,
-      totalResults: totalChats,
-      totalPages: Math.ceil(totalChats / limit),
-      currentPage: page,
-      data: {
-        chats,
-      },
-    })
-  } catch (error) {
-    console.error('Get All Chats Error:', error)
-    next(createError(500, 'Failed to retrieve all chats'))
-  }
-}
-
-// Admin: Get chat analytics
-export const getChatAnalytics = async (req, res, next) => {
-  try {
-    const analytics = await Chat.aggregate([
-      {
-        $group: {
-          _id: null,
-          totalChats: { $sum: 1 },
-          activeChats: {
-            $sum: { $cond: [{ $eq: ['$isActive', true] }, 1, 0] },
-          },
-          totalMessages: { $sum: '$messageCount' },
-          totalTokens: { $sum: '$totalTokensUsed' },
-          avgMessagesPerChat: { $avg: '$messageCount' },
-          avgTokensPerChat: { $avg: '$totalTokensUsed' },
-        },
-      },
-    ])
-
-    const categoryBreakdown = await Chat.aggregate([
-      { $match: { isActive: true } },
-      { $group: { _id: '$category', count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-    ])
-
-    res.status(200).json({
-      status: 'success',
-      data: {
-        analytics: analytics[0] || {},
-        categoryBreakdown,
-      },
-    })
-  } catch (error) {
-    console.error('Get Chat Analytics Error:', error)
-    next(createError(500, 'Failed to retrieve chat analytics'))
-  }
-}
-
-// Test chat service connection
-export const testChatConnection = async (req, res, next) => {
-  try {
-    const connectionTest = await chatService.testConnection()
-
-    res.status(200).json({
-      status: 'success',
-      message: 'Chat service connection successful',
-      data: connectionTest,
-    })
-  } catch (error) {
-    console.error('Chat Connection Test Error:', error)
-    next(createError(500, `Chat service connection failed: ${error.message}`))
-  }
-}
-
-// Helper function to get user context for AI
-const getUserContext = async (userId) => {
-  try {
-    const user = await User.findById(userId)
-      .select('subscription points referralStats discord')
-      .lean()
-
-    return {
-      subscription: user?.subscription || {},
-      pointsBalance: user?.points || 0,
-      referralStats: user?.referralStats || {},
-      hasDiscord: user?.discord?.isConnected || false,
-    }
-  } catch (error) {
-    console.error('Error getting user context:', error)
-    return {}
-  }
-}
-
-// Helper function to get quick action message
-const getQuickActionMessage = (quickAction) => {
-  const actionMessages = {
-    product_creation: 'Help me create a digital product',
-    growth_strategy: 'Show me strategies to optimize my revenue streams',
-    affiliate_marketing:
-      'Help me set up and optimize my affiliate marketing system',
-    viral_content: 'I need help creating viral content hooks',
-  }
-
-  return actionMessages[quickAction] || 'Quick action request'
 }

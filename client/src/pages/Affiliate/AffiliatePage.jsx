@@ -290,7 +290,7 @@ const AffiliatePage = () => {
                   20%
                 </div>
                 <div className='text-[#EDEDED] text-base font-semibold mb-1'>
-                  Pro Plan
+                  Starter Plan
                 </div>
                 <div className='text-gray-400 text-sm mb-3'>
                   Standard features
@@ -311,7 +311,7 @@ const AffiliatePage = () => {
                   30%
                 </div>
                 <div className='text-[#EDEDED] text-base font-semibold mb-1'>
-                  Empire Plan
+                  Pro Plan
                 </div>
                 <div className='text-gray-400 text-sm mb-3'>
                   Best value for users

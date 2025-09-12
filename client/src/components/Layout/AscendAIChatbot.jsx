@@ -1,9 +1,5 @@
-// File: client/src/components/Layout/AscendAIChatbot.jsx - FIXED WITH PERSISTENT STATE
+// File: client/src/components/Layout/AscendAIChatbot.jsx
 import {
-  Bot,
-  ChevronDown,
-  ChevronUp,
-  Crown,
   DollarSign,
   History,
   Loader,
@@ -11,118 +7,39 @@ import {
   MessageCircle,
   Minimize2,
   Plus,
-  RotateCcw,
   Send,
-  Sparkles,
-  Star,
   Trash2,
   User,
   X,
-  Zap,
 } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
+import { useChat } from '../../hooks/useChat'
 
 const AscendAIChatbot = () => {
-  // Initialize state from localStorage, default to false (closed)
-  const [isOpen, setIsOpen] = useState(() => {
-    try {
-      const saved = localStorage.getItem('ascend-ai-chatbot-open')
-      return saved !== null ? JSON.parse(saved) : false
-    } catch {
-      return false
-    }
-  })
-
-  const [isMinimized, setIsMinimized] = useState(() => {
-    try {
-      const saved = localStorage.getItem('ascend-ai-chatbot-minimized')
-      return saved !== null ? JSON.parse(saved) : false
-    } catch {
-      return false
-    }
-  })
-
+  const [isOpen, setIsOpen] = useState(false)
+  const [isMinimized, setIsMinimized] = useState(false)
   const [currentView, setCurrentView] = useState('chat') // 'chat' | 'history'
+  const [currentChatId, setCurrentChatId] = useState(null)
   const [inputMessage, setInputMessage] = useState('')
-  const [unreadCount, setUnreadCount] = useState(0)
-  const [showQuickActions, setShowQuickActions] = useState(false)
-  const [activeChatId, setActiveChatId] = useState('demo-chat')
 
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
-  const chatContainerRef = useRef(null)
 
-  // Demo data
-  const [messages, setMessages] = useState([
-    {
-      _id: '1',
-      type: 'assistant',
-      content:
-        "Hello! I'm ready to help you build your digital empire. What would you like to work on today?",
-      timestamp: new Date().getTime() - 60000,
-    },
-    {
-      _id: '2',
-      type: 'user',
-      content:
-        'I want to create a new digital product. Can you help me brainstorm some ideas?',
-      timestamp: new Date().getTime() - 30000,
-    },
-    {
-      _id: '3',
-      type: 'assistant',
-      content:
-        "Absolutely! Let's explore some profitable digital product ideas. I can help you with online courses, software tools, digital templates, or coaching programs. What industry or niche interests you most?",
-      timestamp: new Date().getTime() - 15000,
-    },
-  ])
+  const {
+    chats,
+    currentChat,
+    isLoading,
+    isSending,
+    error,
+    createNewChat,
+    sendMessage,
+    loadChat,
+    deleteChat,
+  } = useChat(currentChatId)
 
-  const [sendingMessage, setSendingMessage] = useState(false)
-  const [historyLoading] = useState(false)
+  const messages = currentChat?.messages || []
 
-  const conversationHistory = [
-    {
-      _id: '1',
-      title: 'Product Launch Strategy',
-      lastMessage: {
-        content:
-          'Great! Let me create a comprehensive launch plan for your course.',
-      },
-      lastActivity: new Date().getTime() - 86400000,
-      messageCount: 15,
-    },
-    {
-      _id: '2',
-      title: 'Affiliate Marketing Setup',
-      lastMessage: {
-        content: 'Here are the top affiliate networks for your niche.',
-      },
-      lastActivity: new Date().getTime() - 172800000,
-      messageCount: 8,
-    },
-  ]
-
-  // Save chatbot state to localStorage whenever it changes
-  useEffect(() => {
-    try {
-      localStorage.setItem('ascend-ai-chatbot-open', JSON.stringify(isOpen))
-    } catch (error) {
-      console.warn('Could not save chatbot open state:', error)
-    }
-  }, [isOpen])
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        'ascend-ai-chatbot-minimized',
-        JSON.stringify(isMinimized)
-      )
-    } catch (error) {
-      console.warn('Could not save chatbot minimized state:', error)
-    }
-  }, [isMinimized])
-
-  // Auto scroll to bottom when new messages arrive
+  // Auto scroll to bottom when messages change
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
@@ -134,66 +51,25 @@ const AscendAIChatbot = () => {
   // Focus input when chat opens
   useEffect(() => {
     if (isOpen && !isMinimized && currentView === 'chat' && inputRef.current) {
-      inputRef.current.focus()
+      setTimeout(() => inputRef.current?.focus(), 100)
     }
   }, [isOpen, isMinimized, currentView])
 
-  // Handle unread count
-  useEffect(() => {
-    if (isOpen) {
-      setUnreadCount(0)
-    }
-  }, [isOpen])
-
   const handleSendMessage = async () => {
-    if (!inputMessage.trim() || sendingMessage) return
+    if (!inputMessage.trim() || isSending) return
 
     const messageContent = inputMessage.trim()
-    const newMessage = {
-      _id: Date.now().toString(),
-      type: 'user',
-      content: messageContent,
-      timestamp: new Date().getTime(),
-    }
-
-    setMessages((prev) => [...prev, newMessage])
     setInputMessage('')
-    setSendingMessage(true)
 
-    // Simulate AI response
-    setTimeout(() => {
-      const aiResponse = {
-        _id: (Date.now() + 1).toString(),
-        type: 'assistant',
-        content:
-          "That's a great question! Let me help you with that. I'll analyze your request and provide you with actionable insights to grow your digital empire.",
-        timestamp: new Date().getTime(),
+    try {
+      const result = await sendMessage(messageContent)
+
+      // If this was a new chat, update the current chat ID
+      if (!currentChatId && result?.chatId) {
+        setCurrentChatId(result.chatId)
       }
-      setMessages((prev) => [...prev, aiResponse])
-      setSendingMessage(false)
-    }, 1500)
-  }
-
-  const handleQuickAction = async (actionType) => {
-    if (sendingMessage) return
-
-    const quickActionMessages = {
-      product_creation:
-        'I want to create a new digital product. Can you guide me through the process?',
-      growth_strategy:
-        'Help me develop a growth strategy to scale my business and increase revenue.',
-      affiliate_marketing:
-        'I want to build an affiliate marketing program. Where should I start?',
-      viral_content:
-        'Create viral content hooks that will engage my audience and drive conversions.',
-    }
-
-    const message = quickActionMessages[actionType]
-    if (message) {
-      setInputMessage(message)
-      setShowQuickActions(false)
-      // Focus input after setting message
-      setTimeout(() => inputRef.current?.focus(), 100)
+    } catch (error) {
+      console.error('Failed to send message:', error)
     }
   }
 
@@ -204,16 +80,33 @@ const AscendAIChatbot = () => {
     }
   }
 
-  const toggleChat = () => {
-    setIsOpen(!isOpen)
-    setUnreadCount(0)
-    if (!isOpen) {
+  const handleNewChat = async () => {
+    try {
+      const newChat = await createNewChat()
+      setCurrentChatId(newChat._id)
       setCurrentView('chat')
+    } catch (error) {
+      console.error('Failed to create new chat:', error)
     }
   }
 
-  const toggleMinimize = () => {
-    setIsMinimized(!isMinimized)
+  const handleLoadChat = (chatId) => {
+    setCurrentChatId(chatId)
+    setCurrentView('chat')
+    loadChat(chatId)
+  }
+
+  const handleDeleteChat = async (chatId, e) => {
+    e.stopPropagation()
+    try {
+      await deleteChat(chatId)
+      // If we deleted the current chat, clear it
+      if (chatId === currentChatId) {
+        setCurrentChatId(null)
+      }
+    } catch (error) {
+      console.error('Failed to delete chat:', error)
+    }
   }
 
   const formatTime = (timestamp) => {
@@ -223,7 +116,7 @@ const AscendAIChatbot = () => {
     })
   }
 
-  const formatHistoryDate = (timestamp) => {
+  const formatDate = (timestamp) => {
     const now = new Date()
     const date = new Date(timestamp)
     const diff = now - date
@@ -235,208 +128,74 @@ const AscendAIChatbot = () => {
     return date.toLocaleDateString()
   }
 
-  const handleClearChat = async () => {
-    setMessages([
-      {
-        _id: 'welcome',
-        type: 'assistant',
-        content:
-          "Hello! I'm ready to help you build your digital empire. What would you like to work on today?",
-        timestamp: new Date().getTime(),
-      },
-    ])
-  }
-
-  const loadHistoryConversation = (historyItem) => {
-    setCurrentView('chat')
-    // Simulate loading a conversation
-    setMessages([
-      {
-        _id: 'loaded-1',
-        type: 'user',
-        content: 'I need help with my product launch strategy.',
-        timestamp: new Date().getTime() - 120000,
-      },
-      {
-        _id: 'loaded-2',
-        type: 'assistant',
-        content:
-          "Great! Let me create a comprehensive launch plan for your course. We'll cover pre-launch, launch day, and post-launch strategies.",
-        timestamp: new Date().getTime() - 60000,
-      },
-    ])
-  }
-
-  const handleDeleteChat = async (chatId) => {
-    console.log('Deleting chat:', chatId)
-  }
-
-  // Improved Quick Actions Component
-  const QuickActions = () => (
-    <div
-      className={`transition-all duration-300 ease-in-out overflow-hidden ${
-        showQuickActions ? 'max-h-64 opacity-100' : 'max-h-0 opacity-0'
-      }`}
-    >
-      <div className='p-4 border-t border-[#1E1E21] bg-[#0B0B0C]'>
-        <div className='text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-3 flex items-center gap-2'>
-          <Sparkles size={12} className='text-[#D4AF37]' />
-          Quick Actions
-        </div>
-        <div className='grid grid-cols-2 gap-2'>
-          <button
-            onClick={() => handleQuickAction('product_creation')}
-            disabled={sendingMessage}
-            className='text-left p-3 rounded-lg bg-[#121214] border border-[#1E1E21] hover:border-[#D4AF37]/40 transition-all duration-200 group disabled:opacity-50 disabled:cursor-not-allowed'
-          >
-            <div className='flex items-center gap-2 mb-2'>
-              <Bot size={14} className='text-[#D4AF37]' />
-              <span className='text-[#EDEDED] text-xs font-medium'>
-                Product Builder
-              </span>
-            </div>
-            <p className='text-gray-400 text-[10px] leading-tight'>
-              Create digital products with AI
-            </p>
-          </button>
-
-          <button
-            onClick={() => handleQuickAction('growth_strategy')}
-            disabled={sendingMessage}
-            className='text-left p-3 rounded-lg bg-[#121214] border border-[#1E1E21] hover:border-[#D4AF37]/40 transition-all duration-200 group disabled:opacity-50 disabled:cursor-not-allowed'
-          >
-            <div className='flex items-center gap-2 mb-2'>
-              <DollarSign size={14} className='text-emerald-400' />
-              <span className='text-[#EDEDED] text-xs font-medium'>
-                Growth Strategy
-              </span>
-            </div>
-            <p className='text-gray-400 text-[10px] leading-tight'>
-              Optimize revenue streams
-            </p>
-          </button>
-
-          <button
-            onClick={() => handleQuickAction('affiliate_marketing')}
-            disabled={sendingMessage}
-            className='text-left p-3 rounded-lg bg-[#121214] border border-[#1E1E21] hover:border-[#D4AF37]/40 transition-all duration-200 group disabled:opacity-50 disabled:cursor-not-allowed'
-          >
-            <div className='flex items-center gap-2 mb-2'>
-              <Star size={14} className='text-blue-400' />
-              <span className='text-[#EDEDED] text-xs font-medium'>
-                Affiliate Army
-              </span>
-            </div>
-            <p className='text-gray-400 text-[10px] leading-tight'>
-              Scale with affiliates
-            </p>
-          </button>
-
-          <button
-            onClick={() => handleQuickAction('viral_content')}
-            disabled={sendingMessage}
-            className='text-left p-3 rounded-lg bg-[#121214] border border-[#1E1E21] hover:border-[#D4AF37]/40 transition-all duration-200 group disabled:opacity-50 disabled:cursor-not-allowed'
-          >
-            <div className='flex items-center gap-2 mb-2'>
-              <Zap size={14} className='text-purple-400' />
-              <span className='text-[#EDEDED] text-xs font-medium'>
-                Viral Hooks
-              </span>
-            </div>
-            <p className='text-gray-400 text-[10px] leading-tight'>
-              Generate engaging content
-            </p>
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-
   const MessageBubble = ({ message }) => (
     <div
       className={`flex ${
-        message.type === 'user' ? 'justify-end' : 'justify-start'
+        message.role === 'user' ? 'justify-end' : 'justify-start'
       } mb-4`}
     >
       <div
         className={`flex ${
-          message.type === 'user' ? 'flex-row-reverse' : 'flex-row'
+          message.role === 'user' ? 'flex-row-reverse' : 'flex-row'
         } items-start gap-3 max-w-[85%]`}
       >
-        {/* Avatar */}
         <div
           className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-            message.type === 'user'
+            message.role === 'user'
               ? 'bg-[#D4AF37]'
-              : 'bg-gradient-to-br from-[#D4AF37] to-[#D4AF37]/80'
+              : 'bg-gradient-to-br from-[#D4AF37] to-[#B8941F]'
           }`}
         >
-          {message.type === 'user' ? (
+          {message.role === 'user' ? (
             <User size={16} className='text-black' />
           ) : (
-            <Crown size={16} className='text-black' />
+            <DollarSign size={16} className='text-black font-bold' />
           )}
         </div>
 
-        {/* Message Content */}
         <div
           className={`rounded-xl px-4 py-3 ${
-            message.type === 'user'
+            message.role === 'user'
               ? 'bg-[#D4AF37] text-black'
               : 'bg-[#121214] border border-[#1E1E21] text-[#EDEDED]'
-          } ${message.status === 'sending' ? 'opacity-70' : ''}`}
+          }`}
         >
           <p className='text-sm leading-relaxed whitespace-pre-wrap'>
             {message.content}
           </p>
-          <div className='flex items-center justify-between mt-2'>
+          <div className='mt-2'>
             <p
               className={`text-xs ${
-                message.type === 'user' ? 'text-black/70' : 'text-gray-400'
+                message.role === 'user' ? 'text-black/70' : 'text-gray-400'
               }`}
             >
               {formatTime(message.timestamp)}
             </p>
-            {message.status === 'sending' && (
-              <Loader size={12} className='animate-spin text-gray-400' />
-            )}
           </div>
         </div>
       </div>
     </div>
   )
 
-  // Empty State Component
   const EmptyState = () => (
     <div className='flex flex-col items-center justify-center h-full text-center p-8'>
-      <div className='w-16 h-16 bg-gradient-to-br from-[#D4AF37] to-[#D4AF37]/80 rounded-full flex items-center justify-center mb-4'>
-        <Crown size={24} className='text-black' />
+      <div className='w-16 h-16 bg-gradient-to-br from-[#D4AF37] to-[#B8941F] rounded-full flex items-center justify-center mb-4 shadow-lg'>
+        <DollarSign size={24} className='text-black font-bold' />
       </div>
       <h3 className='text-[#EDEDED] font-semibold text-lg mb-2'>
-        Welcome to Empire AI
+        Ready to Build Your Empire?
       </h3>
-      <p className='text-gray-400 text-sm mb-6 max-w-64'>
-        Ready to build your digital empire? Ask me anything or try a quick
-        action below.
+      <p className='text-gray-400 text-sm'>
+        Start a conversation with your AI business advisor
       </p>
-      <button
-        onClick={() => setShowQuickActions(true)}
-        className='bg-[#D4AF37] text-black px-4 py-2 rounded-lg font-medium text-sm hover:bg-[#D4AF37]/90 transition-colors flex items-center gap-2'
-      >
-        <Sparkles size={16} />
-        Show Quick Actions
-      </button>
     </div>
   )
 
   const HistoryView = () => (
     <div className='flex flex-col h-full'>
-      {/* History Header */}
       <div className='p-4 border-b border-[#1E1E21] bg-[#0B0B0C]'>
         <div className='flex items-center justify-between'>
-          <h3 className='text-[#EDEDED] font-semibold text-sm'>
-            Conversation History
-          </h3>
+          <h3 className='text-[#EDEDED] font-semibold text-sm'>Chat History</h3>
           <button
             onClick={() => setCurrentView('chat')}
             className='text-[#D4AF37] hover:text-[#D4AF37]/80 text-sm font-medium'
@@ -444,52 +203,49 @@ const AscendAIChatbot = () => {
             Back to Chat
           </button>
         </div>
+        <p className='text-xs text-gray-400 mt-1'>
+          {chats.length} conversation{chats.length !== 1 ? 's' : ''}
+        </p>
       </div>
 
-      {/* History List */}
       <div className='flex-1 overflow-y-auto p-4 space-y-3'>
-        {historyLoading ? (
-          <div className='text-center py-8'>
+        {/* Only show loading in history when we're loading history AND not in a chat */}
+        {isLoading && currentView === 'history' ? (
+          <div className='text-center py-12'>
             <Loader
-              size={24}
-              className='text-[#D4AF37] animate-spin mx-auto mb-2'
+              size={32}
+              className='text-[#D4AF37] animate-spin mx-auto mb-4'
             />
             <p className='text-gray-400 text-sm'>Loading conversations...</p>
           </div>
-        ) : conversationHistory.length > 0 ? (
-          conversationHistory.map((conversation) => (
-            <div key={conversation._id} className='group relative'>
+        ) : chats.length > 0 ? (
+          chats.map((chat) => (
+            <div key={chat._id} className='group relative'>
               <button
-                onClick={() => loadHistoryConversation(conversation)}
-                className='w-full text-left p-4 rounded-lg bg-[#121214] border border-[#1E1E21] hover:border-[#D4AF37]/40 transition-all duration-200'
+                onClick={() => handleLoadChat(chat._id)}
+                className='w-full text-left p-4 rounded-lg bg-[#121214] border border-[#1E1E21] hover:border-[#D4AF37]/40 transition-all duration-200 hover:bg-[#151517]'
               >
                 <div className='flex items-start justify-between mb-2'>
                   <h4 className='text-[#EDEDED] font-medium text-sm group-hover:text-[#D4AF37] transition-colors line-clamp-1 pr-8'>
-                    {conversation.title}
+                    {chat.title}
                   </h4>
-                  <span className='text-xs text-gray-400 flex-shrink-0'>
-                    {formatHistoryDate(conversation.lastActivity)}
+                  <span className='text-xs text-gray-400'>
+                    {formatDate(chat.lastActivity)}
                   </span>
                 </div>
-                <p className='text-gray-400 text-xs leading-relaxed mb-2 line-clamp-2'>
-                  {conversation.lastMessage?.content || 'No messages yet'}
-                </p>
                 <div className='flex items-center justify-between'>
                   <span className='text-xs text-gray-500'>
-                    {conversation.messageCount} messages
+                    {chat.messages?.length || 0} message
+                    {(chat.messages?.length || 0) !== 1 ? 's' : ''}
                   </span>
                   <span className='text-xs text-[#D4AF37] opacity-0 group-hover:opacity-100 transition-opacity'>
-                    Load →
+                    Continue →
                   </span>
                 </div>
               </button>
 
-              {/* Delete button */}
               <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleDeleteChat(conversation._id)
-                }}
+                onClick={(e) => handleDeleteChat(chat._id, e)}
                 className='opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2 p-1 rounded bg-red-500/20 hover:bg-red-500/40 text-red-400 hover:text-red-300'
               >
                 <Trash2 size={12} />
@@ -497,14 +253,18 @@ const AscendAIChatbot = () => {
             </div>
           ))
         ) : (
-          <div className='text-center py-8'>
-            <History size={48} className='text-gray-600 mx-auto mb-3' />
-            <p className='text-gray-400 text-sm mb-2'>
-              No conversation history yet
+          <div className='text-center py-12'>
+            <History size={48} className='text-gray-600 mx-auto mb-4' />
+            <p className='text-gray-400 text-sm mb-2'>No conversations yet</p>
+            <p className='text-gray-500 text-xs mb-4'>
+              Start your first conversation to see it here
             </p>
-            <p className='text-gray-500 text-xs'>
-              Start chatting to build your history!
-            </p>
+            <button
+              onClick={() => setCurrentView('chat')}
+              className='text-[#D4AF37] hover:text-[#D4AF37]/80 text-sm font-medium'
+            >
+              Start New Conversation
+            </button>
           </div>
         )}
       </div>
@@ -517,105 +277,71 @@ const AscendAIChatbot = () => {
       {isOpen && (
         <div
           className={`fixed bottom-24 right-4 w-96 max-w-[calc(100vw-2rem)] bg-[#0B0B0C] border border-[#1E1E21] rounded-xl shadow-2xl z-50 transition-all duration-300 ${
-            isMinimized ? 'h-14' : 'h-[580px] max-h-[calc(100vh-8rem)]'
+            isMinimized ? 'h-14' : 'h-[600px] max-h-[calc(100vh-8rem)]'
           }`}
         >
           {/* Header */}
           <div className='flex items-center justify-between p-4 border-b border-[#1E1E21] bg-gradient-to-r from-[#121214] to-[#1A1A1C] rounded-t-xl'>
             <div className='flex items-center gap-3'>
-              <div className='w-8 h-8 bg-gradient-to-br from-[#D4AF37] to-[#D4AF37]/80 rounded-lg flex items-center justify-center'>
-                <Crown size={16} className='text-black' />
+              <div className='w-8 h-8 bg-gradient-to-br from-[#D4AF37] to-[#B8941F] rounded-lg flex items-center justify-center shadow-lg'>
+                <DollarSign size={16} className='text-black font-bold' />
               </div>
               <div>
                 <h3 className='text-[#EDEDED] font-semibold text-sm'>
                   Empire AI
                 </h3>
                 <div className='flex items-center gap-1'>
-                  <div className='w-1.5 h-1.5 bg-emerald-500 rounded-full'></div>
-                  <span className='text-emerald-400 text-xs'>Online</span>
+                  <div
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      isSending ? 'bg-orange-400 animate-pulse' : 'bg-[#D4AF37]'
+                    }`}
+                  ></div>
+                  <span
+                    className={`text-xs ${
+                      isSending ? 'text-orange-400' : 'text-[#D4AF37]'
+                    }`}
+                  >
+                    {isSending ? 'Thinking...' : 'Ready'}
+                  </span>
                 </div>
               </div>
             </div>
 
             <div className='flex items-center gap-1'>
-              {/* New Chat Button */}
-              {!isMinimized && currentView === 'chat' && (
-                <button
-                  onClick={() =>
-                    setMessages([
-                      {
-                        _id: 'new-welcome',
-                        type: 'assistant',
-                        content:
-                          "Hello! I'm ready to help you build your digital empire. What would you like to work on today?",
-                        timestamp: new Date().getTime(),
-                      },
-                    ])
-                  }
-                  className='p-1.5 rounded-lg hover:bg-[#1E1E21] transition-colors'
-                  title='New Chat'
-                >
-                  <Plus
-                    size={14}
-                    className='text-gray-400 hover:text-[#D4AF37]'
-                  />
-                </button>
-              )}
-
-              {/* Quick Actions Toggle */}
-              {!isMinimized &&
-                currentView === 'chat' &&
-                messages.length > 0 && (
+              {!isMinimized && (
+                <>
                   <button
-                    onClick={() => setShowQuickActions(!showQuickActions)}
+                    onClick={handleNewChat}
                     className='p-1.5 rounded-lg hover:bg-[#1E1E21] transition-colors'
-                    title='Quick Actions'
+                    title='New Chat'
                   >
-                    <Sparkles
+                    <Plus
                       size={14}
-                      className={`transition-colors ${
-                        showQuickActions
-                          ? 'text-[#D4AF37]'
-                          : 'text-gray-400 hover:text-[#D4AF37]'
-                      }`}
+                      className='text-gray-400 hover:text-[#D4AF37]'
                     />
                   </button>
-                )}
 
-              {/* View Toggle */}
-              {!isMinimized && (
-                <button
-                  onClick={() =>
-                    setCurrentView(currentView === 'chat' ? 'history' : 'chat')
-                  }
-                  className='p-1.5 rounded-lg hover:bg-[#1E1E21] transition-colors'
-                  title={
-                    currentView === 'chat' ? 'View History' : 'Back to Chat'
-                  }
-                >
-                  <History
-                    size={14}
-                    className='text-gray-400 hover:text-[#D4AF37]'
-                  />
-                </button>
-              )}
-
-              {/* Clear Chat */}
-              {!isMinimized && currentView === 'chat' && activeChatId && (
-                <button
-                  onClick={handleClearChat}
-                  className='p-1.5 rounded-lg hover:bg-[#1E1E21] transition-colors'
-                  title='Clear Chat'
-                >
-                  <RotateCcw
-                    size={14}
-                    className='text-gray-400 hover:text-yellow-400'
-                  />
-                </button>
+                  <button
+                    onClick={() =>
+                      setCurrentView(
+                        currentView === 'chat' ? 'history' : 'chat'
+                      )
+                    }
+                    className='p-1.5 rounded-lg hover:bg-[#1E1E21] transition-colors'
+                    title={
+                      currentView === 'chat' ? 'View History' : 'Back to Chat'
+                    }
+                  >
+                    <History
+                      size={14}
+                      className='text-gray-400 hover:text-[#D4AF37]'
+                    />
+                  </button>
+                </>
               )}
 
               <button
-                onClick={toggleMinimize}
+                onClick={() => setIsMinimized(!isMinimized)}
                 className='p-1.5 rounded-lg hover:bg-[#1E1E21] transition-colors'
               >
                 {isMinimized ? (
@@ -624,6 +350,7 @@ const AscendAIChatbot = () => {
                   <Minimize2 size={14} className='text-gray-400' />
                 )}
               </button>
+
               <button
                 onClick={() => setIsOpen(false)}
                 className='p-1.5 rounded-lg hover:bg-red-500/20 transition-colors'
@@ -638,41 +365,75 @@ const AscendAIChatbot = () => {
             <>
               {currentView === 'chat' ? (
                 <div className='flex flex-col h-full'>
-                  {/* Messages Area - Now takes full available space */}
+                  {/* Messages Area */}
                   <div
-                    ref={chatContainerRef}
                     className='flex-1 overflow-y-auto p-4 bg-[#0B0B0C] min-h-0'
                     style={{
                       scrollbarWidth: 'thin',
                       scrollbarColor: '#1E1E21 transparent',
                     }}
                   >
-                    {messages.length === 0 ? (
+                    {error && (
+                      <div className='p-3 mb-4 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-3'>
+                        <div>
+                          <p className='text-red-400 text-sm font-medium mb-1'>
+                            Connection Error
+                          </p>
+                          <p className='text-red-300 text-xs'>{error}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Only show loading here when loading a specific chat, not when sending */}
+                    {isLoading && currentView === 'chat' && !isSending ? (
+                      <div className='flex items-center justify-center h-full'>
+                        <div className='text-center'>
+                          <Loader
+                            size={32}
+                            className='text-[#D4AF37] animate-spin mx-auto mb-4'
+                          />
+                          <p className='text-gray-400 text-sm'>
+                            Loading conversation...
+                          </p>
+                        </div>
+                      </div>
+                    ) : messages.length === 0 && !currentChatId ? (
                       <EmptyState />
                     ) : (
                       <>
                         {messages.map((message) => (
-                          <MessageBubble key={message._id} message={message} />
+                          <MessageBubble
+                            key={message._id || Math.random()}
+                            message={message}
+                          />
                         ))}
 
-                        {/* Typing Indicator */}
-                        {sendingMessage && (
+                        {/* Enhanced Typing Indicator - Better animation */}
+                        {isSending && (
                           <div className='flex justify-start mb-4'>
                             <div className='flex items-start gap-3 max-w-[85%]'>
-                              <div className='w-8 h-8 rounded-full bg-gradient-to-br from-[#D4AF37] to-[#D4AF37]/80 flex items-center justify-center'>
-                                <Crown size={16} className='text-black' />
+                              <div className='w-8 h-8 rounded-full bg-gradient-to-br from-[#D4AF37] to-[#B8941F] flex items-center justify-center'>
+                                <DollarSign
+                                  size={16}
+                                  className='text-black font-bold'
+                                />
                               </div>
                               <div className='bg-[#121214] border border-[#1E1E21] rounded-xl px-4 py-3'>
                                 <div className='flex items-center gap-1'>
-                                  <div className='w-2 h-2 bg-[#D4AF37] rounded-full animate-bounce'></div>
-                                  <div
-                                    className='w-2 h-2 bg-[#D4AF37] rounded-full animate-bounce'
-                                    style={{ animationDelay: '0.1s' }}
-                                  ></div>
-                                  <div
-                                    className='w-2 h-2 bg-[#D4AF37] rounded-full animate-bounce'
-                                    style={{ animationDelay: '0.2s' }}
-                                  ></div>
+                                  <div className='flex space-x-1'>
+                                    <div className='w-2 h-2 bg-[#D4AF37] rounded-full animate-pulse'></div>
+                                    <div
+                                      className='w-2 h-2 bg-[#D4AF37] rounded-full animate-pulse'
+                                      style={{ animationDelay: '0.2s' }}
+                                    ></div>
+                                    <div
+                                      className='w-2 h-2 bg-[#D4AF37] rounded-full animate-pulse'
+                                      style={{ animationDelay: '0.4s' }}
+                                    ></div>
+                                  </div>
+                                  <span className='text-gray-400 text-xs ml-2'>
+                                    AI is thinking...
+                                  </span>
                                 </div>
                               </div>
                             </div>
@@ -683,10 +444,7 @@ const AscendAIChatbot = () => {
                     )}
                   </div>
 
-                  {/* Collapsible Quick Actions */}
-                  <QuickActions />
-
-                  {/* Input Section - Always at bottom */}
+                  {/* Input Section */}
                   <div className='p-4 border-t border-[#1E1E21] bg-[#0B0B0C] rounded-b-xl flex-shrink-0'>
                     <div className='flex items-end gap-3'>
                       <div className='flex-1 relative'>
@@ -695,30 +453,19 @@ const AscendAIChatbot = () => {
                           value={inputMessage}
                           onChange={(e) => setInputMessage(e.target.value)}
                           onKeyPress={handleKeyPress}
-                          placeholder='Ask Empire AI anything...'
-                          disabled={sendingMessage}
-                          className='w-full bg-[#121214] border border-[#1E1E21] rounded-lg px-4 py-3 text-sm text-[#EDEDED] placeholder-gray-400 focus:outline-none focus:border-[#D4AF37]/40 resize-none min-h-[44px] max-h-20 disabled:opacity-50 disabled:cursor-not-allowed'
+                          placeholder='Ask me about your business empire...'
+                          disabled={isSending}
+                          className='w-full bg-[#121214] border border-[#1E1E21] rounded-lg px-4 py-3 text-sm text-[#EDEDED] placeholder-gray-400 focus:outline-none focus:border-[#D4AF37]/40 focus:ring-1 focus:ring-[#D4AF37]/20 resize-none min-h-[44px] max-h-20 disabled:opacity-50 disabled:cursor-not-allowed'
                           rows={1}
                         />
                       </div>
 
-                      {/* Quick Actions Toggle Button in Input */}
-                      {!showQuickActions && messages.length > 0 && (
-                        <button
-                          onClick={() => setShowQuickActions(true)}
-                          className='w-11 h-11 bg-[#121214] border border-[#1E1E21] text-gray-400 rounded-lg flex items-center justify-center hover:border-[#D4AF37]/40 hover:text-[#D4AF37] transition-colors flex-shrink-0'
-                          title='Quick Actions'
-                        >
-                          <Sparkles size={18} />
-                        </button>
-                      )}
-
                       <button
                         onClick={handleSendMessage}
-                        disabled={!inputMessage.trim() || sendingMessage}
-                        className='w-11 h-11 bg-[#D4AF37] text-black rounded-lg flex items-center justify-center hover:bg-[#D4AF37]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0'
+                        disabled={!inputMessage.trim() || isSending}
+                        className='w-11 h-11 bg-gradient-to-r from-[#D4AF37] to-[#B8941F] text-black rounded-lg flex items-center justify-center hover:shadow-lg hover:shadow-[#D4AF37]/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 hover:scale-105'
                       >
-                        {sendingMessage ? (
+                        {isSending ? (
                           <Loader size={18} className='animate-spin' />
                         ) : (
                           <Send size={18} />
@@ -726,20 +473,9 @@ const AscendAIChatbot = () => {
                       </button>
                     </div>
 
-                    <div className='flex items-center justify-between mt-3'>
-                      <p className='text-xs text-gray-500'>
-                        Press Enter to send, Shift + Enter for new line
-                      </p>
-                      {showQuickActions && (
-                        <button
-                          onClick={() => setShowQuickActions(false)}
-                          className='text-xs text-[#D4AF37] hover:text-[#D4AF37]/80 transition-colors flex items-center gap-1'
-                        >
-                          <ChevronUp size={12} />
-                          Hide Actions
-                        </button>
-                      )}
-                    </div>
+                    <p className='text-xs text-gray-500 mt-3'>
+                      Press Enter to send • Shift + Enter for new line
+                    </p>
                   </div>
                 </div>
               ) : (
@@ -753,21 +489,14 @@ const AscendAIChatbot = () => {
       {/* Floating Action Button */}
       {!isOpen && (
         <button
-          onClick={toggleChat}
-          className='fixed bottom-4 right-4 w-14 h-14 bg-gradient-to-br from-[#D4AF37] to-[#D4AF37]/90 text-black rounded-full shadow-2xl hover:shadow-[#D4AF37]/25 transition-all duration-300 hover:scale-110 z-50 flex items-center justify-center group'
+          onClick={() => setIsOpen(true)}
+          className='fixed bottom-4 right-4 w-14 h-14 bg-gradient-to-br from-[#D4AF37] to-[#B8941F] text-black rounded-full shadow-2xl hover:shadow-[#D4AF37]/25 transition-all duration-300 hover:scale-110 z-50 flex items-center justify-center group'
         >
-          <MessageCircle
+          <DollarSign
             size={24}
-            className='transition-transform duration-300 group-hover:scale-110'
+            className='transition-transform duration-300 group-hover:scale-110 font-bold'
           />
-          {unreadCount > 0 && (
-            <span className='absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-white text-xs font-bold flex items-center justify-center'>
-              {unreadCount > 9 ? '9+' : unreadCount}
-            </span>
-          )}
-
-          {/* Pulse animation for attention */}
-          <div className='absolute inset-0 rounded-full bg-[#D4AF37] animate-ping opacity-20'></div>
+          <div className='absolute inset-0 rounded-full bg-gradient-to-br from-[#D4AF37] to-[#B8941F] animate-ping opacity-20'></div>
         </button>
       )}
     </>

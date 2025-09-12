@@ -176,7 +176,7 @@ const DiscordStatusCard = ({ onExpand }) => {
       {discordStatus?.isConnected && (
         <div className='mt-3'>
           <a
-            href='https://discord.gg/zYurEefP'
+            href='https://discord.gg/eP48PSyU'
             target='_blank'
             rel='noopener noreferrer'
             className='w-full h-8 bg-[#5865F2] text-white rounded-lg font-medium text-sm hover:bg-[#5865F2]/90 transition-all duration-300 flex items-center justify-center gap-2'
