@@ -293,6 +293,48 @@ const PayoutDashboard = () => {
   // UPDATED: Stripe Connect onboarding modal with improved state handling
   const ConnectOnboardingModal = () => {
     if (!showConnectModal) return null
+    const formatRequirements = (requirements) => {
+      const categories = {
+        'Personal Information': new Set(),
+        'Address Information': new Set(),
+        'Business Details': new Set(),
+        'Banking Information': new Set(),
+        'Legal Requirements': new Set(),
+      }
+
+      requirements.forEach((req) => {
+        if (
+          req.includes('individual.dob') ||
+          req.includes('individual.first_name') ||
+          req.includes('individual.last_name') ||
+          req.includes('individual.email') ||
+          req.includes('individual.phone') ||
+          req.includes('individual.ssn_last_4')
+        ) {
+          categories['Personal Information'].add(
+            'Name, email, phone, date of birth, SSN'
+          )
+        } else if (req.includes('individual.address')) {
+          categories['Address Information'].add('Home address for verification')
+        } else if (req.includes('business_profile')) {
+          categories['Business Details'].add('Business type and website')
+        } else if (req.includes('external_account')) {
+          categories['Banking Information'].add('Bank account for payouts')
+        } else if (req.includes('tos_acceptance')) {
+          categories['Legal Requirements'].add('Terms of service acceptance')
+        }
+      })
+
+      // Convert sets to arrays and filter empty categories
+      Object.keys(categories).forEach((key) => {
+        categories[key] = Array.from(categories[key])
+        if (categories[key].length === 0) {
+          delete categories[key]
+        }
+      })
+
+      return categories
+    }
 
     return (
       <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'>
@@ -355,22 +397,31 @@ const PayoutDashboard = () => {
             {/* Requirements */}
             {connectStatus?.requirements?.length > 0 && (
               <div className='p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg'>
-                <h4 className='text-orange-400 font-medium text-sm mb-2'>
-                  Required Information:
+                <h4 className='text-orange-400 font-medium text-sm mb-3'>
+                  Information Needed:
                 </h4>
-                <ul className='space-y-1'>
-                  {connectStatus.requirements.map((req, index) => (
-                    <li
-                      key={index}
-                      className='text-xs text-gray-400 flex items-center gap-2'
-                    >
-                      <AlertCircle size={12} className='text-orange-400' />
-                      {req
-                        .replace('_', ' ')
-                        .replace(/\b\w/g, (l) => l.toUpperCase())}
-                    </li>
+                <div className='space-y-2'>
+                  {Object.entries(
+                    formatRequirements(connectStatus.requirements)
+                  ).map(([category, items]) => (
+                    <div key={category} className='flex items-start gap-2'>
+                      <AlertCircle
+                        size={12}
+                        className='text-orange-400 mt-0.5 flex-shrink-0'
+                      />
+                      <div>
+                        <div className='text-xs font-medium text-orange-300'>
+                          {category}
+                        </div>
+                        {items.map((item, idx) => (
+                          <div key={idx} className='text-xs text-gray-400 ml-2'>
+                            • {item}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   ))}
-                </ul>
+                </div>
               </div>
             )}
 
