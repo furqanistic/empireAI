@@ -1,4 +1,4 @@
-// File: routes/payout.js
+// File: routes/payout.js - COMPLETE FIXED VERSION
 import express from 'express'
 import {
   approveEarning,
@@ -13,6 +13,7 @@ import {
 import {
   cancelPayoutRequest,
   cleanupInvalidConnectAccounts,
+  createAccountManagementLink,
   createConnectAccountForUser,
   getAllPayouts,
   getConnectAccountStatus,
@@ -21,7 +22,9 @@ import {
   getPayoutHistory,
   getPayoutStatistics,
   processPayout,
+  refreshConnectAccountStatus,
   requestPayout,
+  resetConnectAccount,
   updatePayoutSettings,
 } from '../controllers/payout.js'
 import { restrictTo, verifyToken } from '../middleware/authMiddleware.js'
@@ -41,8 +44,20 @@ router.get('/connect/status', getConnectAccountStatus)
 // Get onboarding link
 router.get('/connect/onboarding-link', getConnectOnboardingLink)
 
+// NEW: Get management link for updating bank details
+router.get('/connect/management-link', createAccountManagementLink)
+
+// NEW: Refresh account status
+router.post('/connect/refresh-status', refreshConnectAccountStatus)
+
+// NEW: Reset Connect account (dev/testing)
+router.delete('/connect/reset', resetConnectAccount)
+
 // Update payout settings
 router.put('/connect/settings', updatePayoutSettings)
+
+// NEW: Cleanup invalid accounts (admin/dev utility)
+router.post('/connect/cleanup-invalid', cleanupInvalidConnectAccounts)
 
 // EARNINGS ROUTES
 // Get user's earnings summary
@@ -66,8 +81,6 @@ router.get('/history', getPayoutHistory)
 
 // Cancel payout request
 router.delete('/:payoutId/cancel', cancelPayoutRequest)
-
-router.post('/connect/cleanup-invalid', cleanupInvalidConnectAccounts)
 
 // ADMIN ONLY ROUTES
 router.use(restrictTo('admin'))

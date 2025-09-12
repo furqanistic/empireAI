@@ -1,4 +1,4 @@
-// File: client/src/pages/Admin/PayoutDashboard.jsx - UPDATED WITH IMPROVED CONNECT LOGIC
+// File: client/src/pages/Admin/PayoutDashboard.jsx - COMPLETE VERSION WITH ALL TABS
 import axiosInstance from '@/config/config'
 import {
   AlertCircle,
@@ -9,6 +9,7 @@ import {
   DollarSign,
   Download,
   ExternalLink,
+  FileText,
   Loader2,
   RefreshCw,
   Settings,
@@ -25,7 +26,7 @@ const PayoutDashboard = () => {
   const [showConnectModal, setShowConnectModal] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
   const [loading, setLoading] = useState(true)
-  const [actionLoading, setActionLoading] = useState('') // NEW: Track specific action loading
+  const [actionLoading, setActionLoading] = useState('')
   const [error, setError] = useState(null)
 
   // Data states
@@ -33,6 +34,7 @@ const PayoutDashboard = () => {
   const [earningsSummary, setEarningsSummary] = useState(null)
   const [payoutHistory, setPayoutHistory] = useState([])
   const [recentEarnings, setRecentEarnings] = useState([])
+  const [allEarnings, setAllEarnings] = useState([])
 
   // Load data on component mount
   useEffect(() => {
@@ -44,7 +46,7 @@ const PayoutDashboard = () => {
       setLoading(true)
       setError(null)
 
-      // Load all data in parallel using axiosInstance
+      // Load all data in parallel
       const [connectResponse, earningsResponse, payoutsResponse] =
         await Promise.all([
           axiosInstance.get('/payouts/connect/status'),
@@ -68,7 +70,17 @@ const PayoutDashboard = () => {
     }
   }
 
-  // UPDATED: Create Connect account with better handling
+  // Load all earnings when earnings tab is activated
+  const loadAllEarnings = async () => {
+    try {
+      const response = await axiosInstance.get('/payouts/earnings')
+      setAllEarnings(response.data.data.earnings || [])
+    } catch (err) {
+      console.error('Error loading earnings:', err)
+    }
+  }
+
+  // Create Connect account
   const createConnectAccount = async () => {
     try {
       setActionLoading('create')
@@ -79,7 +91,6 @@ const PayoutDashboard = () => {
         }
       )
 
-      // Redirect to Stripe onboarding
       if (response.data.data.onboardingUrl) {
         window.open(response.data.data.onboardingUrl, '_blank')
       }
@@ -95,14 +106,13 @@ const PayoutDashboard = () => {
     }
   }
 
-  // UPDATED: Get onboarding link (for resuming setup)
+  // Get onboarding link
   const getOnboardingLink = async () => {
     try {
       setActionLoading('onboarding')
       const response = await axiosInstance.get(
         '/payouts/connect/onboarding-link'
       )
-
       if (response.data.data.onboardingUrl) {
         window.open(response.data.data.onboardingUrl, '_blank')
       }
@@ -118,14 +128,13 @@ const PayoutDashboard = () => {
     }
   }
 
-  // NEW: Get management link (for updating bank details)
+  // Get management link
   const getManagementLink = async () => {
     try {
       setActionLoading('management')
       const response = await axiosInstance.get(
         '/payouts/connect/management-link'
       )
-
       if (response.data.data.managementUrl) {
         window.open(response.data.data.managementUrl, '_blank')
       }
@@ -141,7 +150,7 @@ const PayoutDashboard = () => {
     }
   }
 
-  // NEW: Refresh account status
+  // Refresh account status
   const refreshAccountStatus = async () => {
     try {
       setActionLoading('refresh')
@@ -157,7 +166,7 @@ const PayoutDashboard = () => {
     }
   }
 
-  // NEW: Reset account (development only)
+  // Reset account
   const resetAccount = async () => {
     if (
       !window.confirm(
@@ -181,20 +190,17 @@ const PayoutDashboard = () => {
     }
   }
 
-  // Request payout (unchanged)
+  // Request payout
   const requestPayout = async (amount, method = 'standard') => {
     try {
       setLoading(true)
       const response = await axiosInstance.post('/payouts/request', {
-        amount: Math.round(parseFloat(amount) * 100), // Convert to cents
+        amount: Math.round(parseFloat(amount) * 100),
         method,
       })
 
-      // Refresh data after successful request
       await loadDashboardData()
       setShowRequestModal(false)
-
-      // Show success message (you can add a toast notification here)
       alert('Payout request submitted successfully!')
     } catch (err) {
       console.error('Error requesting payout:', err)
@@ -206,13 +212,11 @@ const PayoutDashboard = () => {
     }
   }
 
-  // Cancel payout (unchanged)
+  // Cancel payout
   const cancelPayout = async (payoutId) => {
     try {
       setLoading(true)
       await axiosInstance.delete(`/payouts/${payoutId}/cancel`)
-
-      // Refresh data
       await loadDashboardData()
       alert('Payout cancelled successfully!')
     } catch (err) {
@@ -225,7 +229,7 @@ const PayoutDashboard = () => {
     }
   }
 
-  // UPDATED: Helper to get status color
+  // Helper functions
   const getStatusColor = (state) => {
     switch (state) {
       case 'verified':
@@ -241,7 +245,6 @@ const PayoutDashboard = () => {
     }
   }
 
-  // UPDATED: Helper to get status icon
   const getStatusIcon = (state) => {
     switch (state) {
       case 'verified':
@@ -253,7 +256,6 @@ const PayoutDashboard = () => {
     }
   }
 
-  // Status badge component (unchanged)
   const StatusBadge = ({ status, type = 'earning' }) => {
     const configs = {
       earning: {
@@ -265,8 +267,10 @@ const PayoutDashboard = () => {
       payout: {
         pending: 'bg-yellow-500/10 text-yellow-400',
         processing: 'bg-blue-500/10 text-blue-400',
+        in_transit: 'bg-purple-500/10 text-purple-400',
         paid: 'bg-green-500/10 text-green-400',
         failed: 'bg-red-500/10 text-red-400',
+        cancelled: 'bg-gray-500/10 text-gray-400',
       },
     }
 
@@ -281,7 +285,6 @@ const PayoutDashboard = () => {
     )
   }
 
-  // Format date helper (unchanged)
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
@@ -290,9 +293,10 @@ const PayoutDashboard = () => {
     })
   }
 
-  // UPDATED: Stripe Connect onboarding modal with improved state handling
+  // Connect Onboarding Modal
   const ConnectOnboardingModal = () => {
     if (!showConnectModal) return null
+
     const formatRequirements = (requirements) => {
       const categories = {
         'Personal Information': new Set(),
@@ -325,7 +329,6 @@ const PayoutDashboard = () => {
         }
       })
 
-      // Convert sets to arrays and filter empty categories
       Object.keys(categories).forEach((key) => {
         categories[key] = Array.from(categories[key])
         if (categories[key].length === 0) {
@@ -352,7 +355,6 @@ const PayoutDashboard = () => {
           </div>
 
           <div className='space-y-4'>
-            {/* Account Status Display */}
             {connectStatus?.connected && (
               <div
                 className={`flex items-center gap-3 p-3 rounded-lg border ${
@@ -394,7 +396,6 @@ const PayoutDashboard = () => {
               </div>
             )}
 
-            {/* Requirements */}
             {connectStatus?.requirements?.length > 0 && (
               <div className='p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg'>
                 <h4 className='text-orange-400 font-medium text-sm mb-3'>
@@ -425,7 +426,6 @@ const PayoutDashboard = () => {
               </div>
             )}
 
-            {/* What you'll need section (only for new accounts) */}
             {!connectStatus?.connected && (
               <div className='space-y-2'>
                 <h4 className='text-[#EDEDED] font-medium text-sm'>
@@ -448,18 +448,15 @@ const PayoutDashboard = () => {
               </div>
             )}
 
-            {/* Development notice */}
             {process.env.NODE_ENV === 'development' && (
               <div className='p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg'>
                 <p className='text-sm text-yellow-400'>
-                  <strong>Development Mode:</strong> The "test account" message
-                  in Stripe is normal. Use test bank details: Routing 110000000,
-                  Account 000123456789
+                  <strong>Development Mode:</strong> Use test bank details:
+                  Routing 110000000, Account 000123456789
                 </p>
               </div>
             )}
 
-            {/* Action buttons */}
             <div className='flex gap-3 pt-4'>
               <button
                 onClick={() => setShowConnectModal(false)}
@@ -497,7 +494,7 @@ const PayoutDashboard = () => {
     )
   }
 
-  // Payout request modal (unchanged)
+  // Payout Request Modal
   const PayoutRequestModal = () => {
     const [amount, setAmount] = useState('')
     const [method, setMethod] = useState('standard')
@@ -573,7 +570,6 @@ const PayoutDashboard = () => {
                     </div>
                   </div>
                 </label>
-
                 <label className='flex items-center gap-3 p-3 border border-[#1E1E21] rounded-lg cursor-pointer hover:border-[#D4AF37]/40 transition-all duration-300'>
                   <input
                     type='radio'
@@ -638,7 +634,7 @@ const PayoutDashboard = () => {
     )
   }
 
-  // Loading state (unchanged)
+  // Loading state
   if (loading && !connectStatus) {
     return (
       <Layout>
@@ -652,7 +648,7 @@ const PayoutDashboard = () => {
     )
   }
 
-  // Error state (unchanged)
+  // Error state
   if (error) {
     return (
       <Layout>
@@ -675,10 +671,10 @@ const PayoutDashboard = () => {
     )
   }
 
-  // UPDATED: Main overview tab with improved Connect status handling
+  // Overview Tab
   const OverviewTab = () => (
     <div className='space-y-6'>
-      {/* UPDATED: Connect Account Status - Better state handling */}
+      {/* Connect Account Status */}
       <div
         className={`rounded-xl p-6 border ${
           connectStatus?.accountState === 'verified'
@@ -712,7 +708,6 @@ const PayoutDashboard = () => {
                   : 'Set Up Payouts'}
               </h3>
             </div>
-
             <p className='text-gray-400 text-sm mb-4'>
               {connectStatus?.messages?.primary ||
                 'Connect your bank account to start receiving payouts for your referral commissions.'}
@@ -765,7 +760,6 @@ const PayoutDashboard = () => {
                 </button>
               )}
 
-              {/* Utility buttons */}
               <button
                 onClick={refreshAccountStatus}
                 disabled={actionLoading === 'refresh'}
@@ -796,7 +790,6 @@ const PayoutDashboard = () => {
                 )}
             </div>
 
-            {/* Requirements display */}
             {connectStatus?.requirements?.length > 0 && (
               <div className='mt-4 p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg'>
                 <h4 className='text-orange-400 text-sm font-medium mb-1'>
@@ -812,7 +805,6 @@ const PayoutDashboard = () => {
         </div>
       </div>
 
-      {/* Rest of the component remains the same... */}
       {/* Earnings Summary Cards */}
       {earningsSummary && (
         <div className='grid grid-cols-1 md:grid-cols-4 gap-4'>
@@ -851,7 +843,7 @@ const PayoutDashboard = () => {
               <Clock className='text-yellow-400' size={16} />
             </div>
             <div className='text-2xl font-bold text-[#EDEDED]'>
-              ${earningsSummary.summary.pending.formatted}
+              ${earningsSummary.summary.formatted.pending}
             </div>
             <div className='text-xs text-gray-400 mt-1'>
               {earningsSummary.summary.pending.count} pending
@@ -873,7 +865,7 @@ const PayoutDashboard = () => {
         </div>
       )}
 
-      {/* Quick Actions - UPDATED button logic */}
+      {/* Quick Actions */}
       <div className='flex flex-col sm:flex-row gap-4'>
         <button
           onClick={() =>
@@ -894,9 +886,11 @@ const PayoutDashboard = () => {
             ? 'Request Payout'
             : 'Set Up Payouts'}
         </button>
-
         <button
-          onClick={() => setActiveTab('earnings')}
+          onClick={() => {
+            setActiveTab('earnings')
+            loadAllEarnings()
+          }}
           className='flex-1 border border-[#1E1E21] text-[#EDEDED] px-6 py-3 rounded-xl font-semibold hover:border-[#D4AF37]/40 transition-all duration-300 flex items-center justify-center gap-2'
         >
           <Users size={16} />
@@ -904,7 +898,7 @@ const PayoutDashboard = () => {
         </button>
       </div>
 
-      {/* Recent Earnings - unchanged */}
+      {/* Recent Earnings */}
       {recentEarnings?.length > 0 && (
         <div className='bg-[#121214] border border-[#1E1E21] rounded-xl p-6'>
           <h3 className='text-[#EDEDED] font-semibold mb-4'>Recent Earnings</h3>
@@ -932,7 +926,10 @@ const PayoutDashboard = () => {
             ))}
           </div>
           <button
-            onClick={() => setActiveTab('earnings')}
+            onClick={() => {
+              setActiveTab('earnings')
+              loadAllEarnings()
+            }}
             className='w-full mt-4 text-[#D4AF37] text-sm font-medium hover:text-[#D4AF37]/80 transition-colors duration-300'
           >
             View All Earnings →
@@ -942,8 +939,183 @@ const PayoutDashboard = () => {
     </div>
   )
 
-  // EarningsTab and PayoutsTab remain unchanged...
-  // [Include the rest of your existing tabs here]
+  // Earnings Tab
+  const EarningsTab = () => {
+    useEffect(() => {
+      if (activeTab === 'earnings' && allEarnings.length === 0) {
+        loadAllEarnings()
+      }
+    }, [activeTab])
+
+    return (
+      <div className='space-y-6'>
+        <div className='bg-[#121214] border border-[#1E1E21] rounded-xl p-6'>
+          <div className='flex items-center justify-between mb-6'>
+            <h3 className='text-[#EDEDED] font-semibold text-lg'>
+              All Earnings
+            </h3>
+            <button
+              onClick={loadAllEarnings}
+              className='text-[#D4AF37] hover:text-[#D4AF37]/80 transition-colors duration-300'
+            >
+              <RefreshCw size={18} />
+            </button>
+          </div>
+
+          {allEarnings.length === 0 ? (
+            <div className='text-center py-12'>
+              <Wallet className='mx-auto text-gray-600 mb-4' size={48} />
+              <p className='text-gray-400'>No earnings yet</p>
+            </div>
+          ) : (
+            <div className='overflow-x-auto'>
+              <table className='w-full'>
+                <thead className='border-b border-[#1E1E21]'>
+                  <tr>
+                    <th className='text-left text-xs font-medium text-gray-400 pb-3'>
+                      Date
+                    </th>
+                    <th className='text-left text-xs font-medium text-gray-400 pb-3'>
+                      Description
+                    </th>
+                    <th className='text-left text-xs font-medium text-gray-400 pb-3'>
+                      Referred User
+                    </th>
+                    <th className='text-right text-xs font-medium text-gray-400 pb-3'>
+                      Amount
+                    </th>
+                    <th className='text-right text-xs font-medium text-gray-400 pb-3'>
+                      Status
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className='divide-y divide-[#1E1E21]'>
+                  {allEarnings.map((earning) => (
+                    <tr
+                      key={earning._id}
+                      className='hover:bg-[#1A1A1C] transition-colors duration-200'
+                    >
+                      <td className='py-3 text-sm text-gray-400'>
+                        {formatDate(earning.createdAt)}
+                      </td>
+                      <td className='py-3 text-sm text-[#EDEDED]'>
+                        {earning.description}
+                      </td>
+                      <td className='py-3 text-sm text-gray-400'>
+                        {earning.referredUser?.name || 'Unknown'}
+                      </td>
+                      <td className='py-3 text-sm text-[#EDEDED] text-right font-semibold'>
+                        ${(earning.commissionAmount / 100).toFixed(2)}
+                      </td>
+                      <td className='py-3 text-right'>
+                        <StatusBadge status={earning.status} type='earning' />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // Payouts Tab
+  const PayoutsTab = () => (
+    <div className='space-y-6'>
+      <div className='bg-[#121214] border border-[#1E1E21] rounded-xl p-6'>
+        <div className='flex items-center justify-between mb-6'>
+          <h3 className='text-[#EDEDED] font-semibold text-lg'>
+            Payout History
+          </h3>
+          {connectStatus?.actions?.canRequestPayout && (
+            <button
+              onClick={() => setShowRequestModal(true)}
+              className='bg-[#D4AF37] text-black px-4 py-2 rounded-lg font-medium hover:bg-[#D4AF37]/90 transition-all duration-300 flex items-center gap-2'
+            >
+              <ArrowUpRight size={14} />
+              Request Payout
+            </button>
+          )}
+        </div>
+
+        {payoutHistory.length === 0 ? (
+          <div className='text-center py-12'>
+            <FileText className='mx-auto text-gray-600 mb-4' size={48} />
+            <p className='text-gray-400'>No payout requests yet</p>
+          </div>
+        ) : (
+          <div className='overflow-x-auto'>
+            <table className='w-full'>
+              <thead className='border-b border-[#1E1E21]'>
+                <tr>
+                  <th className='text-left text-xs font-medium text-gray-400 pb-3'>
+                    Date
+                  </th>
+                  <th className='text-left text-xs font-medium text-gray-400 pb-3'>
+                    Method
+                  </th>
+                  <th className='text-right text-xs font-medium text-gray-400 pb-3'>
+                    Amount
+                  </th>
+                  <th className='text-right text-xs font-medium text-gray-400 pb-3'>
+                    Fees
+                  </th>
+                  <th className='text-right text-xs font-medium text-gray-400 pb-3'>
+                    Net
+                  </th>
+                  <th className='text-right text-xs font-medium text-gray-400 pb-3'>
+                    Status
+                  </th>
+                  <th className='text-right text-xs font-medium text-gray-400 pb-3'>
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className='divide-y divide-[#1E1E21]'>
+                {payoutHistory.map((payout) => (
+                  <tr
+                    key={payout._id}
+                    className='hover:bg-[#1A1A1C] transition-colors duration-200'
+                  >
+                    <td className='py-3 text-sm text-gray-400'>
+                      {formatDate(payout.requestedAt)}
+                    </td>
+                    <td className='py-3 text-sm text-gray-400 capitalize'>
+                      {payout.method}
+                    </td>
+                    <td className='py-3 text-sm text-[#EDEDED] text-right font-semibold'>
+                      ${(payout.amount / 100).toFixed(2)}
+                    </td>
+                    <td className='py-3 text-sm text-gray-400 text-right'>
+                      ${(payout.fees?.total / 100 || 0).toFixed(2)}
+                    </td>
+                    <td className='py-3 text-sm text-[#EDEDED] text-right font-semibold'>
+                      ${(payout.netAmount / 100).toFixed(2)}
+                    </td>
+                    <td className='py-3 text-right'>
+                      <StatusBadge status={payout.status} type='payout' />
+                    </td>
+                    <td className='py-3 text-right'>
+                      {payout.status === 'pending' && (
+                        <button
+                          onClick={() => cancelPayout(payout._id)}
+                          className='text-red-400 hover:text-red-300 text-sm'
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  )
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: TrendingUp },
@@ -985,7 +1157,8 @@ const PayoutDashboard = () => {
 
           <div className='p-6'>
             {activeTab === 'overview' && <OverviewTab />}
-            {/* Add your existing EarningsTab and PayoutsTab components here */}
+            {activeTab === 'earnings' && <EarningsTab />}
+            {activeTab === 'payouts' && <PayoutsTab />}
           </div>
         </div>
 
