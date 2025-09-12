@@ -1,4 +1,4 @@
-// File: controllers/payout.js
+// File: controllers/payout.js - COMPLETE FINAL VERSION WITH ERROR HANDLING
 import {
   CONNECT_CONFIG,
   createAccountLink,
@@ -12,15 +12,35 @@ import Earnings from '../models/Earnings.js'
 import Payout from '../models/Payout.js'
 import User from '../models/User.js'
 
-// Create Stripe Connect account for user
+// Helper function to get status messages
+const getStatusMessage = (accountState, hasRequirements) => {
+  switch (accountState) {
+    case 'onboarding_incomplete':
+      return 'Please complete your account setup to receive payouts'
+    case 'verification_required':
+      return 'Additional information required for verification'
+    case 'pending_verification':
+      return 'Account verification in progress'
+    case 'verified':
+      return 'Account verified and ready for payouts'
+    case 'sync_error':
+      return 'Unable to sync account status. This may be a temporary issue.'
+    default:
+      return 'Account status unknown'
+  }
+}
+
+// Create Stripe Connect account for user - IMPROVED WITH ERROR HANDLING
 export const createConnectAccountForUser = async (req, res, next) => {
   try {
     const { country = 'US' } = req.body
     const user = req.user
 
-    // Check if user already has a Connect account
-    if (user.stripeConnect?.accountId) {
-      return next(createError(400, 'User already has a Connect account'))
+    // Check if user already has a VERIFIED Connect account
+    if (user.stripeConnect?.accountId && user.stripeConnect.isVerified) {
+      return next(
+        createError(400, 'User already has a verified Connect account')
+      )
     }
 
     // Validate country
@@ -28,8 +48,39 @@ export const createConnectAccountForUser = async (req, res, next) => {
       return next(createError(400, `Country ${country} is not supported`))
     }
 
-    // Create Connect account
-    const account = await createConnectAccount(user, country)
+    let account
+    let isNewAccount = false
+
+    // If user has partial account, try to retrieve it first
+    if (user.stripeConnect?.accountId) {
+      try {
+        account = await retrieveConnectAccount(user.stripeConnect.accountId)
+        console.log('Retrieved existing Connect account:', account.id)
+      } catch (error) {
+        console.log(
+          'Existing account not found or inaccessible, creating new one'
+        )
+
+        // Reset invalid account data
+        user.stripeConnect = {
+          accountId: null,
+          isVerified: false,
+          onboardingCompleted: false,
+          capabilities: {},
+          requirementsNeeded: [],
+        }
+        await user.save()
+
+        account = null
+      }
+    }
+
+    // Create new account if needed
+    if (!account) {
+      account = await createConnectAccount(user, country)
+      isNewAccount = true
+      console.log('Created new Connect account:', account.id)
+    }
 
     // Update user with Connect account info
     await user.updateConnectAccountStatus(account)
@@ -49,7 +100,10 @@ export const createConnectAccountForUser = async (req, res, next) => {
       data: {
         accountId: account.id,
         onboardingUrl: accountLink.url,
-        message: 'Connect account created successfully',
+        isNewAccount,
+        message: isNewAccount
+          ? 'Connect account created successfully'
+          : 'Resuming Connect account setup',
       },
     })
   } catch (error) {
@@ -58,8 +112,68 @@ export const createConnectAccountForUser = async (req, res, next) => {
   }
 }
 
-// Get Connect account onboarding link
+// Get Connect account onboarding link - IMPROVED
 export const getConnectOnboardingLink = async (req, res, next) => {
+  try {
+    const user = req.user
+
+    if (!user.stripeConnect?.accountId) {
+      return next(
+        createError(400, 'No Connect account found. Please create one first.')
+      )
+    }
+
+    // Always allow re-onboarding if not completed or not verified
+    const returnUrl = `${process.env.FRONTEND_URL}/dashboard/payouts?setup=success`
+    const refreshUrl = `${process.env.FRONTEND_URL}/dashboard/payouts?setup=refresh`
+
+    try {
+      const accountLink = await createAccountLink(
+        user.stripeConnect.accountId,
+        returnUrl,
+        refreshUrl
+      )
+
+      res.status(200).json({
+        status: 'success',
+        data: {
+          onboardingUrl: accountLink.url,
+          message: 'Onboarding link created',
+        },
+      })
+    } catch (error) {
+      // If account is invalid, reset it
+      if (
+        error.code === 'account_invalid' ||
+        error.type === 'StripePermissionError'
+      ) {
+        user.stripeConnect = {
+          accountId: null,
+          isVerified: false,
+          onboardingCompleted: false,
+          capabilities: {},
+          requirementsNeeded: [],
+        }
+        await user.save()
+
+        return next(
+          createError(
+            400,
+            'Account was invalid and has been reset. Please create a new account.'
+          )
+        )
+      }
+
+      throw error
+    }
+  } catch (error) {
+    console.error('Error creating onboarding link:', error)
+    next(createError(500, 'Failed to create onboarding link'))
+  }
+}
+
+// Create account management link (for updating bank details)
+export const createAccountManagementLink = async (req, res, next) => {
   try {
     const user = req.user
 
@@ -67,33 +181,56 @@ export const getConnectOnboardingLink = async (req, res, next) => {
       return next(createError(400, 'No Connect account found'))
     }
 
-    // Check if onboarding is already completed
-    if (user.stripeConnect.onboardingCompleted) {
-      return next(createError(400, 'Onboarding already completed'))
+    const returnUrl = `${process.env.FRONTEND_URL}/dashboard/payouts`
+
+    try {
+      // Create account link for account update
+      const accountLink = await stripe.accountLinks.create({
+        account: user.stripeConnect.accountId,
+        refresh_url: returnUrl,
+        return_url: returnUrl,
+        type: 'account_update',
+      })
+
+      res.status(200).json({
+        status: 'success',
+        data: {
+          managementUrl: accountLink.url,
+          message: 'Account management link created',
+        },
+      })
+    } catch (error) {
+      // If account is invalid, reset it
+      if (
+        error.code === 'account_invalid' ||
+        error.type === 'StripePermissionError'
+      ) {
+        user.stripeConnect = {
+          accountId: null,
+          isVerified: false,
+          onboardingCompleted: false,
+          capabilities: {},
+          requirementsNeeded: [],
+        }
+        await user.save()
+
+        return next(
+          createError(
+            400,
+            'Account was invalid and has been reset. Please create a new account.'
+          )
+        )
+      }
+
+      throw error
     }
-
-    const returnUrl = `${process.env.FRONTEND_URL}/dashboard/payouts?setup=success`
-    const refreshUrl = `${process.env.FRONTEND_URL}/dashboard/payouts?setup=refresh`
-
-    const accountLink = await createAccountLink(
-      user.stripeConnect.accountId,
-      returnUrl,
-      refreshUrl
-    )
-
-    res.status(200).json({
-      status: 'success',
-      data: {
-        onboardingUrl: accountLink.url,
-      },
-    })
   } catch (error) {
-    console.error('Error creating onboarding link:', error)
-    next(createError(500, 'Failed to create onboarding link'))
+    console.error('Error creating management link:', error)
+    next(createError(500, 'Failed to create account management link'))
   }
 }
 
-// Get Connect account status
+// Get Connect account status - IMPROVED WITH ERROR HANDLING
 export const getConnectAccountStatus = async (req, res, next) => {
   try {
     const user = req.user
@@ -103,30 +240,128 @@ export const getConnectAccountStatus = async (req, res, next) => {
         status: 'success',
         data: {
           connected: false,
+          needsSetup: true,
           message: 'No Connect account found',
+          actions: {
+            canCreateAccount: true,
+            canRetryOnboarding: false,
+            canManageAccount: false,
+          },
         },
       })
     }
 
+    let account = null
+    let syncError = false
+    let shouldResetAccount = false
+
     // Sync with Stripe to get latest status
     try {
-      const account = await retrieveConnectAccount(user.stripeConnect.accountId)
+      account = await retrieveConnectAccount(user.stripeConnect.accountId)
       await user.updateConnectAccountStatus(account)
     } catch (error) {
       console.error('Error syncing Connect account:', error)
-      // Continue with cached data if sync fails
+      syncError = true
+
+      // Check if this is an invalid account error
+      if (
+        error.code === 'account_invalid' ||
+        error.type === 'StripePermissionError' ||
+        error.message?.includes('does not have access to account') ||
+        error.message?.includes('account does not exist')
+      ) {
+        console.log(
+          `Invalid Connect account detected for user ${user._id}: ${user.stripeConnect.accountId}`
+        )
+        shouldResetAccount = true
+      }
+      // Continue with cached data for other errors
+    }
+
+    // If account is invalid, reset it and return setup state
+    if (shouldResetAccount) {
+      console.log(`Resetting invalid Connect account for user ${user._id}`)
+
+      // Reset user's Connect data
+      user.stripeConnect = {
+        accountId: null,
+        isVerified: false,
+        onboardingCompleted: false,
+        capabilities: {},
+        requirementsNeeded: [],
+      }
+
+      await user.save()
+
+      return res.status(200).json({
+        status: 'success',
+        data: {
+          connected: false,
+          needsSetup: true,
+          accountReset: true,
+          message: 'Previous account was invalid and has been reset',
+          actions: {
+            canCreateAccount: true,
+            canRetryOnboarding: false,
+            canManageAccount: false,
+          },
+        },
+      })
+    }
+
+    // Determine account state
+    const hasRequirements = user.stripeConnect.requirementsNeeded?.length > 0
+    const isVerified = user.stripeConnect.isVerified
+    const onboardingCompleted = user.stripeConnect.onboardingCompleted
+    const canReceivePayouts = user.canReceivePayouts()
+
+    let accountState = 'unknown'
+    let needsAction = true
+
+    if (syncError && !shouldResetAccount) {
+      accountState = 'sync_error'
+    } else if (!onboardingCompleted) {
+      accountState = 'onboarding_incomplete'
+    } else if (hasRequirements) {
+      accountState = 'verification_required'
+    } else if (isVerified && canReceivePayouts) {
+      accountState = 'verified'
+      needsAction = false
+    } else {
+      accountState = 'pending_verification'
     }
 
     const connectStatus = {
       connected: true,
       accountId: user.stripeConnect.accountId,
-      verified: user.stripeConnect.isVerified,
-      onboardingCompleted: user.stripeConnect.onboardingCompleted,
-      canReceivePayouts: user.canReceivePayouts(),
+      verified: isVerified,
+      onboardingCompleted,
+      canReceivePayouts,
+      accountState,
+      needsAction,
+      syncError,
       requirements: user.stripeConnect.requirementsNeeded || [],
       capabilities: user.stripeConnect.capabilities,
       payoutSettings: user.stripeConnect.payoutSettings,
       minimumPayoutAmount: user.getMinimumPayoutAmount(),
+      actions: {
+        canCreateAccount: false,
+        canRetryOnboarding: !onboardingCompleted || hasRequirements,
+        canManageAccount: onboardingCompleted && !syncError,
+        canRequestPayout: canReceivePayouts && !syncError,
+      },
+      messages: {
+        primary: getStatusMessage(accountState, hasRequirements),
+        requirements: hasRequirements
+          ? `Please complete: ${user.stripeConnect.requirementsNeeded.join(
+              ', '
+            )}`
+          : null,
+        syncError:
+          syncError && !shouldResetAccount
+            ? 'Unable to sync with Stripe. Account data may be outdated.'
+            : null,
+      },
     }
 
     res.status(200).json({
@@ -136,6 +371,157 @@ export const getConnectAccountStatus = async (req, res, next) => {
   } catch (error) {
     console.error('Error getting Connect account status:', error)
     next(createError(500, 'Failed to retrieve account status'))
+  }
+}
+
+// Force refresh account status
+export const refreshConnectAccountStatus = async (req, res, next) => {
+  try {
+    const user = req.user
+
+    if (!user.stripeConnect?.accountId) {
+      return next(createError(400, 'No Connect account found'))
+    }
+
+    // Force refresh from Stripe
+    try {
+      const account = await retrieveConnectAccount(user.stripeConnect.accountId)
+      await user.updateConnectAccountStatus(account)
+    } catch (error) {
+      // Handle invalid account during refresh
+      if (
+        error.code === 'account_invalid' ||
+        error.type === 'StripePermissionError'
+      ) {
+        user.stripeConnect = {
+          accountId: null,
+          isVerified: false,
+          onboardingCompleted: false,
+          capabilities: {},
+          requirementsNeeded: [],
+        }
+        await user.save()
+
+        return next(
+          createError(
+            400,
+            'Account was invalid and has been reset. Please create a new account.'
+          )
+        )
+      }
+      throw error
+    }
+
+    // Return updated status
+    return getConnectAccountStatus(req, res, next)
+  } catch (error) {
+    console.error('Error refreshing Connect account status:', error)
+    next(createError(500, 'Failed to refresh account status'))
+  }
+}
+
+// Delete/Reset Connect account (for testing)
+export const resetConnectAccount = async (req, res, next) => {
+  try {
+    const user = req.user
+
+    if (!user.stripeConnect?.accountId) {
+      return next(createError(400, 'No Connect account to reset'))
+    }
+
+    // In test mode, we can delete the account
+    if (process.env.NODE_ENV !== 'production') {
+      try {
+        await stripe.accounts.del(user.stripeConnect.accountId)
+      } catch (error) {
+        console.log('Error deleting Stripe account:', error.message)
+        // Continue even if deletion fails
+      }
+    }
+
+    // Reset user's Connect data
+    user.stripeConnect = {
+      accountId: null,
+      isVerified: false,
+      onboardingCompleted: false,
+      capabilities: {},
+      requirementsNeeded: [],
+    }
+
+    await user.save()
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        message: 'Connect account reset successfully',
+      },
+    })
+  } catch (error) {
+    console.error('Error resetting Connect account:', error)
+    next(createError(500, 'Failed to reset Connect account'))
+  }
+}
+
+// Helper function to clean up invalid Connect accounts (Admin/Dev utility)
+export const cleanupInvalidConnectAccounts = async (req, res, next) => {
+  try {
+    // Only allow in development or for admins
+    if (process.env.NODE_ENV === 'production' && req.user.role !== 'admin') {
+      return next(createError(403, 'Not authorized'))
+    }
+
+    const usersWithConnect = await User.find({
+      'stripeConnect.accountId': { $exists: true, $ne: null },
+    })
+
+    let cleanedCount = 0
+    let validCount = 0
+
+    console.log(`Found ${usersWithConnect.length} users with Connect accounts`)
+
+    for (const user of usersWithConnect) {
+      try {
+        // Try to retrieve the account
+        await retrieveConnectAccount(user.stripeConnect.accountId)
+        validCount++
+      } catch (error) {
+        if (
+          error.code === 'account_invalid' ||
+          error.type === 'StripePermissionError' ||
+          error.message?.includes('does not have access to account') ||
+          error.message?.includes('account does not exist')
+        ) {
+          console.log(
+            `Cleaning up invalid account for user ${user._id}: ${user.stripeConnect.accountId}`
+          )
+
+          // Reset user's Connect data
+          user.stripeConnect = {
+            accountId: null,
+            isVerified: false,
+            onboardingCompleted: false,
+            capabilities: {},
+            requirementsNeeded: [],
+          }
+
+          await user.save()
+          cleanedCount++
+        }
+      }
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        totalChecked: usersWithConnect.length,
+        validAccounts: validCount,
+        cleanedAccounts: cleanedCount,
+        message: `Cleanup complete: ${cleanedCount} invalid accounts reset, ${validCount} valid accounts found`,
+      },
+    })
+  } catch (error) {
+    console.error('Error during cleanup:', error)
+    next(createError(500, 'Failed to cleanup invalid accounts'))
   }
 }
 

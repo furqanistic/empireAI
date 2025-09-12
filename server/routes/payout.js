@@ -12,6 +12,7 @@ import {
 } from '../controllers/earnings.js'
 import {
   cancelPayoutRequest,
+  cleanupInvalidConnectAccounts,
   createConnectAccountForUser,
   getAllPayouts,
   getConnectAccountStatus,
@@ -65,6 +66,8 @@ router.get('/history', getPayoutHistory)
 
 // Cancel payout request
 router.delete('/:payoutId/cancel', cancelPayoutRequest)
+
+router.post('/connect/cleanup-invalid', cleanupInvalidConnectAccounts)
 
 // ADMIN ONLY ROUTES
 router.use(restrictTo('admin'))

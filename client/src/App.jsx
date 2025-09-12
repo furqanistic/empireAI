@@ -174,9 +174,9 @@ const App = () => {
         <Route
           path='/payout'
           element={
-            <AdminRoute>
+            <ProtectedRoute>
               <PayoutDashboard />
-            </AdminRoute>
+            </ProtectedRoute>
           }
         />
 

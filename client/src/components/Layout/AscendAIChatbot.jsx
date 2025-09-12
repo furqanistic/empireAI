@@ -1,3 +1,4 @@
+// File: client/src/components/Layout/AscendAIChatbot.jsx - FIXED WITH PERSISTENT STATE
 import {
   Bot,
   ChevronDown,
@@ -22,8 +23,25 @@ import {
 import React, { useEffect, useRef, useState } from 'react'
 
 const AscendAIChatbot = () => {
-  const [isOpen, setIsOpen] = useState(true) // Set to true for demo
-  const [isMinimized, setIsMinimized] = useState(false)
+  // Initialize state from localStorage, default to false (closed)
+  const [isOpen, setIsOpen] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ascend-ai-chatbot-open')
+      return saved !== null ? JSON.parse(saved) : false
+    } catch {
+      return false
+    }
+  })
+
+  const [isMinimized, setIsMinimized] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ascend-ai-chatbot-minimized')
+      return saved !== null ? JSON.parse(saved) : false
+    } catch {
+      return false
+    }
+  })
+
   const [currentView, setCurrentView] = useState('chat') // 'chat' | 'history'
   const [inputMessage, setInputMessage] = useState('')
   const [unreadCount, setUnreadCount] = useState(0)
@@ -83,6 +101,26 @@ const AscendAIChatbot = () => {
       messageCount: 8,
     },
   ]
+
+  // Save chatbot state to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('ascend-ai-chatbot-open', JSON.stringify(isOpen))
+    } catch (error) {
+      console.warn('Could not save chatbot open state:', error)
+    }
+  }, [isOpen])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'ascend-ai-chatbot-minimized',
+        JSON.stringify(isMinimized)
+      )
+    } catch (error) {
+      console.warn('Could not save chatbot minimized state:', error)
+    }
+  }, [isMinimized])
 
   // Auto scroll to bottom when new messages arrive
   const scrollToBottom = () => {
