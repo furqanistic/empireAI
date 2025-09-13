@@ -1,10 +1,11 @@
-// File: client/src/hooks/useChat.js
+// File: client/src/hooks/useChat.js - ENHANCED WITH OPTIMISTIC UPDATES
 import { chatService } from '@/services/chatServices'
 import { useEffect, useState } from 'react'
 
 export const useChat = (currentChatId = null) => {
   const [chats, setChats] = useState([])
   const [currentChat, setCurrentChat] = useState(null)
+  const [localMessages, setLocalMessages] = useState([]) // NEW: For optimistic updates
   const [isLoading, setIsLoading] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState(null)
@@ -17,11 +18,23 @@ export const useChat = (currentChatId = null) => {
   // Load specific chat when currentChatId changes
   useEffect(() => {
     if (currentChatId) {
+      console.log('useChat: Loading chat with ID:', currentChatId) // Debug log
       loadChat(currentChatId)
     } else {
+      console.log('useChat: No currentChatId, clearing chat') // Debug log
       setCurrentChat(null)
+      setLocalMessages([]) // Clear local messages when no chat selected
     }
   }, [currentChatId])
+
+  // NEW: Sync local messages with current chat messages
+  useEffect(() => {
+    if (currentChat?.messages) {
+      setLocalMessages(currentChat.messages)
+    } else {
+      setLocalMessages([])
+    }
+  }, [currentChat])
 
   const loadChatHistory = async () => {
     try {
@@ -51,6 +64,7 @@ export const useChat = (currentChatId = null) => {
 
       if (response.success) {
         setCurrentChat(response.data)
+        // Local messages will be synced via useEffect
       } else {
         throw new Error(response.message || 'Failed to load chat')
       }
@@ -58,6 +72,7 @@ export const useChat = (currentChatId = null) => {
       console.error('Error loading chat:', err)
       setError(err.message || 'Failed to load chat')
       setCurrentChat(null)
+      setLocalMessages([])
     } finally {
       setIsLoading(false)
     }
@@ -72,6 +87,7 @@ export const useChat = (currentChatId = null) => {
         const newChat = response.data
         setChats((prev) => [newChat, ...prev])
         setCurrentChat(newChat)
+        setLocalMessages([]) // Clear local messages for new chat
         return newChat
       } else {
         throw new Error(response.message || 'Failed to create new chat')
@@ -83,10 +99,23 @@ export const useChat = (currentChatId = null) => {
     }
   }
 
+  // ENHANCED: Send message with optimistic updates
   const sendMessage = async (message) => {
+    // Create optimistic user message
+    const optimisticUserMessage = {
+      _id: `temp-user-${Date.now()}`,
+      role: 'user',
+      content: message,
+      timestamp: new Date().toISOString(),
+      isTemporary: true,
+    }
+
     try {
       setIsSending(true)
       setError(null)
+
+      // Immediately add user message to local state (optimistic update)
+      setLocalMessages((prev) => [...prev, optimisticUserMessage])
 
       // Use current chat ID or 'new' for new chats
       const chatId = currentChatId || 'new'
@@ -96,7 +125,9 @@ export const useChat = (currentChatId = null) => {
         // If this was a new chat, we got a chatId back
         const resultChatId = response.data?.chatId
 
-        // Reload the chat to get updated messages
+        // Remove temporary message and reload chat to get real messages
+        setLocalMessages((prev) => prev.filter((msg) => !msg.isTemporary))
+
         if (resultChatId) {
           await loadChat(resultChatId)
         }
@@ -112,6 +143,10 @@ export const useChat = (currentChatId = null) => {
       }
     } catch (err) {
       console.error('Error sending message:', err)
+
+      // Remove temporary message on error
+      setLocalMessages((prev) => prev.filter((msg) => !msg.isTemporary))
+
       setError(err.message || 'Failed to send message')
       throw err
     } finally {
@@ -131,6 +166,7 @@ export const useChat = (currentChatId = null) => {
         // Clear current chat if it was deleted
         if (currentChatId === chatId) {
           setCurrentChat(null)
+          setLocalMessages([])
         }
       } else {
         throw new Error(response.message || 'Failed to delete chat')
@@ -150,6 +186,7 @@ export const useChat = (currentChatId = null) => {
       if (response.success) {
         setChats([])
         setCurrentChat(null)
+        setLocalMessages([])
       } else {
         throw new Error(response.message || 'Failed to clear chats')
       }
@@ -160,9 +197,17 @@ export const useChat = (currentChatId = null) => {
     }
   }
 
+  // ENHANCED: Return enhanced current chat with local messages
+  const enhancedCurrentChat = currentChat
+    ? {
+        ...currentChat,
+        messages: localMessages, // Use local messages for real-time updates
+      }
+    : null
+
   return {
     chats,
-    currentChat,
+    currentChat: enhancedCurrentChat, // CHANGED: Return enhanced chat with local messages
     isLoading,
     isSending,
     error,

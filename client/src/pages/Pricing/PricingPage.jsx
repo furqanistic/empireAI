@@ -361,8 +361,6 @@ const PricingPage = () => {
         'Full Automation Suite',
         'Empire Architect AI',
         'Direct Mentor Access',
-        'White-label Rights',
-        '1-on-1 Strategy Calls',
       ],
       icon: <Star />,
       buttonText: 'Go Empire',

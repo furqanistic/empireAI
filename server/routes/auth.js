@@ -1,15 +1,17 @@
-// File: server/routes/auth.js - UPDATED WITH ADMIN STATS ENDPOINT
+// File: server/routes/auth.js - UPDATED WITH PASSWORD RESET ROUTES
 import express from 'express'
 import { getAdminStats } from '../controllers/admin.js' // Import admin stats
 import {
   changePassword,
   claimDailyPoints,
   deleteUser,
+  forgotPassword, // NEW: Password reset endpoints
   getAllUsers,
   getPointsLeaderboard,
   getPointsStatus,
   getUserProfile,
-  logout,
+  logout, // NEW: Password reset endpoints
+  resetPassword,
   signin,
   signup,
   updateUser,
@@ -19,9 +21,15 @@ import discordRoutes from './discord.js'
 
 const router = express.Router()
 
-// Public routes
+// Public routes (no authentication required)
 router.post('/signup', signup)
 router.post('/signin', signin)
+
+// Password reset routes (public)
+router.post('/forgot-password', forgotPassword)
+router.post('/reset-password/:token', resetPassword)
+
+// Discord routes
 router.use('/discord', discordRoutes)
 
 // Protected routes (require authentication)

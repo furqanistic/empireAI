@@ -30,6 +30,7 @@
     "passport": "^0.7.0",
     "passport-discord": "^0.1.4",
     "pdfkit": "^0.17.2",
+    "resend": "^6.0.3",
     "stripe": "^18.5.0"
   }
 }

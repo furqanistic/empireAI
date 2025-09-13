@@ -1,9 +1,15 @@
-// File: controllers/auth.js - UPDATED WITH POINTS SYSTEM
+// File: controllers/auth.js - UPDATED WITH PASSWORD RESET FUNCTIONALITY
 import jwt from 'jsonwebtoken'
 import mongoose from 'mongoose'
 import { createError } from '../error.js'
 import Notification from '../models/Notification.js'
 import User from '../models/User.js'
+import {
+  checkPasswordResetRateLimit,
+  isValidEmail,
+  sendPasswordResetEmail,
+  sendPasswordResetSuccessEmail,
+} from '../services/emailService.js'
 
 const signToken = (id) => {
   const jwtSecret = process.env.JWT_SECRET
@@ -64,8 +70,7 @@ export const signup = async (req, res, next) => {
     }
 
     // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) {
+    if (!isValidEmail(email)) {
       await session.abortTransaction()
       return next(createError(400, 'Please provide a valid email address'))
     }
@@ -197,6 +202,192 @@ export const signin = async (req, res, next) => {
   } catch (err) {
     console.error('Error in signin:', err)
     next(createError(500, 'An unexpected error occurred during login'))
+  }
+}
+
+// NEW: Forgot Password - Send reset email
+export const forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body
+
+    if (!email) {
+      return next(createError(400, 'Please provide your email address'))
+    }
+
+    if (!isValidEmail(email)) {
+      return next(createError(400, 'Please provide a valid email address'))
+    }
+
+    // Check rate limiting for this email
+    const rateLimitCheck = checkPasswordResetRateLimit(
+      email.toLowerCase().trim()
+    )
+
+    if (!rateLimitCheck.allowed) {
+      return next(createError(429, rateLimitCheck.message))
+    }
+
+    // Find user by email
+    const user = await User.findOne({
+      email: email.toLowerCase().trim(),
+      isActive: true,
+      isDeleted: false,
+    })
+
+    // Always return success message for security (don't reveal if email exists)
+    const successMessage =
+      'If an account with that email exists, we have sent a password reset link.'
+
+    if (!user) {
+      return res.status(200).json({
+        status: 'success',
+        message: successMessage,
+      })
+    }
+
+    // Generate password reset token
+    const resetToken = user.createPasswordResetToken()
+
+    // Save user with reset token (don't run validations)
+    await user.save({ validateBeforeSave: false })
+
+    try {
+      // Send password reset email
+      const emailResult = await sendPasswordResetEmail(user, resetToken)
+
+      console.log(
+        `Password reset email sent to ${user.email}:`,
+        emailResult.messageId
+      )
+
+      // In development, also log the reset URL for testing
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Password reset URL (DEV ONLY):', emailResult.resetUrl)
+      }
+
+      res.status(200).json({
+        status: 'success',
+        message: successMessage,
+        // Include additional info in development
+        ...(process.env.NODE_ENV === 'development' && {
+          dev: {
+            resetToken,
+            resetUrl: emailResult.resetUrl,
+            expiresIn: '10 minutes',
+          },
+        }),
+      })
+    } catch (emailError) {
+      // If email fails, clear the reset token
+      user.passwordResetToken = undefined
+      user.passwordResetExpires = undefined
+      await user.save({ validateBeforeSave: false })
+
+      console.error('Failed to send password reset email:', emailError)
+      return next(
+        createError(
+          500,
+          'There was an error sending the email. Please try again later.'
+        )
+      )
+    }
+  } catch (error) {
+    console.error('Error in forgotPassword:', error)
+    next(
+      createError(500, 'An unexpected error occurred. Please try again later.')
+    )
+  }
+}
+
+// NEW: Reset Password - Validate token and update password
+export const resetPassword = async (req, res, next) => {
+  try {
+    const { token } = req.params
+    const { password, confirmPassword } = req.body
+
+    if (!token) {
+      return next(createError(400, 'Password reset token is required'))
+    }
+
+    if (!password || !confirmPassword) {
+      return next(
+        createError(400, 'Please provide password and confirm password')
+      )
+    }
+
+    if (password !== confirmPassword) {
+      return next(
+        createError(400, 'Password and confirm password do not match')
+      )
+    }
+
+    if (password.length < 8) {
+      return next(
+        createError(400, 'Password must be at least 8 characters long')
+      )
+    }
+
+    // Find user by valid reset token
+    const user = await User.findByValidResetToken(token)
+
+    if (!user) {
+      return next(
+        createError(
+          400,
+          'Password reset token is invalid or has expired. Please request a new one.'
+        )
+      )
+    }
+
+    // Update password (will be hashed by pre-save middleware)
+    // The pre-save middleware will also clear the reset token fields
+    user.password = password
+    user.passwordChangedAt = new Date()
+
+    await user.save()
+
+    console.log(`Password reset successful for user: ${user.email}`)
+
+    // Send success notification email (don't fail if this fails)
+    try {
+      await sendPasswordResetSuccessEmail(user)
+    } catch (emailError) {
+      console.error('Failed to send password reset success email:', emailError)
+      // Continue with success response even if email fails
+    }
+
+    // Create notification for successful password reset
+    try {
+      await Notification.create({
+        user: user._id,
+        title: 'Password Reset Successful',
+        message: 'Your password has been successfully updated.',
+        type: 'security',
+        isRead: false,
+        metadata: {
+          action: 'password_reset',
+          timestamp: new Date(),
+        },
+      })
+    } catch (notificationError) {
+      console.error(
+        'Failed to create password reset notification:',
+        notificationError
+      )
+    }
+
+    // Get updated user for response
+    const updatedUser = await User.findById(user._id)
+      .populate('referredBy', 'name email referralCode')
+      .select('-password')
+
+    // Sign in the user with new password
+    createSendToken(updatedUser, 200, res)
+  } catch (error) {
+    console.error('Error in resetPassword:', error)
+    next(
+      createError(500, 'An unexpected error occurred. Please try again later.')
+    )
   }
 }
 
@@ -335,8 +526,7 @@ export const updateUser = async (req, res, next) => {
 
     // Validate email if being updated
     if (email) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-      if (!emailRegex.test(email)) {
+      if (!isValidEmail(email)) {
         return next(createError(400, 'Please provide a valid email address'))
       }
 

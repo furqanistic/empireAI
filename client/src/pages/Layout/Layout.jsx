@@ -1,4 +1,5 @@
-// File: client/src/pages/Layout/Layout.jsx - UPDATED WITH CHATBOT INTEGRATION
+// File: client/src/pages/Layout/Layout.jsx - UPDATED WITH COPYRIGHT & TRADEMARK NOTICES
+
 import AscendAIChatbot from '@/components/Layout/AscendAIChatbot.jsx'
 import NotificationDrawer from '@/components/Layout/NotificationDrawer.jsx'
 import {
@@ -7,7 +8,9 @@ import {
   Box,
   CreditCard,
   Crown,
+  CrownIcon,
   DollarSign,
+  Gem,
   Home,
   LogOut,
   Menu,
@@ -23,6 +26,7 @@ import {
   Zap,
 } from 'lucide-react'
 import React, { useState } from 'react'
+import { FaDiscord } from 'react-icons/fa'
 import { useSelector } from 'react-redux'
 import { Link, useLocation } from 'react-router-dom'
 import {
@@ -55,6 +59,37 @@ const Layout = ({ children }) => {
   // Get current location to determine active menu item
   const location = useLocation()
 
+  const CustomCrown = ({ size = 16, className = '' }) => (
+    <svg
+      xmlns='http://www.w3.org/2000/svg'
+      viewBox='0 0 256 256'
+      width='1em'
+      height='1em'
+      className={className}
+    >
+      <path
+        fill='currentColor'
+        d='M248 80a28 28 0 1 0-51.12 15.77l-26.79 33L146 73.4a28 28 0 1 0-36.06 0l-24.03 55.34l-26.79-33a28 28 0 1 0-26.6 12L47 194.63A16 16 0 0 0 62.78 208h130.44A16 16 0 0 0 209 194.63l14.47-86.85A28 28 0 0 0 248 80M128 40a12 12 0 1 1-12 12a12 12 0 0 1 12-12M24 80a12 12 0 1 1 12 12a12 12 0 0 1-12-12m196 12a12 12 0 1 1 12-12a12 12 0 0 1-12 12'
+      />
+    </svg>
+  )
+
+  const AIIcon = ({ size = 16, className = '' }) => (
+    <div className={`relative ${className}`}>
+      <div className='relative flex items-center justify-center'>
+        <MessageCircle size={size} className='text-current' />
+
+        {/* Crown with glow */}
+        <div className='absolute -top-2.25 right-0.5'>
+          <CustomCrown
+            size={size * 0.6}
+            className='relative text-current z-10'
+          />
+        </div>
+      </div>
+    </div>
+  )
+
   const menuItems = [
     {
       id: 'dashboard',
@@ -69,6 +104,12 @@ const Layout = ({ children }) => {
       path: '/build',
       badge: 'START HERE',
       badgeColor: 'bg-emerald-500',
+    },
+    {
+      id: 'ai-chat',
+      label: 'AI Assistant',
+      icon: <AIIcon size={18} />,
+      path: '/chat',
     },
     {
       id: 'earnings',
@@ -109,10 +150,9 @@ const Layout = ({ children }) => {
     {
       id: 'pricing',
       label: 'Pricing',
-      icon: <Crown size={18} />,
+      icon: <Gem size={18} />,
       path: '/pricing',
     },
-    // Conditionally add Admin page for admin users
     ...(isAdmin
       ? [
           {
@@ -131,7 +171,7 @@ const Layout = ({ children }) => {
     {
       id: 'discord',
       label: 'Discord Server',
-      icon: <MessageCircle size={18} />,
+      icon: <FaDiscord size={18} />,
       path: 'https://discord.gg/eP48PSyU', // Replace with your actual Discord invite link
       external: true,
       badge: 'JOIN',
@@ -286,9 +326,7 @@ const Layout = ({ children }) => {
             }`}
           >
             <div className='text-[#D4AF37] p-2 rounded-lg bg-[#D4AF37]/10'>
-              <svg viewBox='0 0 24 24' fill='currentColor' className='w-6 h-6'>
-                <path d='M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z' />
-              </svg>
+              <CrownIcon />
             </div>
             {showText && sidebarOpen && (
               <div>
@@ -361,7 +399,8 @@ const Layout = ({ children }) => {
       </nav>
 
       {/* Footer */}
-      <div className='border-t border-[#1E1E21] p-3'>
+      <div className='border-t border-[#1E1E21] p-3 space-y-3'>
+        {/* Logout Button */}
         <button
           onClick={handleLogout}
           disabled={logoutMutation.isPending}
@@ -517,12 +556,24 @@ const Layout = ({ children }) => {
       />
 
       {/* Main Content */}
-      <main className='flex-1 overflow-auto pt-14 md:pt-16 bg-[#0B0B0C]'>
-        {children}
+      <main className='flex-1 overflow-auto pt-14 md:pt-16 bg-[#0B0B0C] flex flex-col'>
+        <div className='flex-1'>{children}</div>
+
+        {/* Minimal Footer with Copyright & Trademark */}
+        <footer className='mt-auto border-t border-[#1E1E21] bg-[#0B0B0C] py-3 px-4'>
+          <div className='text-center'>
+            <div className='text-[10px] text-gray-600 space-y-1'>
+              <div>
+                © {new Date().getFullYear()} Ascend AI. All rights reserved.
+              </div>
+              <div>Ascend AI™ is a trademark of Ascend AI Empire.</div>
+            </div>
+          </div>
+        </footer>
       </main>
 
-      {/* Ascend AI Chatbot - Added at the very end */}
-      <AscendAIChatbot />
+      {/* Ascend AI Chatbot - Only show if not on /chat route */}
+      {location.pathname !== '/chat' && <AscendAIChatbot />}
     </div>
   )
 }

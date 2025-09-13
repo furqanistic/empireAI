@@ -18,6 +18,8 @@ import {
   X,
   Zap,
 } from 'lucide-react'
+import { FaDiscord } from 'react-icons/fa'
+
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -367,7 +369,7 @@ const DashboardPage = () => {
             <div className='lg:col-span-4 text-center lg:text-left'>
               <div className='flex items-center justify-center lg:justify-start gap-4 mb-3'>
                 <div className='w-12 h-12 bg-[#5865F2] rounded-xl flex items-center justify-center'>
-                  <MessageCircle size={20} className='text-white' />
+                  <FaDiscord size={24} className='text-white' />
                 </div>
                 <div>
                   <h2 className='text-xl font-bold text-[#EDEDED] mb-1'>

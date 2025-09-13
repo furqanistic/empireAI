@@ -1,4 +1,4 @@
-// File: models/User.js - COMPLETE MODEL WITH DISCORD INTEGRATION
+// File: models/User.js - UPDATED WITH PASSWORD RESET FUNCTIONALITY
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import mongoose from 'mongoose'
@@ -32,6 +32,16 @@ const UserSchema = new mongoose.Schema(
     },
     passwordChangedAt: {
       type: Date,
+    },
+
+    // Password Reset Fields
+    passwordResetToken: {
+      type: String,
+      select: false, // Don't include in queries by default
+    },
+    passwordResetExpires: {
+      type: Date,
+      select: false, // Don't include in queries by default
     },
 
     // Points System
@@ -364,6 +374,8 @@ UserSchema.index({ 'discord.discordId': 1 })
 UserSchema.index({ isDeleted: 1, isActive: 1 })
 UserSchema.index({ lastDailyClaim: 1 })
 UserSchema.index({ points: -1 })
+UserSchema.index({ passwordResetToken: 1 }) // Index for password reset tokens
+UserSchema.index({ passwordResetExpires: 1 }) // Index for password reset expiry
 
 // Pre-save middleware to hash password
 UserSchema.pre('save', async function (next) {
@@ -376,6 +388,10 @@ UserSchema.pre('save', async function (next) {
     if (!this.isNew) {
       this.passwordChangedAt = new Date(Date.now() - 1000)
     }
+
+    // Clear password reset fields when password is changed
+    this.passwordResetToken = undefined
+    this.passwordResetExpires = undefined
 
     next()
   } catch (error) {
@@ -437,6 +453,48 @@ UserSchema.methods.changedPasswordAfter = function (JWTTimestamp) {
     return JWTTimestamp < changedTimestamp
   }
   return false
+}
+
+// Method to create password reset token
+UserSchema.methods.createPasswordResetToken = function () {
+  // Generate random token
+  const resetToken = crypto.randomBytes(32).toString('hex')
+
+  // Hash token and save to database
+  this.passwordResetToken = crypto
+    .createHash('sha256')
+    .update(resetToken)
+    .digest('hex')
+
+  // Set expiry time (10 minutes from now)
+  this.passwordResetExpires = Date.now() + 10 * 60 * 1000
+
+  // Return unhashed token (this will be sent via email)
+  return resetToken
+}
+
+// Method to validate password reset token
+UserSchema.methods.validatePasswordResetToken = function (token) {
+  // Hash the incoming token
+  const hashedToken = crypto.createHash('sha256').update(token).digest('hex')
+
+  // Check if token matches and hasn't expired
+  return (
+    this.passwordResetToken === hashedToken &&
+    this.passwordResetExpires > Date.now()
+  )
+}
+
+// Static method to find user by valid reset token
+UserSchema.statics.findByValidResetToken = function (token) {
+  const hashedToken = crypto.createHash('sha256').update(token).digest('hex')
+
+  return this.findOne({
+    passwordResetToken: hashedToken,
+    passwordResetExpires: { $gt: Date.now() },
+    isActive: true,
+    isDeleted: false,
+  }).select('+passwordResetToken +passwordResetExpires')
 }
 
 // Method to check if user can claim daily points

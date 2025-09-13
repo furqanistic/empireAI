@@ -1,6 +1,7 @@
 // File: client/src/components/Layout/AscendAIChatbot.jsx
 import {
   DollarSign,
+  Expand,
   History,
   Loader,
   Maximize2,
@@ -13,7 +14,38 @@ import {
   X,
 } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useChat } from '../../hooks/useChat'
+
+// Custom Crown SVG Component - EXPORTED
+export const CustomCrown = ({ size = 16, className = '' }) => (
+  <svg
+    xmlns='http://www.w3.org/2000/svg'
+    viewBox='0 0 256 256'
+    width='1em'
+    height='1em'
+    className={className}
+  >
+    <path
+      fill='currentColor'
+      d='M248 80a28 28 0 1 0-51.12 15.77l-26.79 33L146 73.4a28 28 0 1 0-36.06 0l-24.03 55.34l-26.79-33a28 28 0 1 0-26.6 12L47 194.63A16 16 0 0 0 62.78 208h130.44A16 16 0 0 0 209 194.63l14.47-86.85A28 28 0 0 0 248 80M128 40a12 12 0 1 1-12 12a12 12 0 0 1 12-12M24 80a12 12 0 1 1 12 12a12 12 0 0 1-12-12m196 12a12 12 0 1 1 12-12a12 12 0 0 1-12 12'
+    />
+  </svg>
+)
+
+// AIIcon Component - EXPORTED
+export const AIIcon = ({ size = 16, className = '' }) => (
+  <div className={`relative ${className}`}>
+    <div className='relative flex items-center justify-center'>
+      <MessageCircle size={size} className='text-current' />
+
+      {/* Crown with glow */}
+      <div className='absolute -top-2.5 right-1'>
+        <CustomCrown size={size * 0.6} className='relative text-current z-10' />
+      </div>
+    </div>
+  </div>
+)
 
 const AscendAIChatbot = () => {
   const [isOpen, setIsOpen] = useState(false)
@@ -24,6 +56,7 @@ const AscendAIChatbot = () => {
 
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
+  const navigate = useNavigate()
 
   const {
     chats,
@@ -109,6 +142,21 @@ const AscendAIChatbot = () => {
     }
   }
 
+  const handleExpandToFullscreen = () => {
+    console.log('Expanding to fullscreen with chatId:', currentChatId) // Debug log
+
+    // Navigate to chat page with current chat state
+    if (currentChatId) {
+      const url = `/chat?chatId=${currentChatId}`
+      console.log('Navigating to:', url) // Debug log
+      navigate(url)
+    } else {
+      console.log('No current chat, navigating to empty chat page') // Debug log
+      navigate('/chat')
+    }
+    setIsOpen(false)
+  }
+
   const formatTime = (timestamp) => {
     return new Date(timestamp).toLocaleTimeString([], {
       hour: '2-digit',
@@ -177,17 +225,38 @@ const AscendAIChatbot = () => {
     </div>
   )
 
+  // Replace the EmptyState component with this enhanced version:
   const EmptyState = () => (
     <div className='flex flex-col items-center justify-center h-full text-center p-8'>
       <div className='w-16 h-16 bg-gradient-to-br from-[#D4AF37] to-[#B8941F] rounded-full flex items-center justify-center mb-4 shadow-lg'>
         <DollarSign size={24} className='text-black font-bold' />
       </div>
       <h3 className='text-[#EDEDED] font-semibold text-lg mb-2'>
-        Ready to Build Your Empire?
+        Ready to Make $500 This Week?
       </h3>
-      <p className='text-gray-400 text-sm'>
-        Start a conversation with your AI business advisor
+      <p className='text-gray-400 text-sm mb-4'>
+        Ask me anything about affiliates, products, or growing your empire
       </p>
+      <div className='flex flex-wrap gap-2 justify-center'>
+        <button
+          onClick={() => setInputMessage('How do I make my first $100?')}
+          className='px-3 py-1 text-xs bg-[#1E1E21] text-[#D4AF37] rounded-full hover:bg-[#2A2A2D]'
+        >
+          Make first $100
+        </button>
+        <button
+          onClick={() => setInputMessage('Show me the affiliate math')}
+          className='px-3 py-1 text-xs bg-[#1E1E21] text-[#D4AF37] rounded-full hover:bg-[#2A2A2D]'
+        >
+          Affiliate earnings
+        </button>
+        <button
+          onClick={() => setInputMessage('What product should I create?')}
+          className='px-3 py-1 text-xs bg-[#1E1E21] text-[#D4AF37] rounded-full hover:bg-[#2A2A2D]'
+        >
+          Product ideas
+        </button>
+      </div>
     </div>
   )
 
@@ -273,12 +342,17 @@ const AscendAIChatbot = () => {
 
   return (
     <>
-      {/* Chat Widget */}
+      {/* Chat Widget - Fixed mobile positioning */}
       {isOpen && (
         <div
-          className={`fixed bottom-24 right-4 w-96 max-w-[calc(100vw-2rem)] bg-[#0B0B0C] border border-[#1E1E21] rounded-xl shadow-2xl z-50 transition-all duration-300 ${
-            isMinimized ? 'h-14' : 'h-[600px] max-h-[calc(100vh-8rem)]'
-          }`}
+          className={`fixed z-50 transition-all duration-300 bg-[#0B0B0C] border border-[#1E1E21] rounded-xl shadow-2xl
+            ${isMinimized ? 'h-14' : 'h-[600px] max-h-[calc(100vh-8rem)]'}
+            /* Desktop positioning */
+            md:bottom-24 md:right-4 md:w-96 md:max-w-[calc(100vw-2rem)]
+            /* Mobile positioning - Fixed alignment */
+            bottom-4 right-4 left-4 w-auto max-w-none
+            sm:left-auto sm:w-96 sm:max-w-[calc(100vw-2rem)]
+          `}
         >
           {/* Header */}
           <div className='flex items-center justify-between p-4 border-b border-[#1E1E21] bg-gradient-to-r from-[#121214] to-[#1A1A1C] rounded-t-xl'>
@@ -333,6 +407,17 @@ const AscendAIChatbot = () => {
                     }
                   >
                     <History
+                      size={14}
+                      className='text-gray-400 hover:text-[#D4AF37]'
+                    />
+                  </button>
+
+                  <button
+                    onClick={handleExpandToFullscreen}
+                    className='p-1.5 rounded-lg hover:bg-[#1E1E21] transition-colors'
+                    title='Expand to Fullscreen'
+                  >
+                    <Expand
                       size={14}
                       className='text-gray-400 hover:text-[#D4AF37]'
                     />
@@ -431,9 +516,6 @@ const AscendAIChatbot = () => {
                                       style={{ animationDelay: '0.4s' }}
                                     ></div>
                                   </div>
-                                  <span className='text-gray-400 text-xs ml-2'>
-                                    AI is thinking...
-                                  </span>
                                 </div>
                               </div>
                             </div>
@@ -486,17 +568,23 @@ const AscendAIChatbot = () => {
         </div>
       )}
 
-      {/* Floating Action Button */}
+      {/* Floating Action Button - Better mobile positioning */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className='fixed bottom-4 right-4 w-14 h-14 bg-gradient-to-br from-[#D4AF37] to-[#B8941F] text-black rounded-full shadow-2xl hover:shadow-[#D4AF37]/25 transition-all duration-300 hover:scale-110 z-50 flex items-center justify-center group'
+          className='fixed z-50 transition-all duration-300 hover:scale-110
+            w-14 h-14 bg-gradient-to-br from-[#D4AF37] to-[#B8941F] text-black rounded-full 
+            shadow-2xl hover:shadow-[#D4AF37]/25 flex items-center justify-center group
+            /* Desktop positioning */
+            md:bottom-4 md:right-4
+            /* Mobile positioning - Better alignment */
+            bottom-4 right-4
+          '
         >
-          <DollarSign
+          <AIIcon
             size={24}
-            className='transition-transform duration-300 group-hover:scale-110 font-bold'
+            className='transition-transform duration-300 group-hover:scale-110 font-bold text-black'
           />
-          <div className='absolute inset-0 rounded-full bg-gradient-to-br from-[#D4AF37] to-[#B8941F] animate-ping opacity-20'></div>
         </button>
       )}
     </>

@@ -9,6 +9,7 @@ import NicheLaunchpad from './pages/AIBuilder/NicheLaunchpad'
 import ProductGenerator from './pages/AIBuilder/ProductGenerator'
 import ViralHookFactory from './pages/AIBuilder/ViralHookFactory'
 import AuthPage from './pages/Auth/AuthPage'
+import ChatPage from './pages/Chat/ChatPage'
 import DashboardPage from './pages/Dashboard/DashboardPage'
 import EarningsPage from './pages/Earnings/EarningsPage'
 import HomePage from './pages/Home/HomePage'
@@ -139,6 +140,14 @@ const App = () => {
           element={
             <ProtectedRoute>
               <ProductPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path='/chat'
+          element={
+            <ProtectedRoute>
+              <ChatPage />
             </ProtectedRoute>
           }
         />
