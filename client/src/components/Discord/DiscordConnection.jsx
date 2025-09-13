@@ -274,15 +274,6 @@ const DiscordConnection = () => {
               </h4>
 
               <div className='space-y-2'>
-                <div className='flex justify-between items-center'>
-                  <span className='text-white/80'>Expected Role:</span>
-                  <span className='font-semibold'>
-                    {discordStatus.expectedRole
-                      ? getRoleName(discordStatus.expectedRole)
-                      : 'None'}
-                  </span>
-                </div>
-
                 {discordStatus.lastRoleUpdate && (
                   <div className='flex justify-between items-center'>
                     <span className='text-white/80'>Last Updated:</span>
