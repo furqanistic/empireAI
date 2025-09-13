@@ -649,7 +649,7 @@ const HomePage = () => {
             </div>
 
             <a
-              href='https://discord.gg/eP48PSyU'
+              href='https://discord.gg/t7r94BZUXv'
               target='_blank'
               rel='noopener noreferrer'
               className='inline-flex items-center gap-3 bg-[#5865F2] text-white px-6 lg:px-8 py-3 lg:py-4 rounded-xl font-bold text-base lg:text-lg hover:bg-[#5865F2]/90 transition-all duration-300 hover:scale-105'

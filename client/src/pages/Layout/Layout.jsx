@@ -172,7 +172,7 @@ const Layout = ({ children }) => {
       id: 'discord',
       label: 'Discord Server',
       icon: <FaDiscord size={18} />,
-      path: 'https://discord.gg/eP48PSyU', // Replace with your actual Discord invite link
+      path: 'https://discord.gg/t7r94BZUXv', // Replace with your actual Discord invite link
       external: true,
       badge: 'JOIN',
       badgeColor: 'bg-indigo-500',

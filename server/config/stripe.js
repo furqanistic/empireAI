@@ -238,8 +238,8 @@ export const validateMinimumPayout = (amount, currency = 'USD') => {
   return amount >= minimum
 }
 
-// Free trial configuration
-export const TRIAL_PERIOD_DAYS = 14
+// Free trial configuration - CHANGED FROM 14 TO 7 DAYS
+export const TRIAL_PERIOD_DAYS = 7
 
 // Stripe webhook events we care about (UPDATED WITH CONNECT EVENTS)
 export const STRIPE_EVENTS = {

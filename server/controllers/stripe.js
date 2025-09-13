@@ -1,4 +1,4 @@
-// File: controllers/stripe.js - ORIGINAL WITH MINIMAL FIX
+// File: controllers/stripe.js - UPDATED WITH NOTIFICATION INTEGRATION
 import {
   createOrRetrieveCustomer,
   getAllPlans,
@@ -12,6 +12,8 @@ import {
 import { createError } from '../error.js'
 import Subscription from '../models/Subscription.js'
 import User from '../models/User.js'
+// NEW: Import notification service
+import NotificationService from '../services/notificationService.js'
 // NEW: Import earnings integration
 import {
   approveEarningAfterPayment,
@@ -77,6 +79,7 @@ const updateUserSubscriptionField = async (userId, subscription) => {
     return null
   }
 }
+
 // DEBUG ROUTE - Add this temporarily to check subscriptions
 export const debugSubscriptions = async (req, res, next) => {
   try {
@@ -201,7 +204,7 @@ export const createCheckoutSession = async (req, res, next) => {
   }
 }
 
-// Verify checkout session and create subscription - UPDATED WITH USER SYNC
+// Verify checkout session and create subscription - UPDATED WITH NOTIFICATIONS
 export const verifyCheckoutSession = async (req, res, next) => {
   try {
     const { sessionId } = req.body
@@ -289,6 +292,40 @@ export const verifyCheckoutSession = async (req, res, next) => {
 
       // ADDED: Update User model's subscription field
       await updateUserSubscriptionField(user._id, subscription)
+
+      // NEW: Send notifications for subscription events
+      try {
+        const planDisplayName = getPlanDetails(session.metadata.planName).name
+
+        // If subscription has a trial, send trial started notification
+        if (subscription.trialEnd && subscription.status === 'trialing') {
+          await NotificationService.notifyTrialStarted(
+            user._id,
+            planDisplayName,
+            subscription.trialEnd
+          )
+          console.log(`✅ Trial started notification sent to ${user.email}`)
+        }
+
+        // Send subscription activated notification
+        await NotificationService.notifySubscriptionActivated(user._id, {
+          planName: planDisplayName,
+          amount: subscription.amount,
+          currency: subscription.currency,
+          billingCycle: subscription.billingCycle,
+          periodStart: subscription.currentPeriodStart,
+          periodEnd: subscription.currentPeriodEnd,
+        })
+        console.log(
+          `✅ Subscription activated notification sent to ${user.email}`
+        )
+      } catch (notificationError) {
+        console.error(
+          'Error sending subscription notifications:',
+          notificationError
+        )
+        // Don't fail the subscription creation if notification fails
+      }
 
       // NEW: Create earning for referral commission
       try {
@@ -382,7 +419,7 @@ export const getCurrentSubscription = async (req, res, next) => {
   }
 }
 
-// Update subscription (change plan)
+// Update subscription (change plan) - UPDATED WITH NOTIFICATIONS
 export const updateSubscription = async (req, res, next) => {
   try {
     const { planName, billingCycle } = req.body
@@ -412,6 +449,16 @@ export const updateSubscription = async (req, res, next) => {
     ) {
       return next(createError(400, 'You are already subscribed to this plan'))
     }
+
+    // Store old plan for notification
+    const oldPlanName = getPlanDetails(subscription.plan).name
+    const newPlanName = getPlanDetails(planName).name
+
+    // Determine if upgrade or downgrade
+    const planHierarchy = { starter: 1, pro: 2, empire: 3 }
+    const oldPlanLevel = planHierarchy[subscription.plan] || 0
+    const newPlanLevel = planHierarchy[planName] || 0
+    const isUpgrade = newPlanLevel > oldPlanLevel
 
     const newPriceId = getPriceId(planName, billingCycle)
 
@@ -450,6 +497,43 @@ export const updateSubscription = async (req, res, next) => {
     // ADDED: Update User model's subscription field
     await updateUserSubscriptionField(user._id, subscription)
 
+    // NEW: Send notification for plan change
+    try {
+      const notificationData = {
+        oldPlan: oldPlanName,
+        newPlan: newPlanName,
+        amount: subscription.amount,
+        currency: subscription.currency,
+        billingCycle: subscription.billingCycle,
+        periodStart: subscription.currentPeriodStart,
+        periodEnd: subscription.currentPeriodEnd,
+      }
+
+      if (isUpgrade) {
+        await NotificationService.notifySubscriptionUpgraded(
+          user._id,
+          oldPlanName,
+          newPlanName,
+          notificationData
+        )
+        console.log(`✅ Upgrade notification sent to ${user.email}`)
+      } else {
+        await NotificationService.notifySubscriptionDowngraded(
+          user._id,
+          oldPlanName,
+          newPlanName,
+          notificationData
+        )
+        console.log(`✅ Downgrade notification sent to ${user.email}`)
+      }
+    } catch (notificationError) {
+      console.error(
+        'Error sending subscription update notification:',
+        notificationError
+      )
+      // Don't fail the subscription update if notification fails
+    }
+
     await subscription.populate('user', 'name email')
 
     res.status(200).json({
@@ -465,7 +549,7 @@ export const updateSubscription = async (req, res, next) => {
   }
 }
 
-// Cancel subscription
+// Cancel subscription - UPDATED WITH NOTIFICATIONS
 export const cancelSubscription = async (req, res, next) => {
   try {
     const { immediate = false } = req.body
@@ -480,6 +564,8 @@ export const cancelSubscription = async (req, res, next) => {
     if (!subscription || !subscription.stripeSubscriptionId) {
       return next(createError(404, 'No active subscription found'))
     }
+
+    const planDisplayName = getPlanDetails(subscription.plan).name
 
     let stripeSubscription
 
@@ -516,6 +602,25 @@ export const cancelSubscription = async (req, res, next) => {
       await updateUserSubscriptionField(user._id, subscription)
     }
 
+    // NEW: Send cancellation notification
+    try {
+      await NotificationService.notifySubscriptionCancelled(user._id, {
+        planName: planDisplayName,
+        amount: subscription.amount,
+        currency: subscription.currency,
+        billingCycle: subscription.billingCycle,
+        periodEnd: subscription.currentPeriodEnd,
+        immediate,
+      })
+      console.log(`✅ Cancellation notification sent to ${user.email}`)
+    } catch (notificationError) {
+      console.error(
+        'Error sending cancellation notification:',
+        notificationError
+      )
+      // Don't fail the cancellation if notification fails
+    }
+
     await subscription.populate('user', 'name email')
 
     res.status(200).json({
@@ -533,7 +638,7 @@ export const cancelSubscription = async (req, res, next) => {
   }
 }
 
-// Reactivate subscription (if canceled at period end)
+// Reactivate subscription (if canceled at period end) - UPDATED WITH NOTIFICATIONS
 export const reactivateSubscription = async (req, res, next) => {
   try {
     const user = req.user
@@ -564,6 +669,27 @@ export const reactivateSubscription = async (req, res, next) => {
 
     // ADDED: Update User model's subscription field
     await updateUserSubscriptionField(user._id, subscription)
+
+    // NEW: Send reactivation notification (using subscription_activated type)
+    try {
+      const planDisplayName = getPlanDetails(subscription.plan).name
+      await NotificationService.notifySubscriptionActivated(user._id, {
+        planName: planDisplayName,
+        amount: subscription.amount,
+        currency: subscription.currency,
+        billingCycle: subscription.billingCycle,
+        periodStart: subscription.currentPeriodStart,
+        periodEnd: subscription.currentPeriodEnd,
+        reactivated: true,
+      })
+      console.log(`✅ Reactivation notification sent to ${user.email}`)
+    } catch (notificationError) {
+      console.error(
+        'Error sending reactivation notification:',
+        notificationError
+      )
+      // Don't fail the reactivation if notification fails
+    }
 
     await subscription.populate('user', 'name email')
 

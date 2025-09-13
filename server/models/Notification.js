@@ -20,6 +20,22 @@ const NotificationSchema = new mongoose.Schema(
         'subscription_update',
         'achievement',
         'security_alert',
+        'points',
+        // NEW: Subscription & Payment related notifications
+        'trial_started',
+        'trial_ending_soon',
+        'trial_ended',
+        'subscription_activated',
+        'subscription_upgraded',
+        'subscription_downgraded',
+        'subscription_cancelled',
+        'subscription_expired',
+        'subscription_renewed',
+        'payment_successful',
+        'payment_failed',
+        'payment_retry',
+        'payout_processed',
+        'commission_earned',
       ],
       required: true,
       index: true,
@@ -145,6 +161,233 @@ NotificationSchema.statics.createReferralNotification = async function (
     return notification
   } catch (error) {
     console.error('Error creating referral notification:', error)
+    throw error
+  }
+}
+
+// NEW: Static method to create trial notification
+NotificationSchema.statics.createTrialNotification = async function (
+  userId,
+  trialType,
+  trialData = {}
+) {
+  try {
+    const notifications = {
+      trial_started: {
+        title: 'Welcome! Your 7-Day Trial Has Started',
+        message: `Your ${trialData.planName} trial is now active! Explore all features for the next 7 days.`,
+        priority: 'high',
+        actionUrl: '/dashboard',
+        actionText: 'Explore Features',
+      },
+      trial_ending_soon: {
+        title: 'Trial Ending Soon - 2 Days Left!',
+        message: `Your ${trialData.planName} trial expires in 2 days. Subscribe now to keep your access.`,
+        priority: 'urgent',
+        actionUrl: '/pricing',
+        actionText: 'Subscribe Now',
+      },
+      trial_ended: {
+        title: 'Trial Expired',
+        message: `Your ${trialData.planName} trial has ended. Subscribe to continue enjoying all features.`,
+        priority: 'urgent',
+        actionUrl: '/pricing',
+        actionText: 'Choose Plan',
+      },
+    }
+
+    const notificationConfig = notifications[trialType]
+    if (!notificationConfig) {
+      throw new Error(`Unknown trial notification type: ${trialType}`)
+    }
+
+    const notification = await this.create({
+      recipient: userId,
+      type: trialType,
+      title: notificationConfig.title,
+      message: notificationConfig.message,
+      data: {
+        trialType,
+        planName: trialData.planName || 'Free Trial',
+        trialEnd: trialData.trialEnd,
+        trialDaysRemaining: trialData.daysRemaining || 0,
+        ...trialData,
+      },
+      priority: notificationConfig.priority,
+      actionUrl: notificationConfig.actionUrl,
+      actionText: notificationConfig.actionText,
+    })
+
+    return notification
+  } catch (error) {
+    console.error('Error creating trial notification:', error)
+    throw error
+  }
+}
+
+// NEW: Static method to create subscription notification
+NotificationSchema.statics.createSubscriptionNotification = async function (
+  userId,
+  subscriptionType,
+  subscriptionData = {}
+) {
+  try {
+    const notifications = {
+      subscription_activated: {
+        title: 'Subscription Activated!',
+        message: `Welcome to ${subscriptionData.planName}! Your subscription is now active and ready to use.`,
+        priority: 'high',
+        actionUrl: '/dashboard',
+        actionText: 'Get Started',
+      },
+      subscription_upgraded: {
+        title: 'Subscription Upgraded!',
+        message: `Successfully upgraded to ${subscriptionData.newPlan}! Enjoy your enhanced features.`,
+        priority: 'high',
+        actionUrl: '/dashboard',
+        actionText: 'Explore Features',
+      },
+      subscription_downgraded: {
+        title: 'Subscription Updated',
+        message: `Your plan has been changed to ${subscriptionData.newPlan}. Changes take effect at the end of your billing period.`,
+        priority: 'medium',
+        actionUrl: '/pricing',
+        actionText: 'View Plans',
+      },
+      subscription_cancelled: {
+        title: 'Subscription Cancelled',
+        message: `Your ${subscriptionData.planName} subscription has been cancelled. You'll continue to have access until ${subscriptionData.periodEnd}.`,
+        priority: 'medium',
+        actionUrl: '/pricing',
+        actionText: 'Reactivate',
+      },
+      subscription_expired: {
+        title: 'Subscription Expired',
+        message: `Your ${subscriptionData.planName} subscription has expired. Renew now to restore your access.`,
+        priority: 'urgent',
+        actionUrl: '/pricing',
+        actionText: 'Renew Now',
+      },
+      subscription_renewed: {
+        title: 'Subscription Renewed',
+        message: `Your ${subscriptionData.planName} subscription has been renewed successfully. Thank you for staying with us!`,
+        priority: 'medium',
+        actionUrl: '/dashboard',
+        actionText: 'Continue',
+      },
+    }
+
+    const notificationConfig = notifications[subscriptionType]
+    if (!notificationConfig) {
+      throw new Error(
+        `Unknown subscription notification type: ${subscriptionType}`
+      )
+    }
+
+    const notification = await this.create({
+      recipient: userId,
+      type: subscriptionType,
+      title: notificationConfig.title,
+      message: notificationConfig.message,
+      data: {
+        subscriptionType,
+        planName: subscriptionData.planName || 'Plan',
+        amount: subscriptionData.amount,
+        currency: subscriptionData.currency || 'USD',
+        billingCycle: subscriptionData.billingCycle,
+        periodStart: subscriptionData.periodStart,
+        periodEnd: subscriptionData.periodEnd,
+        ...subscriptionData,
+      },
+      priority: notificationConfig.priority,
+      actionUrl: notificationConfig.actionUrl,
+      actionText: notificationConfig.actionText,
+    })
+
+    return notification
+  } catch (error) {
+    console.error('Error creating subscription notification:', error)
+    throw error
+  }
+}
+
+// NEW: Static method to create payment notification
+NotificationSchema.statics.createPaymentNotification = async function (
+  userId,
+  paymentType,
+  paymentData = {}
+) {
+  try {
+    const amount = (paymentData.amount / 100).toFixed(2) // Convert from cents
+    const currency = (paymentData.currency || 'USD').toUpperCase()
+
+    const notifications = {
+      payment_successful: {
+        title: 'Payment Successful',
+        message: `Your payment of $${amount} ${currency} has been processed successfully.`,
+        priority: 'medium',
+        actionUrl: '/billing',
+        actionText: 'View Receipt',
+      },
+      payment_failed: {
+        title: 'Payment Failed',
+        message: `Your payment of $${amount} ${currency} failed. Please update your payment method to avoid service interruption.`,
+        priority: 'urgent',
+        actionUrl: '/billing',
+        actionText: 'Update Payment',
+      },
+      payment_retry: {
+        title: 'Payment Retry Scheduled',
+        message: `We'll retry your payment of $${amount} ${currency} in 3 days. Please ensure your payment method is up to date.`,
+        priority: 'high',
+        actionUrl: '/billing',
+        actionText: 'Update Payment',
+      },
+      payout_processed: {
+        title: 'Payout Processed',
+        message: `Your payout of $${amount} ${currency} has been processed and is on its way to your account.`,
+        priority: 'high',
+        actionUrl: '/earn',
+        actionText: 'View Earnings',
+      },
+      commission_earned: {
+        title: 'Commission Earned!',
+        message: `You've earned $${amount} ${currency} commission from ${paymentData.referredUserName}'s subscription!`,
+        priority: 'high',
+        actionUrl: '/earn',
+        actionText: 'View Earnings',
+      },
+    }
+
+    const notificationConfig = notifications[paymentType]
+    if (!notificationConfig) {
+      throw new Error(`Unknown payment notification type: ${paymentType}`)
+    }
+
+    const notification = await this.create({
+      recipient: userId,
+      type: paymentType,
+      title: notificationConfig.title,
+      message: notificationConfig.message,
+      data: {
+        paymentType,
+        amount: paymentData.amount,
+        currency: paymentData.currency || 'USD',
+        paymentIntentId: paymentData.paymentIntentId,
+        subscriptionId: paymentData.subscriptionId,
+        planName: paymentData.planName,
+        failureReason: paymentData.failureReason,
+        referredUserName: paymentData.referredUserName,
+        ...paymentData,
+      },
+      priority: notificationConfig.priority,
+      actionUrl: notificationConfig.actionUrl,
+      actionText: notificationConfig.actionText,
+    })
+
+    return notification
+  } catch (error) {
+    console.error('Error creating payment notification:', error)
     throw error
   }
 }

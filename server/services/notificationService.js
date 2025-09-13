@@ -67,6 +67,213 @@ class NotificationService {
     }
   }
 
+  // NEW: Create trial notification
+  static async createTrialNotification(userId, trialType, trialData = {}) {
+    try {
+      const notification = await Notification.createTrialNotification(
+        userId,
+        trialType,
+        trialData
+      )
+
+      console.log(
+        `✅ Trial notification (${trialType}) created for user ${userId}`
+      )
+      return notification
+    } catch (error) {
+      console.error('❌ Error creating trial notification:', error)
+      throw error
+    }
+  }
+
+  // NEW: Create subscription notification
+  static async createSubscriptionNotification(
+    userId,
+    subscriptionType,
+    subscriptionData = {}
+  ) {
+    try {
+      const notification = await Notification.createSubscriptionNotification(
+        userId,
+        subscriptionType,
+        subscriptionData
+      )
+
+      console.log(
+        `✅ Subscription notification (${subscriptionType}) created for user ${userId}`
+      )
+      return notification
+    } catch (error) {
+      console.error('❌ Error creating subscription notification:', error)
+      throw error
+    }
+  }
+
+  // NEW: Create payment notification
+  static async createPaymentNotification(
+    userId,
+    paymentType,
+    paymentData = {}
+  ) {
+    try {
+      const notification = await Notification.createPaymentNotification(
+        userId,
+        paymentType,
+        paymentData
+      )
+
+      console.log(
+        `✅ Payment notification (${paymentType}) created for user ${userId}`
+      )
+      return notification
+    } catch (error) {
+      console.error('❌ Error creating payment notification:', error)
+      throw error
+    }
+  }
+
+  // NEW: Create trial started notification
+  static async notifyTrialStarted(userId, planName, trialEnd) {
+    return this.createTrialNotification(userId, 'trial_started', {
+      planName,
+      trialEnd,
+      daysRemaining: 7,
+    })
+  }
+
+  // NEW: Create trial ending soon notification
+  static async notifyTrialEndingSoon(
+    userId,
+    planName,
+    trialEnd,
+    daysRemaining
+  ) {
+    return this.createTrialNotification(userId, 'trial_ending_soon', {
+      planName,
+      trialEnd,
+      daysRemaining,
+    })
+  }
+
+  // NEW: Create trial ended notification
+  static async notifyTrialEnded(userId, planName) {
+    return this.createTrialNotification(userId, 'trial_ended', {
+      planName,
+      daysRemaining: 0,
+    })
+  }
+
+  // NEW: Create subscription activated notification
+  static async notifySubscriptionActivated(userId, subscriptionData) {
+    return this.createSubscriptionNotification(
+      userId,
+      'subscription_activated',
+      subscriptionData
+    )
+  }
+
+  // NEW: Create subscription upgraded notification
+  static async notifySubscriptionUpgraded(
+    userId,
+    oldPlan,
+    newPlan,
+    subscriptionData
+  ) {
+    return this.createSubscriptionNotification(
+      userId,
+      'subscription_upgraded',
+      {
+        oldPlan,
+        newPlan,
+        planName: newPlan,
+        ...subscriptionData,
+      }
+    )
+  }
+
+  // NEW: Create subscription downgraded notification
+  static async notifySubscriptionDowngraded(
+    userId,
+    oldPlan,
+    newPlan,
+    subscriptionData
+  ) {
+    return this.createSubscriptionNotification(
+      userId,
+      'subscription_downgraded',
+      {
+        oldPlan,
+        newPlan,
+        planName: newPlan,
+        ...subscriptionData,
+      }
+    )
+  }
+
+  // NEW: Create subscription cancelled notification
+  static async notifySubscriptionCancelled(userId, subscriptionData) {
+    return this.createSubscriptionNotification(
+      userId,
+      'subscription_cancelled',
+      subscriptionData
+    )
+  }
+
+  // NEW: Create subscription expired notification
+  static async notifySubscriptionExpired(userId, subscriptionData) {
+    return this.createSubscriptionNotification(
+      userId,
+      'subscription_expired',
+      subscriptionData
+    )
+  }
+
+  // NEW: Create subscription renewed notification
+  static async notifySubscriptionRenewed(userId, subscriptionData) {
+    return this.createSubscriptionNotification(
+      userId,
+      'subscription_renewed',
+      subscriptionData
+    )
+  }
+
+  // NEW: Create payment successful notification
+  static async notifyPaymentSuccessful(userId, paymentData) {
+    return this.createPaymentNotification(
+      userId,
+      'payment_successful',
+      paymentData
+    )
+  }
+
+  // NEW: Create payment failed notification
+  static async notifyPaymentFailed(userId, paymentData) {
+    return this.createPaymentNotification(userId, 'payment_failed', paymentData)
+  }
+
+  // NEW: Create payment retry notification
+  static async notifyPaymentRetry(userId, paymentData) {
+    return this.createPaymentNotification(userId, 'payment_retry', paymentData)
+  }
+
+  // NEW: Create payout processed notification
+  static async notifyPayoutProcessed(userId, paymentData) {
+    return this.createPaymentNotification(
+      userId,
+      'payout_processed',
+      paymentData
+    )
+  }
+
+  // NEW: Create commission earned notification
+  static async notifyCommissionEarned(userId, amount, referredUserName) {
+    return this.createPaymentNotification(userId, 'commission_earned', {
+      amount: amount * 100, // Convert to cents for consistency
+      currency: 'USD',
+      referredUserName,
+    })
+  }
+
   // Create account update notification
   static async createAccountUpdateNotification(userId, updateType, details) {
     try {
@@ -100,8 +307,8 @@ class NotificationService {
     }
   }
 
-  // Create payment notification
-  static async createPaymentNotification(
+  // Create payment notification (legacy method - keeping for backward compatibility)
+  static async createPaymentNotification_Legacy(
     userId,
     paymentType,
     amount,
@@ -362,6 +569,88 @@ class NotificationService {
       return result
     } catch (error) {
       console.error('❌ Error cleaning up notifications:', error)
+      throw error
+    }
+  }
+
+  // NEW: Helper method to send notifications for subscription lifecycle events
+  static async handleSubscriptionLifecycle(userId, event, data) {
+    try {
+      switch (event) {
+        case 'trial_started':
+          return await this.notifyTrialStarted(
+            userId,
+            data.planName,
+            data.trialEnd
+          )
+
+        case 'trial_ending_soon':
+          return await this.notifyTrialEndingSoon(
+            userId,
+            data.planName,
+            data.trialEnd,
+            data.daysRemaining
+          )
+
+        case 'trial_ended':
+          return await this.notifyTrialEnded(userId, data.planName)
+
+        case 'subscription_activated':
+          return await this.notifySubscriptionActivated(userId, data)
+
+        case 'subscription_upgraded':
+          return await this.notifySubscriptionUpgraded(
+            userId,
+            data.oldPlan,
+            data.newPlan,
+            data
+          )
+
+        case 'subscription_downgraded':
+          return await this.notifySubscriptionDowngraded(
+            userId,
+            data.oldPlan,
+            data.newPlan,
+            data
+          )
+
+        case 'subscription_cancelled':
+          return await this.notifySubscriptionCancelled(userId, data)
+
+        case 'subscription_expired':
+          return await this.notifySubscriptionExpired(userId, data)
+
+        case 'subscription_renewed':
+          return await this.notifySubscriptionRenewed(userId, data)
+
+        case 'payment_successful':
+          return await this.notifyPaymentSuccessful(userId, data)
+
+        case 'payment_failed':
+          return await this.notifyPaymentFailed(userId, data)
+
+        case 'payment_retry':
+          return await this.notifyPaymentRetry(userId, data)
+
+        case 'payout_processed':
+          return await this.notifyPayoutProcessed(userId, data)
+
+        case 'commission_earned':
+          return await this.notifyCommissionEarned(
+            userId,
+            data.amount,
+            data.referredUserName
+          )
+
+        default:
+          console.warn(`Unknown subscription lifecycle event: ${event}`)
+          return null
+      }
+    } catch (error) {
+      console.error(
+        `Error handling subscription lifecycle event ${event}:`,
+        error
+      )
       throw error
     }
   }

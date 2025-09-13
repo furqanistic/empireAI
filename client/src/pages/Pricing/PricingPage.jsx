@@ -1,4 +1,4 @@
-// File: client/src/pages/Pricing/PricingPage.jsx - COMPLETE FIXED VERSION
+// File: client/src/pages/Pricing/PricingPage.jsx - COMPLETE FIXED VERSION WITH 7-DAY TRIAL
 import {
   useCreateBillingPortalSession,
   useCreateCheckoutSession,
@@ -242,12 +242,12 @@ const PricingPage = () => {
             🚀 Founder Pricing - Limited Time
           </div>
 
-          {/* Trial Notice */}
+          {/* Trial Notice - UPDATED TO 7-DAY */}
           {!isCurrentPlan(plan) &&
             currentUser &&
             !subscriptionStatus.hasSubscription && (
               <div className='text-blue-400 text-xs font-medium mt-2'>
-                14-day free trial included
+                7-day free trial included
               </div>
             )}
 
@@ -613,7 +613,7 @@ const PricingPage = () => {
           </div>
         </div>
 
-        {/* CTA Section */}
+        {/* CTA Section - UPDATED TO 7-DAY */}
         <div className='bg-gradient-to-r from-[#121214] via-[#1A1A1C] to-[#121214] border border-[#1E1E21] rounded-xl p-6 sm:p-8 text-center'>
           <div className='max-w-3xl mx-auto space-y-6'>
             <div className='flex items-center justify-center gap-3 mb-4'>
@@ -628,13 +628,13 @@ const PricingPage = () => {
             <p className='text-gray-400 text-lg leading-relaxed'>
               Join thousands of entrepreneurs who are building their digital
               empires with our AI-powered platform. Lock in founder pricing with
-              a 14-day free trial.
+              a 7-day free trial.
             </p>
 
             <div className='flex items-center justify-center gap-6 text-sm text-gray-400'>
               <div className='flex items-center gap-2'>
                 <Check size={16} className='text-[#D4AF37]' />
-                <span>14-day free trial</span>
+                <span>7-day free trial</span>
               </div>
               <div className='flex items-center gap-2'>
                 <Check size={16} className='text-[#D4AF37]' />

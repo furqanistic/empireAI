@@ -18,10 +18,8 @@ export const useChat = (currentChatId = null) => {
   // Load specific chat when currentChatId changes
   useEffect(() => {
     if (currentChatId) {
-      console.log('useChat: Loading chat with ID:', currentChatId) // Debug log
       loadChat(currentChatId)
     } else {
-      console.log('useChat: No currentChatId, clearing chat') // Debug log
       setCurrentChat(null)
       setLocalMessages([]) // Clear local messages when no chat selected
     }

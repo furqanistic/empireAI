@@ -503,7 +503,7 @@ const DashboardPage = () => {
                 </button>
 
                 <a
-                  href='https://discord.gg/eP48PSyU'
+                  href='https://discord.gg/t7r94BZUXv'
                   target='_blank'
                   rel='noopener noreferrer'
                   className='flex-1 bg-[#121214] border border-[#5865F2]/30 text-[#5865F2] px-6 py-3 rounded-xl font-semibold text-sm hover:bg-[#5865F2]/5 transition-all duration-300 flex items-center justify-center gap-2'
@@ -631,7 +631,7 @@ const DashboardPage = () => {
             </div>
 
             <a
-              href='https://discord.gg/eP48PSyU'
+              href='https://discord.gg/t7r94BZUXv'
               target='_blank'
               rel='noopener noreferrer'
               className='block w-full'
