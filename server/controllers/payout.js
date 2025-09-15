@@ -1,372 +1,190 @@
-// File: controllers/payout.js - COMPLETE FINAL VERSION WITH ERROR HANDLING
-import {
-  CONNECT_CONFIG,
-  createAccountLink,
-  createConnectAccount,
-  retrieveConnectAccount,
-  stripe,
-  validateMinimumPayout,
-} from '../config/stripe.js'
+// File: controllers/payout.js - COMPLETE VERSION WITH ALL FUNCTIONS
+import { retrieveConnectAccount, stripe } from '../config/stripe.js'
 import { createError } from '../error.js'
 import Earnings from '../models/Earnings.js'
 import Payout from '../models/Payout.js'
 import User from '../models/User.js'
 
-// Helper function to get status messages
-const getStatusMessage = (accountState, hasRequirements) => {
-  switch (accountState) {
-    case 'onboarding_incomplete':
-      return 'Please complete your account setup to receive payouts'
-    case 'verification_required':
-      return 'Additional information required for verification'
-    case 'pending_verification':
-      return 'Account verification in progress'
-    case 'verified':
-      return 'Account verified and ready for payouts'
-    case 'sync_error':
-      return 'Unable to sync account status. This may be a temporary issue.'
-    default:
-      return 'Account status unknown'
+// Helper function to validate and cleanup invalid Connect accounts
+const validateConnectAccount = async (user) => {
+  if (!user.stripeConnect?.accountId) {
+    return { isValid: false, reason: 'no_account' }
   }
-}
 
-// Create Stripe Connect account for user - IMPROVED WITH ERROR HANDLING
-export const createConnectAccountForUser = async (req, res, next) => {
   try {
-    const { country = 'US' } = req.body
-    const user = req.user
-
-    // Check if user already has a VERIFIED Connect account
-    if (user.stripeConnect?.accountId && user.stripeConnect.isVerified) {
-      return next(
-        createError(400, 'User already has a verified Connect account')
-      )
-    }
-
-    // Validate country
-    if (!CONNECT_CONFIG.supportedCountries.includes(country)) {
-      return next(createError(400, `Country ${country} is not supported`))
-    }
-
-    let account
-    let isNewAccount = false
-
-    // If user has partial account, try to retrieve it first
-    if (user.stripeConnect?.accountId) {
-      try {
-        account = await retrieveConnectAccount(user.stripeConnect.accountId)
-        console.log('Retrieved existing Connect account:', account.id)
-      } catch (error) {
-        console.log(
-          'Existing account not found or inaccessible, creating new one'
-        )
-
-        // Reset invalid account data
-        user.stripeConnect = {
-          accountId: null,
-          isVerified: false,
-          onboardingCompleted: false,
-          capabilities: {},
-          requirementsNeeded: [],
-        }
-        await user.save()
-
-        account = null
-      }
-    }
-
-    // Create new account if needed
-    if (!account) {
-      account = await createConnectAccount(user, country)
-      isNewAccount = true
-      console.log('Created new Connect account:', account.id)
-    }
-
-    // Update user with Connect account info
-    await user.updateConnectAccountStatus(account)
-
-    // Create onboarding link
-    const returnUrl = `${process.env.FRONTEND_URL}/dashboard/payouts?setup=success`
-    const refreshUrl = `${process.env.FRONTEND_URL}/dashboard/payouts?setup=refresh`
-
-    const accountLink = await createAccountLink(
-      account.id,
-      returnUrl,
-      refreshUrl
+    const account = await retrieveConnectAccount(user.stripeConnect.accountId)
+    return { isValid: true, account }
+  } catch (error) {
+    console.log(
+      `Invalid Connect account detected for user ${user._id}: ${user.stripeConnect.accountId}`
     )
 
-    res.status(200).json({
-      status: 'success',
-      data: {
-        accountId: account.id,
-        onboardingUrl: accountLink.url,
-        isNewAccount,
-        message: isNewAccount
-          ? 'Connect account created successfully'
-          : 'Resuming Connect account setup',
-      },
-    })
-  } catch (error) {
-    console.error('Error creating Connect account:', error)
-    next(createError(500, `Failed to create Connect account: ${error.message}`))
-  }
-}
-
-// Get Connect account onboarding link - IMPROVED
-export const getConnectOnboardingLink = async (req, res, next) => {
-  try {
-    const user = req.user
-
-    if (!user.stripeConnect?.accountId) {
-      return next(
-        createError(400, 'No Connect account found. Please create one first.')
-      )
-    }
-
-    // Always allow re-onboarding if not completed or not verified
-    const returnUrl = `${process.env.FRONTEND_URL}/dashboard/payouts?setup=success`
-    const refreshUrl = `${process.env.FRONTEND_URL}/dashboard/payouts?setup=refresh`
-
-    try {
-      const accountLink = await createAccountLink(
-        user.stripeConnect.accountId,
-        returnUrl,
-        refreshUrl
-      )
-
-      res.status(200).json({
-        status: 'success',
-        data: {
-          onboardingUrl: accountLink.url,
-          message: 'Onboarding link created',
-        },
-      })
-    } catch (error) {
-      // If account is invalid, reset it
-      if (
-        error.code === 'account_invalid' ||
-        error.type === 'StripePermissionError'
-      ) {
-        user.stripeConnect = {
-          accountId: null,
-          isVerified: false,
-          onboardingCompleted: false,
-          capabilities: {},
-          requirementsNeeded: [],
-        }
-        await user.save()
-
-        return next(
-          createError(
-            400,
-            'Account was invalid and has been reset. Please create a new account.'
-          )
-        )
-      }
-
-      throw error
-    }
-  } catch (error) {
-    console.error('Error creating onboarding link:', error)
-    next(createError(500, 'Failed to create onboarding link'))
-  }
-}
-
-// Create account management link (for updating bank details)
-export const createAccountManagementLink = async (req, res, next) => {
-  try {
-    const user = req.user
-
-    if (!user.stripeConnect?.accountId) {
-      return next(createError(400, 'No Connect account found'))
-    }
-
-    const returnUrl = `${process.env.FRONTEND_URL}/dashboard/payouts`
-
-    try {
-      // Create account link for account update
-      const accountLink = await stripe.accountLinks.create({
-        account: user.stripeConnect.accountId,
-        refresh_url: returnUrl,
-        return_url: returnUrl,
-        type: 'account_update',
-      })
-
-      res.status(200).json({
-        status: 'success',
-        data: {
-          managementUrl: accountLink.url,
-          message: 'Account management link created',
-        },
-      })
-    } catch (error) {
-      // If account is invalid, reset it
-      if (
-        error.code === 'account_invalid' ||
-        error.type === 'StripePermissionError'
-      ) {
-        user.stripeConnect = {
-          accountId: null,
-          isVerified: false,
-          onboardingCompleted: false,
-          capabilities: {},
-          requirementsNeeded: [],
-        }
-        await user.save()
-
-        return next(
-          createError(
-            400,
-            'Account was invalid and has been reset. Please create a new account.'
-          )
-        )
-      }
-
-      throw error
-    }
-  } catch (error) {
-    console.error('Error creating management link:', error)
-    next(createError(500, 'Failed to create account management link'))
-  }
-}
-
-// Get Connect account status - IMPROVED WITH ERROR HANDLING
-export const getConnectAccountStatus = async (req, res, next) => {
-  try {
-    const user = req.user
-
-    if (!user.stripeConnect?.accountId) {
-      return res.status(200).json({
-        status: 'success',
-        data: {
-          connected: false,
-          needsSetup: true,
-          message: 'No Connect account found',
-          actions: {
-            canCreateAccount: true,
-            canRetryOnboarding: false,
-            canManageAccount: false,
-          },
-        },
-      })
-    }
-
-    let account = null
-    let syncError = false
-    let shouldResetAccount = false
-
-    // Sync with Stripe to get latest status
-    try {
-      account = await retrieveConnectAccount(user.stripeConnect.accountId)
-      await user.updateConnectAccountStatus(account)
-    } catch (error) {
-      console.error('Error syncing Connect account:', error)
-      syncError = true
-
-      // Check if this is an invalid account error
-      if (
-        error.code === 'account_invalid' ||
-        error.type === 'StripePermissionError' ||
-        error.message?.includes('does not have access to account') ||
-        error.message?.includes('account does not exist')
-      ) {
-        console.log(
-          `Invalid Connect account detected for user ${user._id}: ${user.stripeConnect.accountId}`
-        )
-        shouldResetAccount = true
-      }
-      // Continue with cached data for other errors
-    }
-
-    // If account is invalid, reset it and return setup state
-    if (shouldResetAccount) {
+    if (
+      error.type === 'StripePermissionError' ||
+      error.code === 'account_invalid'
+    ) {
       console.log(`Resetting invalid Connect account for user ${user._id}`)
 
-      // Reset user's Connect data
-      user.stripeConnect = {
-        accountId: null,
-        isVerified: false,
-        onboardingCompleted: false,
-        capabilities: {},
-        requirementsNeeded: [],
+      try {
+        await user.safeResetConnectAccount()
+        return { isValid: false, reason: 'account_invalid', wasReset: true }
+      } catch (resetError) {
+        console.error('Error resetting Connect account:', resetError)
+        return { isValid: false, reason: 'reset_failed', error: resetError }
       }
+    }
 
-      await user.save()
+    throw error
+  }
+}
+
+// Helper function to determine account state for frontend
+const getAccountState = (account, connectData) => {
+  if (!account || !connectData?.accountId) {
+    return 'not_connected'
+  }
+
+  if (connectData.isVerified && connectData.onboardingCompleted) {
+    return 'verified'
+  }
+
+  if (connectData.onboardingCompleted && !connectData.isVerified) {
+    return 'verification_required'
+  }
+
+  if (!connectData.onboardingCompleted) {
+    return 'onboarding_incomplete'
+  }
+
+  return 'sync_error'
+}
+
+// Helper function to get action flags for frontend
+const getActionFlags = (accountState, connectData) => {
+  return {
+    canCreateAccount: accountState === 'not_connected',
+    canRetryOnboarding:
+      accountState === 'onboarding_incomplete' ||
+      accountState === 'verification_required',
+    canManageAccount: accountState === 'verified',
+    canRequestPayout:
+      accountState === 'verified' && connectData?.canReceivePayouts,
+  }
+}
+
+// Helper function to get status messages for frontend
+const getStatusMessages = (accountState, requirements = []) => {
+  const messages = {
+    not_connected: {
+      primary:
+        'Connect your bank account to start receiving payouts for your referral commissions.',
+      secondary: 'Quick and secure setup through Stripe.',
+    },
+    onboarding_incomplete: {
+      primary: 'Complete your account setup to start receiving payouts.',
+      secondary: `${requirements.length} items need to be completed.`,
+    },
+    verification_required: {
+      primary: 'Additional verification required to enable payouts.',
+      secondary: 'Please provide the requested information to continue.',
+    },
+    verified: {
+      primary: 'Your payout account is active and ready to receive payments.',
+      secondary: 'You can request payouts and manage your banking details.',
+    },
+    sync_error: {
+      primary: 'There was an issue syncing your account status.',
+      secondary: 'Please refresh or contact support if this persists.',
+    },
+  }
+
+  return messages[accountState] || messages.sync_error
+}
+
+// =============================================================================
+// STRIPE CONNECT ACCOUNT MANAGEMENT
+// =============================================================================
+
+// Get Connect account status
+export const getConnectAccountStatus = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id)
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    // Validate the Connect account
+    const validation = await validateConnectAccount(user)
+
+    if (!validation.isValid) {
+      const accountState = 'not_connected'
+      const actions = getActionFlags(accountState, null)
+      const messages = getStatusMessages(accountState)
 
       return res.status(200).json({
         status: 'success',
         data: {
           connected: false,
-          needsSetup: true,
-          accountReset: true,
-          message: 'Previous account was invalid and has been reset',
-          actions: {
-            canCreateAccount: true,
-            canRetryOnboarding: false,
-            canManageAccount: false,
-          },
+          accountState,
+          actions,
+          messages,
+          requirements: [],
+          minimumPayoutAmount: 1000, // Default $10
+          hasAccount: false,
+          isVerified: false,
+          canReceivePayouts: false,
+          needsOnboarding: true,
+          wasReset: validation.wasReset || false,
         },
       })
     }
 
-    // Determine account state
-    const hasRequirements = user.stripeConnect.requirementsNeeded?.length > 0
-    const isVerified = user.stripeConnect.isVerified
-    const onboardingCompleted = user.stripeConnect.onboardingCompleted
-    const canReceivePayouts = user.canReceivePayouts()
+    const account = validation.account
 
-    let accountState = 'unknown'
-    let needsAction = true
+    // Update user's Connect account status with latest data
+    await user.updateConnectAccountStatus(account)
 
-    if (syncError && !shouldResetAccount) {
-      accountState = 'sync_error'
-    } else if (!onboardingCompleted) {
-      accountState = 'onboarding_incomplete'
-    } else if (hasRequirements) {
-      accountState = 'verification_required'
-    } else if (isVerified && canReceivePayouts) {
-      accountState = 'verified'
-      needsAction = false
-    } else {
-      accountState = 'pending_verification'
-    }
+    // Refresh user data
+    const updatedUser = await User.findById(user._id)
+    const connectData = updatedUser.stripeConnect
 
-    const connectStatus = {
-      connected: true,
-      accountId: user.stripeConnect.accountId,
-      verified: isVerified,
-      onboardingCompleted,
-      canReceivePayouts,
+    // Determine account state for frontend
+    const accountState = getAccountState(account, connectData)
+    const actions = getActionFlags(accountState, {
+      canReceivePayouts: updatedUser.canReceivePayouts(),
+    })
+    const messages = getStatusMessages(
       accountState,
-      needsAction,
-      syncError,
-      requirements: user.stripeConnect.requirementsNeeded || [],
-      capabilities: user.stripeConnect.capabilities,
-      payoutSettings: user.stripeConnect.payoutSettings,
-      minimumPayoutAmount: user.getMinimumPayoutAmount(),
-      actions: {
-        canCreateAccount: false,
-        canRetryOnboarding: !onboardingCompleted || hasRequirements,
-        canManageAccount: onboardingCompleted && !syncError,
-        canRequestPayout: canReceivePayouts && !syncError,
-      },
-      messages: {
-        primary: getStatusMessage(accountState, hasRequirements),
-        requirements: hasRequirements
-          ? `Please complete: ${user.stripeConnect.requirementsNeeded.join(
-              ', '
-            )}`
-          : null,
-        syncError:
-          syncError && !shouldResetAccount
-            ? 'Unable to sync with Stripe. Account data may be outdated.'
-            : null,
-      },
+      connectData.requirementsNeeded
+    )
+
+    const responseData = {
+      connected: true,
+      accountState,
+      accountId: account.id,
+      actions,
+      messages,
+      requirements: connectData.requirementsNeeded || [],
+      minimumPayoutAmount: updatedUser.getMinimumPayoutAmount(),
+
+      // Additional data for compatibility
+      hasAccount: true,
+      isVerified: connectData.isVerified,
+      canReceivePayouts: updatedUser.canReceivePayouts(),
+      needsOnboarding: !connectData.onboardingCompleted,
+      capabilities: connectData.capabilities,
+      payoutSettings: connectData.payoutSettings,
+      businessProfile: connectData.businessProfile,
+      chargesEnabled: account.charges_enabled,
+      payoutsEnabled: account.payouts_enabled,
+      detailsSubmitted: account.details_submitted,
+      lastUpdated: connectData.lastUpdated,
     }
 
     res.status(200).json({
       status: 'success',
-      data: connectStatus,
+      data: responseData,
     })
   } catch (error) {
     console.error('Error getting Connect account status:', error)
@@ -374,87 +192,243 @@ export const getConnectAccountStatus = async (req, res, next) => {
   }
 }
 
-// Force refresh account status
+// Create Connect account for user
+export const createConnectAccountForUser = async (req, res, next) => {
+  try {
+    const { country = 'US' } = req.body
+    const user = await User.findById(req.user._id)
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    // Check if user already has a valid Connect account
+    const validation = await validateConnectAccount(user)
+
+    if (validation.isValid) {
+      return next(createError(400, 'User already has a valid Connect account'))
+    }
+
+    // Create new Connect account
+    const account = await stripe.accounts.create({
+      type: 'express',
+      country: country,
+      email: user.email,
+      capabilities: {
+        card_payments: { requested: true },
+        transfers: { requested: true },
+      },
+      business_type: 'individual',
+      metadata: {
+        userId: user._id.toString(),
+        userEmail: user.email,
+      },
+    })
+
+    // Update user with new Connect account info
+    if (!user.stripeConnect) {
+      user.stripeConnect = {}
+    }
+
+    user.stripeConnect.accountId = account.id
+    user.stripeConnect.isVerified = false
+    user.stripeConnect.onboardingCompleted = false
+    user.stripeConnect.lastUpdated = new Date()
+
+    await user.save()
+
+    // Create onboarding link immediately
+    const returnUrl = `${process.env.FRONTEND_URL}/dashboard/payouts?onboarded=true`
+    const refreshUrl = `${process.env.FRONTEND_URL}/dashboard/payouts?refresh=true`
+
+    const accountLink = await stripe.accountLinks.create({
+      account: account.id,
+      refresh_url: refreshUrl,
+      return_url: returnUrl,
+      type: 'account_onboarding',
+    })
+
+    res.status(201).json({
+      status: 'success',
+      data: {
+        accountId: account.id,
+        onboardingUrl: accountLink.url,
+        message: 'Connect account created successfully',
+      },
+    })
+  } catch (error) {
+    console.error('Error creating Connect account:', error)
+    next(createError(500, 'Failed to create Connect account'))
+  }
+}
+
+// Get onboarding link
+export const getConnectOnboardingLink = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id)
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    // Validate the Connect account
+    const validation = await validateConnectAccount(user)
+
+    if (!validation.isValid) {
+      return next(
+        createError(
+          400,
+          'No valid Connect account found. Please create one first.'
+        )
+      )
+    }
+
+    const returnUrl = `${process.env.FRONTEND_URL}/dashboard/payouts?onboarded=true`
+    const refreshUrl = `${process.env.FRONTEND_URL}/dashboard/payouts?refresh=true`
+
+    const accountLink = await stripe.accountLinks.create({
+      account: validation.account.id,
+      refresh_url: refreshUrl,
+      return_url: returnUrl,
+      type: 'account_onboarding',
+    })
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        url: accountLink.url,
+        onboardingUrl: accountLink.url,
+        expiresAt: accountLink.expires_at,
+      },
+    })
+  } catch (error) {
+    console.error('Error creating onboarding link:', error)
+    next(createError(500, 'Failed to create onboarding link'))
+  }
+}
+
+// Create account management link
+export const createAccountManagementLink = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id)
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    // Validate the Connect account
+    const validation = await validateConnectAccount(user)
+
+    if (!validation.isValid) {
+      return next(createError(400, 'No valid Connect account found'))
+    }
+
+    if (!user.stripeConnect.onboardingCompleted) {
+      return next(
+        createError(
+          400,
+          'Complete onboarding first before managing your account'
+        )
+      )
+    }
+
+    const returnUrl = `${process.env.FRONTEND_URL}/dashboard/payouts`
+
+    const loginLink = await stripe.accounts.createLoginLink(
+      validation.account.id,
+      {
+        redirect_url: returnUrl,
+      }
+    )
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        url: loginLink.url,
+        managementUrl: loginLink.url,
+      },
+    })
+  } catch (error) {
+    console.error('Error creating management link:', error)
+    next(createError(500, 'Failed to create management link'))
+  }
+}
+
+// Refresh Connect account status
 export const refreshConnectAccountStatus = async (req, res, next) => {
   try {
-    const user = req.user
+    const user = await User.findById(req.user._id)
 
-    if (!user.stripeConnect?.accountId) {
-      return next(createError(400, 'No Connect account found'))
+    if (!user) {
+      return next(createError(404, 'User not found'))
     }
 
-    // Force refresh from Stripe
-    try {
-      const account = await retrieveConnectAccount(user.stripeConnect.accountId)
-      await user.updateConnectAccountStatus(account)
-    } catch (error) {
-      // Handle invalid account during refresh
-      if (
-        error.code === 'account_invalid' ||
-        error.type === 'StripePermissionError'
-      ) {
-        user.stripeConnect = {
-          accountId: null,
-          isVerified: false,
-          onboardingCompleted: false,
-          capabilities: {},
-          requirementsNeeded: [],
-        }
-        await user.save()
+    // Validate and get latest account data
+    const validation = await validateConnectAccount(user)
 
-        return next(
-          createError(
-            400,
-            'Account was invalid and has been reset. Please create a new account.'
-          )
-        )
-      }
-      throw error
+    if (!validation.isValid) {
+      return res.status(200).json({
+        status: 'success',
+        data: {
+          hasAccount: false,
+          connected: false,
+          accountState: 'not_connected',
+          message:
+            validation.reason === 'account_invalid'
+              ? 'Account was invalid and has been reset'
+              : 'No Connect account found',
+        },
+      })
     }
 
-    // Return updated status
-    return getConnectAccountStatus(req, res, next)
+    // Update user with latest account data
+    await user.updateConnectAccountStatus(validation.account)
+
+    // Get refreshed user data
+    const updatedUser = await User.findById(user._id)
+    const connectData = updatedUser.stripeConnect
+    const accountState = getAccountState(validation.account, connectData)
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        hasAccount: true,
+        connected: true,
+        accountState,
+        isVerified: connectData.isVerified,
+        canReceivePayouts: updatedUser.canReceivePayouts(),
+        requirements: connectData.requirementsNeeded,
+        capabilities: connectData.capabilities,
+        lastUpdated: connectData.lastUpdated,
+        message: 'Account status refreshed successfully',
+      },
+    })
   } catch (error) {
     console.error('Error refreshing Connect account status:', error)
     next(createError(500, 'Failed to refresh account status'))
   }
 }
 
-// Delete/Reset Connect account (for testing)
+// Reset Connect account (for development/testing)
 export const resetConnectAccount = async (req, res, next) => {
   try {
-    const user = req.user
-
-    if (!user.stripeConnect?.accountId) {
-      return next(createError(400, 'No Connect account to reset'))
+    if (process.env.NODE_ENV === 'production') {
+      return next(
+        createError(403, 'This operation is not allowed in production')
+      )
     }
 
-    // In test mode, we can delete the account
-    if (process.env.NODE_ENV !== 'production') {
-      try {
-        await stripe.accounts.del(user.stripeConnect.accountId)
-      } catch (error) {
-        console.log('Error deleting Stripe account:', error.message)
-        // Continue even if deletion fails
-      }
+    const user = await User.findById(req.user._id)
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
     }
 
-    // Reset user's Connect data
-    user.stripeConnect = {
-      accountId: null,
-      isVerified: false,
-      onboardingCompleted: false,
-      capabilities: {},
-      requirementsNeeded: [],
-    }
-
-    await user.save()
+    await user.safeResetConnectAccount()
 
     res.status(200).json({
       status: 'success',
-      data: {
-        message: 'Connect account reset successfully',
-      },
+      message: 'Connect account reset successfully',
     })
   } catch (error) {
     console.error('Error resetting Connect account:', error)
@@ -462,87 +436,29 @@ export const resetConnectAccount = async (req, res, next) => {
   }
 }
 
-// Helper function to clean up invalid Connect accounts (Admin/Dev utility)
-export const cleanupInvalidConnectAccounts = async (req, res, next) => {
-  try {
-    // Only allow in development or for admins
-    if (process.env.NODE_ENV === 'production' && req.user.role !== 'admin') {
-      return next(createError(403, 'Not authorized'))
-    }
-
-    const usersWithConnect = await User.find({
-      'stripeConnect.accountId': { $exists: true, $ne: null },
-    })
-
-    let cleanedCount = 0
-    let validCount = 0
-
-    console.log(`Found ${usersWithConnect.length} users with Connect accounts`)
-
-    for (const user of usersWithConnect) {
-      try {
-        // Try to retrieve the account
-        await retrieveConnectAccount(user.stripeConnect.accountId)
-        validCount++
-      } catch (error) {
-        if (
-          error.code === 'account_invalid' ||
-          error.type === 'StripePermissionError' ||
-          error.message?.includes('does not have access to account') ||
-          error.message?.includes('account does not exist')
-        ) {
-          console.log(
-            `Cleaning up invalid account for user ${user._id}: ${user.stripeConnect.accountId}`
-          )
-
-          // Reset user's Connect data
-          user.stripeConnect = {
-            accountId: null,
-            isVerified: false,
-            onboardingCompleted: false,
-            capabilities: {},
-            requirementsNeeded: [],
-          }
-
-          await user.save()
-          cleanedCount++
-        }
-      }
-    }
-
-    res.status(200).json({
-      status: 'success',
-      data: {
-        totalChecked: usersWithConnect.length,
-        validAccounts: validCount,
-        cleanedAccounts: cleanedCount,
-        message: `Cleanup complete: ${cleanedCount} invalid accounts reset, ${validCount} valid accounts found`,
-      },
-    })
-  } catch (error) {
-    console.error('Error during cleanup:', error)
-    next(createError(500, 'Failed to cleanup invalid accounts'))
-  }
-}
-
 // Update payout settings
 export const updatePayoutSettings = async (req, res, next) => {
   try {
     const { schedule, minimumAmount, currency } = req.body
-    const user = req.user
+    const user = await User.findById(req.user._id)
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
 
     if (!user.stripeConnect?.accountId) {
-      return next(createError(400, 'No Connect account found'))
+      return next(createError(400, 'Connect account required'))
     }
 
     // Validate settings
-    if (schedule && !['manual', 'weekly', 'monthly'].includes(schedule)) {
+    const validSchedules = ['manual', 'weekly', 'monthly']
+    if (schedule && !validSchedules.includes(schedule)) {
       return next(createError(400, 'Invalid payout schedule'))
     }
 
     if (minimumAmount && minimumAmount < 1000) {
       return next(
-        createError(400, 'Minimum payout amount must be at least $10')
+        createError(400, 'Minimum payout amount must be at least $10.00')
       )
     }
 
@@ -554,9 +470,9 @@ export const updatePayoutSettings = async (req, res, next) => {
     if (schedule) user.stripeConnect.payoutSettings.schedule = schedule
     if (minimumAmount)
       user.stripeConnect.payoutSettings.minimumAmount = minimumAmount
-    if (currency)
-      user.stripeConnect.payoutSettings.currency = currency.toUpperCase()
+    if (currency) user.stripeConnect.payoutSettings.currency = currency
 
+    user.stripeConnect.lastUpdated = new Date()
     await user.save()
 
     res.status(200).json({
@@ -572,45 +488,114 @@ export const updatePayoutSettings = async (req, res, next) => {
   }
 }
 
-// Get user's earnings summary
-export const getEarningsSummary = async (req, res, next) => {
+// Utility function to cleanup invalid Connect accounts
+export const cleanupInvalidConnectAccounts = async (req, res, next) => {
   try {
-    const user = req.user
+    if (process.env.NODE_ENV === 'production' && req.user.role !== 'admin') {
+      return next(
+        createError(403, 'This operation requires admin access in production')
+      )
+    }
 
-    // Update earnings info
-    await user.updateEarningsInfo()
+    const usersWithConnectAccounts = await User.find({
+      'stripeConnect.accountId': { $exists: true, $ne: null },
+    })
 
-    // Get detailed earnings summary
-    const summary = await Earnings.getEarningsSummary(user._id)
-    const recentEarnings = await Earnings.getRecentEarnings(user._id, 30, 10)
-    const payableEarnings = await Earnings.getPayableEarnings(
-      user._id,
-      user.getMinimumPayoutAmount()
-    )
+    let cleanedCount = 0
+    const results = []
+
+    for (const user of usersWithConnectAccounts) {
+      try {
+        const validation = await validateConnectAccount(user)
+
+        if (!validation.isValid && validation.wasReset) {
+          cleanedCount++
+          results.push({
+            userId: user._id,
+            email: user.email,
+            oldAccountId: user.stripeConnect?.accountId,
+            status: 'cleaned',
+          })
+        } else if (validation.isValid) {
+          results.push({
+            userId: user._id,
+            email: user.email,
+            accountId: user.stripeConnect?.accountId,
+            status: 'valid',
+          })
+        }
+      } catch (error) {
+        results.push({
+          userId: user._id,
+          email: user.email,
+          accountId: user.stripeConnect?.accountId,
+          status: 'error',
+          error: error.message,
+        })
+      }
+    }
 
     res.status(200).json({
       status: 'success',
       data: {
-        summary: {
-          ...summary,
-          formatted: {
-            pending: (summary.pending.total / 100).toFixed(2),
-            approved: (summary.approved.total / 100).toFixed(2),
-            paid: (summary.paid.total / 100).toFixed(2),
-            total: (
-              (summary.pending.total +
-                summary.approved.total +
-                summary.paid.total) /
-              100
-            ).toFixed(2),
-          },
-        },
-        recentEarnings,
-        payableEarnings,
-        userEarningsInfo: user.formattedEarnings,
-        canRequestPayout:
-          payableEarnings.length > 0 && user.canReceivePayouts(),
+        totalChecked: usersWithConnectAccounts.length,
+        cleanedCount,
+        results,
       },
+      message: `Cleaned up ${cleanedCount} invalid Connect accounts`,
+    })
+  } catch (error) {
+    console.error('Error cleaning up invalid Connect accounts:', error)
+    next(createError(500, 'Failed to cleanup invalid Connect accounts'))
+  }
+}
+
+// =============================================================================
+// EARNINGS MANAGEMENT
+// =============================================================================
+
+// Get earnings summary
+export const getEarningsSummary = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id)
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    // Update earnings info first
+    await user.updateEarningsInfo()
+
+    // Get detailed breakdown
+    const summary = await Earnings.getEarningsSummary(req.user._id)
+
+    // Get recent earnings for the overview
+    const recentEarnings = await Earnings.find({
+      user: req.user._id,
+    })
+      .populate('referredUser', 'name email')
+      .sort({ createdAt: -1 })
+      .limit(5)
+
+    // Format the response to match frontend expectations
+    const responseData = {
+      summary: {
+        ...summary,
+        formatted: {
+          pending: (summary.pending.total / 100).toFixed(2),
+          approved: (summary.approved.total / 100).toFixed(2),
+          paid: (summary.paid.total / 100).toFixed(2),
+        },
+      },
+      userEarningsInfo: user.formattedEarnings,
+      canReceivePayouts: user.canReceivePayouts(),
+      minimumPayout: user.getMinimumPayoutAmount(),
+      recentEarnings,
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: responseData,
     })
   } catch (error) {
     console.error('Error getting earnings summary:', error)
@@ -618,100 +603,275 @@ export const getEarningsSummary = async (req, res, next) => {
   }
 }
 
-// Request a payout
+// Get user earnings
+export const getUserEarnings = async (req, res, next) => {
+  try {
+    const page = parseInt(req.query.page) || 1
+    const limit = parseInt(req.query.limit) || 20
+    const status = req.query.status
+    const skip = (page - 1) * limit
+
+    const query = { user: req.user._id }
+    if (status) {
+      query.status = status
+    }
+
+    const earnings = await Earnings.find(query)
+      .populate('referredUser', 'name email')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+
+    const totalEarnings = await Earnings.countDocuments(query)
+
+    res.status(200).json({
+      status: 'success',
+      results: earnings.length,
+      totalResults: totalEarnings,
+      totalPages: Math.ceil(totalEarnings / limit),
+      currentPage: page,
+      data: {
+        earnings,
+      },
+    })
+  } catch (error) {
+    console.error('Error getting user earnings:', error)
+    next(createError(500, 'Failed to retrieve earnings'))
+  }
+}
+
+// Get earning details
+export const getEarningDetails = async (req, res, next) => {
+  try {
+    const { earningId } = req.params
+
+    const earning = await Earnings.findOne({
+      _id: earningId,
+      user: req.user._id,
+    })
+      .populate('user', 'name email')
+      .populate('referredUser', 'name email')
+      .populate('subscription', 'plan billingCycle amount')
+      .populate('payout', 'status amount requestedAt')
+
+    if (!earning) {
+      return next(createError(404, 'Earning not found'))
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        earning,
+      },
+    })
+  } catch (error) {
+    console.error('Error getting earning details:', error)
+    next(createError(500, 'Failed to retrieve earning details'))
+  }
+}
+
+// Get earnings analytics
+export const getEarningsAnalytics = async (req, res, next) => {
+  try {
+    const { period = '30d' } = req.query
+
+    // Calculate date range
+    const endDate = new Date()
+    let startDate = new Date()
+
+    switch (period) {
+      case '7d':
+        startDate.setDate(endDate.getDate() - 7)
+        break
+      case '30d':
+        startDate.setDate(endDate.getDate() - 30)
+        break
+      case '90d':
+        startDate.setDate(endDate.getDate() - 90)
+        break
+      case '1y':
+        startDate.setFullYear(endDate.getFullYear() - 1)
+        break
+      default:
+        startDate.setDate(endDate.getDate() - 30)
+    }
+
+    // Get earnings data
+    const earningsData = await Earnings.aggregate([
+      {
+        $match: {
+          user: req.user._id,
+          createdAt: { $gte: startDate, $lte: endDate },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$createdAt' },
+            month: { $month: '$createdAt' },
+            day: { $dayOfMonth: '$createdAt' },
+          },
+          totalEarnings: { $sum: '$commissionAmount' },
+          count: { $sum: 1 },
+          avgEarning: { $avg: '$commissionAmount' },
+        },
+      },
+      {
+        $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 },
+      },
+    ])
+
+    // Get status breakdown
+    const statusBreakdown = await Earnings.aggregate([
+      {
+        $match: {
+          user: req.user._id,
+          createdAt: { $gte: startDate, $lte: endDate },
+        },
+      },
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 },
+          total: { $sum: '$commissionAmount' },
+        },
+      },
+    ])
+
+    // Get referral source breakdown
+    const sourceBreakdown = await Earnings.aggregate([
+      {
+        $match: {
+          user: req.user._id,
+          createdAt: { $gte: startDate, $lte: endDate },
+        },
+      },
+      {
+        $group: {
+          _id: '$source',
+          count: { $sum: 1 },
+          total: { $sum: '$commissionAmount' },
+        },
+      },
+    ])
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        period,
+        dateRange: { startDate, endDate },
+        earningsData,
+        statusBreakdown,
+        sourceBreakdown,
+      },
+    })
+  } catch (error) {
+    console.error('Error getting earnings analytics:', error)
+    next(createError(500, 'Failed to retrieve earnings analytics'))
+  }
+}
+
+// =============================================================================
+// PAYOUT MANAGEMENT
+// =============================================================================
+
+// Request payout
 export const requestPayout = async (req, res, next) => {
   try {
     const { amount, method = 'standard' } = req.body
-    const user = req.user
+    const user = await User.findById(req.user._id)
 
-    // Validate user can receive payouts
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    // Validate Connect account
+    const validation = await validateConnectAccount(user)
+
+    if (!validation.isValid) {
+      return next(
+        createError(400, 'Valid Connect account required to request payouts')
+      )
+    }
+
     if (!user.canReceivePayouts()) {
       return next(
-        createError(
-          400,
-          'Account not eligible for payouts. Please complete verification.'
-        )
+        createError(400, 'Your account is not yet verified to receive payouts')
       )
     }
 
-    // Validate minimum amount
-    const minimumAmount = user.getMinimumPayoutAmount()
-    if (!amount || amount < minimumAmount) {
+    if (!amount || amount <= 0) {
+      return next(createError(400, 'Valid amount is required'))
+    }
+
+    const minimumPayout = user.getMinimumPayoutAmount()
+    if (amount < minimumPayout) {
       return next(
-        createError(
-          400,
-          `Minimum payout amount is ${minimumAmount / 100} ${
-            user.stripeConnect.payoutSettings?.currency || 'USD'
-          }`
-        )
+        createError(400, `Minimum payout amount is ${minimumPayout / 100} USD`)
       )
     }
 
-    // Check if user has enough approved earnings
-    const approvedEarnings = await Earnings.getPayableEarnings(user._id)
-    const totalApproved = approvedEarnings.reduce(
-      (sum, earning) => sum + earning.commissionAmount,
-      0
-    )
+    // Update earnings info to get latest available amount
+    await user.updateEarningsInfo()
 
-    if (totalApproved < amount) {
+    if (amount > user.earningsInfo.availableForPayout) {
       return next(
-        createError(
-          400,
-          `Insufficient approved earnings. Available: ${(
-            totalApproved / 100
-          ).toFixed(2)}`
-        )
+        createError(400, 'Insufficient available earnings for payout')
       )
     }
 
-    // Check for pending payouts
-    const pendingPayouts = await Payout.find({
-      user: user._id,
-      status: { $in: ['pending', 'processing'] },
-    })
+    // Get approved earnings to include in payout
+    const approvedEarnings = await Earnings.find({
+      user: req.user._id,
+      status: 'approved',
+      payout: { $exists: false },
+    }).sort({ createdAt: 1 })
 
-    if (pendingPayouts.length > 0) {
-      return next(createError(400, 'You have a pending payout request'))
-    }
-
-    // Select earnings for this payout (oldest first)
-    const earningsForPayout = []
-    let remainingAmount = amount
+    let totalAvailable = 0
+    const earningsToInclude = []
 
     for (const earning of approvedEarnings) {
-      if (remainingAmount <= 0) break
+      if (totalAvailable + earning.commissionAmount <= amount) {
+        earningsToInclude.push(earning._id)
+        totalAvailable += earning.commissionAmount
+      } else {
+        break
+      }
+    }
 
-      const earningAmount = Math.min(earning.commissionAmount, remainingAmount)
-      earningsForPayout.push(earning._id)
-      remainingAmount -= earningAmount
+    if (totalAvailable < amount) {
+      return next(
+        createError(
+          400,
+          'Not enough approved earnings available for this payout amount'
+        )
+      )
     }
 
     // Create payout request
     const payout = new Payout({
-      user: user._id,
-      amount,
+      user: req.user._id,
+      amount: totalAvailable,
       currency: user.stripeConnect.payoutSettings?.currency || 'USD',
       stripeConnectAccountId: user.stripeConnect.accountId,
+      earnings: earningsToInclude,
       method,
-      earnings: earningsForPayout,
-      status: 'pending',
-      requestedAt: new Date(),
     })
 
-    // Calculate fees
-    payout.calculateFees()
     await payout.save()
 
-    // Mark earnings as part of this payout
+    // Mark earnings as being processed
     await Earnings.updateMany(
-      { _id: { $in: earningsForPayout } },
+      { _id: { $in: earningsToInclude } },
       { payout: payout._id }
     )
 
+    // Update user earnings info
+    await user.updateEarningsInfo()
+
     await payout.populate('earnings', 'source commissionAmount description')
 
-    res.status(200).json({
+    res.status(201).json({
       status: 'success',
       data: {
         payout,
@@ -719,144 +879,52 @@ export const requestPayout = async (req, res, next) => {
       },
     })
   } catch (error) {
-    console.error('Error creating payout request:', error)
+    console.error('Error requesting payout:', error)
     next(createError(500, 'Failed to create payout request'))
   }
 }
 
-// Process a payout (Admin only)
-export const processPayout = async (req, res, next) => {
+// Get payout history
+export const getPayoutHistory = async (req, res, next) => {
   try {
-    const { payoutId } = req.params
-    const { approve } = req.body // true to approve, false to reject
+    const page = parseInt(req.query.page) || 1
+    const limit = parseInt(req.query.limit) || 10
+    const status = req.query.status
 
-    const payout = await Payout.findById(payoutId).populate(
-      'user',
-      'name email stripeConnect'
+    const payouts = await Payout.getUserPayoutHistory(
+      req.user._id,
+      limit * page,
+      status
     )
 
-    if (!payout) {
-      return next(createError(404, 'Payout not found'))
-    }
+    const skip = (page - 1) * limit
+    const paginatedPayouts = payouts.slice(skip, skip + limit)
 
-    if (payout.status !== 'pending') {
-      return next(createError(400, 'Payout is not pending'))
-    }
-
-    if (!approve) {
-      // Reject payout
-      await payout.cancel('Rejected by admin')
-
-      // Release earnings
-      await Earnings.updateMany(
-        { _id: { $in: payout.earnings } },
-        { $unset: { payout: 1 } }
-      )
-
-      return res.status(200).json({
-        status: 'success',
-        data: {
-          payout,
-          message: 'Payout rejected',
+    res.status(200).json({
+      status: 'success',
+      results: paginatedPayouts.length,
+      data: {
+        payouts: paginatedPayouts,
+        pagination: {
+          currentPage: page,
+          hasMore: payouts.length > skip + limit,
         },
-      })
-    }
-
-    // Approve and process payout
-    try {
-      // Create transfer to Connect account
-      const transfer = await stripe.transfers.create({
-        amount: payout.netAmount,
-        currency: payout.currency.toLowerCase(),
-        destination: payout.stripeConnectAccountId,
-        metadata: {
-          payoutId: payout._id.toString(),
-          userId: payout.user._id.toString(),
-        },
-      })
-
-      // Create payout on Connect account
-      const stripePayout = await stripe.payouts.create(
-        {
-          amount: payout.netAmount,
-          currency: payout.currency.toLowerCase(),
-          method: payout.method === 'instant' ? 'instant' : 'standard',
-          metadata: {
-            payoutId: payout._id.toString(),
-            transferId: transfer.id,
-          },
-        },
-        {
-          stripeAccount: payout.stripeConnectAccountId,
-        }
-      )
-
-      // Update payout record
-      await payout.markAsProcessing(stripePayout.id, req.user._id)
-      payout.stripeTransferId = transfer.id
-
-      // Mark earnings as paid
-      await Earnings.updateMany(
-        { _id: { $in: payout.earnings } },
-        {
-          status: 'paid',
-          paidAt: new Date(),
-          stripeTransferId: transfer.id,
-        }
-      )
-
-      // Update user earnings info
-      await payout.user.updateEarningsInfo()
-
-      await payout.save()
-      await payout.populate('earnings', 'source commissionAmount description')
-
-      res.status(200).json({
-        status: 'success',
-        data: {
-          payout,
-          transfer: {
-            id: transfer.id,
-            amount: transfer.amount,
-          },
-          stripePayout: {
-            id: stripePayout.id,
-            expectedArrival: stripePayout.arrival_date,
-          },
-          message: 'Payout processed successfully',
-        },
-      })
-    } catch (stripeError) {
-      console.error('Stripe error processing payout:', stripeError)
-
-      // Mark payout as failed
-      await payout.markAsFailed(stripeError.code, stripeError.message)
-
-      // Release earnings
-      await Earnings.updateMany(
-        { _id: { $in: payout.earnings } },
-        { $unset: { payout: 1 } }
-      )
-
-      return next(
-        createError(500, `Failed to process payout: ${stripeError.message}`)
-      )
-    }
+      },
+    })
   } catch (error) {
-    console.error('Error processing payout:', error)
-    next(createError(500, 'Failed to process payout'))
+    console.error('Error getting payout history:', error)
+    next(createError(500, 'Failed to retrieve payout history'))
   }
 }
 
-// Cancel a payout request
+// Cancel payout request
 export const cancelPayoutRequest = async (req, res, next) => {
   try {
     const { payoutId } = req.params
-    const user = req.user
 
     const payout = await Payout.findOne({
       _id: payoutId,
-      user: user._id,
+      user: req.user._id,
     })
 
     if (!payout) {
@@ -867,83 +935,293 @@ export const cancelPayoutRequest = async (req, res, next) => {
       return next(createError(400, 'Can only cancel pending payouts'))
     }
 
-    // Cancel payout
     await payout.cancel('Cancelled by user')
 
-    // Release earnings
+    // Release earnings back to available
     await Earnings.updateMany(
       { _id: { $in: payout.earnings } },
       { $unset: { payout: 1 } }
     )
 
+    // Update user earnings info
+    const user = await User.findById(req.user._id)
+    await user.updateEarningsInfo()
+
     res.status(200).json({
       status: 'success',
-      data: {
-        payout,
-        message: 'Payout cancelled successfully',
-      },
+      message: 'Payout request cancelled successfully',
     })
   } catch (error) {
     console.error('Error cancelling payout:', error)
-    next(createError(500, 'Failed to cancel payout'))
+    next(createError(500, 'Failed to cancel payout request'))
   }
 }
 
-// Get payout history
-export const getPayoutHistory = async (req, res, next) => {
+// =============================================================================
+// ADMIN FUNCTIONS
+// =============================================================================
+
+// Get all earnings (admin)
+export const getAllEarnings = async (req, res, next) => {
   try {
-    const user = req.user
     const page = parseInt(req.query.page) || 1
     const limit = parseInt(req.query.limit) || 20
     const status = req.query.status
+    const skip = (page - 1) * limit
 
-    const payouts = await Payout.getUserPayoutHistory(
-      user._id,
-      limit,
-      status
-    ).skip((page - 1) * limit)
+    const query = {}
+    if (status) {
+      query.status = status
+    }
 
-    const totalPayouts = await Payout.countDocuments({
-      user: user._id,
-      ...(status && { status }),
-    })
+    const earnings = await Earnings.find(query)
+      .populate('user', 'name email')
+      .populate('referredUser', 'name email')
+      .populate('subscription', 'plan billingCycle amount')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+
+    const totalEarnings = await Earnings.countDocuments(query)
 
     res.status(200).json({
       status: 'success',
-      results: payouts.length,
-      totalResults: totalPayouts,
-      totalPages: Math.ceil(totalPayouts / limit),
+      results: earnings.length,
+      totalResults: totalEarnings,
+      totalPages: Math.ceil(totalEarnings / limit),
       currentPage: page,
       data: {
-        payouts,
+        earnings,
       },
     })
   } catch (error) {
-    console.error('Error getting payout history:', error)
-    next(createError(500, 'Failed to retrieve payout history'))
+    console.error('Error getting all earnings:', error)
+    next(createError(500, 'Failed to retrieve earnings'))
   }
 }
 
-// Get all payouts (Admin only)
+// Approve earning (admin)
+export const approveEarning = async (req, res, next) => {
+  try {
+    const { earningId } = req.params
+    const { notes } = req.body
+
+    const earning = await Earnings.findById(earningId)
+
+    if (!earning) {
+      return next(createError(404, 'Earning not found'))
+    }
+
+    if (earning.status !== 'pending') {
+      return next(createError(400, 'Can only approve pending earnings'))
+    }
+
+    earning.status = 'approved'
+    earning.approvedAt = new Date()
+    earning.approvedBy = req.user._id
+    if (notes) earning.adminNotes = notes
+
+    await earning.save()
+
+    // Update user earnings info
+    const user = await User.findById(earning.user)
+    if (user) {
+      await user.updateEarningsInfo()
+    }
+
+    await earning.populate([
+      { path: 'user', select: 'name email' },
+      { path: 'referredUser', select: 'name email' },
+      { path: 'approvedBy', select: 'name email' },
+    ])
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        earning,
+        message: 'Earning approved successfully',
+      },
+    })
+  } catch (error) {
+    console.error('Error approving earning:', error)
+    next(createError(500, 'Failed to approve earning'))
+  }
+}
+
+// Bulk approve earnings (admin)
+export const bulkApproveEarnings = async (req, res, next) => {
+  try {
+    const { earningIds, notes } = req.body
+
+    if (!earningIds || !Array.isArray(earningIds) || earningIds.length === 0) {
+      return next(createError(400, 'earningIds array is required'))
+    }
+
+    const updateData = {
+      status: 'approved',
+      approvedAt: new Date(),
+      approvedBy: req.user._id,
+    }
+
+    if (notes) {
+      updateData.adminNotes = notes
+    }
+
+    const result = await Earnings.updateMany(
+      {
+        _id: { $in: earningIds },
+        status: 'pending',
+      },
+      updateData
+    )
+
+    // Update earnings info for affected users
+    const earnings = await Earnings.find({ _id: { $in: earningIds } }).distinct(
+      'user'
+    )
+    for (const userId of earnings) {
+      const user = await User.findById(userId)
+      if (user) {
+        await user.updateEarningsInfo()
+      }
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        approved: result.modifiedCount,
+        message: `${result.modifiedCount} earnings approved successfully`,
+      },
+    })
+  } catch (error) {
+    console.error('Error bulk approving earnings:', error)
+    next(createError(500, 'Failed to bulk approve earnings'))
+  }
+}
+
+// Dispute earning (admin)
+export const disputeEarning = async (req, res, next) => {
+  try {
+    const { earningId } = req.params
+    const { reason, notes } = req.body
+
+    if (!reason) {
+      return next(createError(400, 'Dispute reason is required'))
+    }
+
+    const earning = await Earnings.findById(earningId)
+
+    if (!earning) {
+      return next(createError(404, 'Earning not found'))
+    }
+
+    earning.status = 'disputed'
+    earning.disputedAt = new Date()
+    earning.disputedBy = req.user._id
+    earning.disputeReason = reason
+    if (notes) earning.adminNotes = notes
+
+    await earning.save()
+
+    // Update user earnings info
+    const user = await User.findById(earning.user)
+    if (user) {
+      await user.updateEarningsInfo()
+    }
+
+    await earning.populate([
+      { path: 'user', select: 'name email' },
+      { path: 'referredUser', select: 'name email' },
+      { path: 'disputedBy', select: 'name email' },
+    ])
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        earning,
+        message: 'Earning disputed successfully',
+      },
+    })
+  } catch (error) {
+    console.error('Error disputing earning:', error)
+    next(createError(500, 'Failed to dispute earning'))
+  }
+}
+
+// Cancel earning (admin)
+export const cancelEarning = async (req, res, next) => {
+  try {
+    const { earningId } = req.params
+    const { reason, notes } = req.body
+
+    if (!reason) {
+      return next(createError(400, 'Cancellation reason is required'))
+    }
+
+    const earning = await Earnings.findById(earningId)
+
+    if (!earning) {
+      return next(createError(404, 'Earning not found'))
+    }
+
+    if (earning.status === 'paid') {
+      return next(createError(400, 'Cannot cancel paid earnings'))
+    }
+
+    earning.status = 'cancelled'
+    earning.cancelledAt = new Date()
+    earning.cancelledBy = req.user._id
+    earning.cancellationReason = reason
+    if (notes) earning.adminNotes = notes
+
+    await earning.save()
+
+    // Update user earnings info
+    const user = await User.findById(earning.user)
+    if (user) {
+      await user.updateEarningsInfo()
+    }
+
+    await earning.populate([
+      { path: 'user', select: 'name email' },
+      { path: 'referredUser', select: 'name email' },
+      { path: 'cancelledBy', select: 'name email' },
+    ])
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        earning,
+        message: 'Earning cancelled successfully',
+      },
+    })
+  } catch (error) {
+    console.error('Error cancelling earning:', error)
+    next(createError(500, 'Failed to cancel earning'))
+  }
+}
+
+// Get all payouts (admin)
 export const getAllPayouts = async (req, res, next) => {
   try {
     const page = parseInt(req.query.page) || 1
     const limit = parseInt(req.query.limit) || 20
     const status = req.query.status
+    const skip = (page - 1) * limit
 
-    const filter = {}
+    const query = {}
     if (status) {
-      filter.status = status
+      query.status = status
     }
 
-    const payouts = await Payout.find(filter)
+    const payouts = await Payout.find(query)
       .populate('user', 'name email stripeConnect.accountId')
       .populate('earnings', 'source commissionAmount description')
-      .skip((page - 1) * limit)
-      .limit(limit)
       .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
 
-    const totalPayouts = await Payout.countDocuments(filter)
+    const totalPayouts = await Payout.countDocuments(query)
 
     res.status(200).json({
       status: 'success',
@@ -961,66 +1239,124 @@ export const getAllPayouts = async (req, res, next) => {
   }
 }
 
-// Get payout statistics (Admin only)
-export const getPayoutStatistics = async (req, res, next) => {
+// Process payout (admin)
+export const processPayout = async (req, res, next) => {
   try {
-    const { startDate, endDate } = req.query
+    const { payoutId } = req.params
 
-    let dateRange = null
-    if (startDate && endDate) {
-      dateRange = {
-        start: new Date(startDate),
-        end: new Date(endDate),
-      }
+    const payout = await Payout.findById(payoutId)
+      .populate('user')
+      .populate('earnings')
+
+    if (!payout) {
+      return next(createError(404, 'Payout not found'))
     }
 
-    const stats = await Payout.getPayoutStats(dateRange)
+    if (payout.status !== 'pending') {
+      return next(createError(400, 'Can only process pending payouts'))
+    }
 
-    // Get additional metrics
-    const totalUsers = await User.countDocuments({
-      'stripeConnect.accountId': { $exists: true },
-    })
-
-    const verifiedUsers = await User.countDocuments({
-      'stripeConnect.isVerified': true,
-    })
-
-    const totalEarnings = await Earnings.aggregate([
-      ...(dateRange
-        ? [
-            {
-              $match: {
-                createdAt: { $gte: dateRange.start, $lte: dateRange.end },
-              },
-            },
-          ]
-        : []),
-      {
-        $group: {
-          _id: null,
-          total: { $sum: '$commissionAmount' },
-          count: { $sum: 1 },
-        },
+    // Create transfer to Connect account
+    const transfer = await stripe.transfers.create({
+      amount: payout.netAmount,
+      currency: payout.currency.toLowerCase(),
+      destination: payout.stripeConnectAccountId,
+      metadata: {
+        payoutId: payout._id.toString(),
+        userId: payout.user._id.toString(),
       },
-    ])
+    })
+
+    // Update payout with transfer info
+    await payout.markAsProcessing(null, req.user._id)
+    payout.stripeTransferId = transfer.id
+    await payout.save()
+
+    // Mark earnings as paid
+    await Earnings.updateMany(
+      { _id: { $in: payout.earnings.map((e) => e._id) } },
+      {
+        status: 'paid',
+        paidAt: new Date(),
+      }
+    )
+
+    // Update user earnings info
+    await payout.user.updateEarningsInfo()
 
     res.status(200).json({
       status: 'success',
       data: {
+        payout,
+        transfer,
+        message: 'Payout processed successfully',
+      },
+    })
+  } catch (error) {
+    console.error('Error processing payout:', error)
+    next(createError(500, 'Failed to process payout'))
+  }
+}
+
+// Get payout statistics (admin)
+export const getPayoutStatistics = async (req, res, next) => {
+  try {
+    const { period = '30d' } = req.query
+
+    // Calculate date range
+    const endDate = new Date()
+    let startDate = new Date()
+
+    switch (period) {
+      case '7d':
+        startDate.setDate(endDate.getDate() - 7)
+        break
+      case '30d':
+        startDate.setDate(endDate.getDate() - 30)
+        break
+      case '90d':
+        startDate.setDate(endDate.getDate() - 90)
+        break
+      case '1y':
+        startDate.setFullYear(endDate.getFullYear() - 1)
+        break
+      default:
+        startDate.setDate(endDate.getDate() - 30)
+    }
+
+    // Get payout statistics
+    const stats = await Payout.getPayoutStats({
+      start: startDate,
+      end: endDate,
+    })
+
+    // Get earnings statistics
+    const earningsStats = await Earnings.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: startDate, $lte: endDate },
+        },
+      },
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 },
+          total: { $sum: '$commissionAmount' },
+        },
+      },
+    ])
+
+    // Get top earners
+    const topEarners = await User.getTopEarners(10, period)
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        period,
+        dateRange: { startDate, endDate },
         payoutStats: stats,
-        userStats: {
-          totalConnectedUsers: totalUsers,
-          verifiedUsers,
-          verificationRate:
-            totalUsers > 0
-              ? ((verifiedUsers / totalUsers) * 100).toFixed(2)
-              : 0,
-        },
-        earningsStats: {
-          totalEarnings: totalEarnings[0]?.total || 0,
-          totalEarningsCount: totalEarnings[0]?.count || 0,
-        },
-        dateRange,
+        earningsStats,
+        topEarners,
       },
     })
   } catch (error) {

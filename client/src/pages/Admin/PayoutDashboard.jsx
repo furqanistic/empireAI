@@ -1,4 +1,4 @@
-// File: client/src/pages/Admin/PayoutDashboard.jsx - COMPLETE VERSION WITH ALL TABS
+// File: client/src/pages/Admin/PayoutDashboard.jsx - COMPLETE VERSION WITH ENHANCED LOADING
 import axiosInstance from '@/config/config'
 import {
   AlertCircle,
@@ -20,6 +20,217 @@ import {
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import Layout from '../Layout/Layout'
+
+// Enhanced Loading Component with Skeleton Screens
+const PayoutDashboardLoader = () => {
+  const [loadingStep, setLoadingStep] = useState(0)
+  const [progress, setProgress] = useState(0)
+
+  const loadingSteps = [
+    'Connecting to secure servers...',
+    'Verifying your account...',
+    'Loading payout configuration...',
+    'Fetching earnings data...',
+    'Synchronizing with Stripe...',
+    'Finalizing dashboard...',
+  ]
+
+  useEffect(() => {
+    const stepInterval = setInterval(() => {
+      setLoadingStep((prev) => (prev + 1) % loadingSteps.length)
+    }, 800)
+
+    const progressInterval = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 95) return 95
+        return prev + Math.random() * 15
+      })
+    }, 200)
+
+    return () => {
+      clearInterval(stepInterval)
+      clearInterval(progressInterval)
+    }
+  }, [])
+
+  const SkeletonCard = ({ height = 'h-24', width = 'w-full' }) => (
+    <div
+      className={`${height} ${width} bg-gradient-to-r from-[#1A1A1C] via-[#1E1E21] to-[#1A1A1C] bg-[length:200%_100%] animate-pulse rounded-xl border border-[#1E1E21]`}
+    >
+      <div className='h-full w-full bg-gradient-to-r from-transparent via-[#D4AF37]/5 to-transparent animate-shimmer'></div>
+    </div>
+  )
+
+  const SkeletonButton = ({ width = 'w-32' }) => (
+    <div
+      className={`h-10 ${width} bg-[#D4AF37]/20 rounded-lg animate-pulse`}
+    ></div>
+  )
+
+  const SkeletonText = ({ width = 'w-24', height = 'h-4' }) => (
+    <div
+      className={`${height} ${width} bg-[#1E1E21] rounded animate-pulse`}
+    ></div>
+  )
+
+  return (
+    <Layout>
+      <div className='max-w-6xl mx-auto p-6 space-y-8'>
+        {/* Animated Header */}
+        <div className='text-center space-y-4'>
+          <div className='relative'>
+            <div className='h-8 w-48 bg-gradient-to-r from-[#D4AF37]/30 via-[#D4AF37]/60 to-[#D4AF37]/30 rounded-lg mx-auto animate-pulse'></div>
+            <div className='h-5 w-72 bg-[#1E1E21] rounded mx-auto mt-2 animate-pulse'></div>
+          </div>
+
+          {/* Progress Bar */}
+          <div className='max-w-md mx-auto'>
+            <div className='h-2 bg-[#1A1A1C] rounded-full overflow-hidden border border-[#1E1E21]'>
+              <div
+                className='h-full bg-gradient-to-r from-[#D4AF37] to-[#F4D03F] transition-all duration-300 ease-out relative'
+                style={{ width: `${progress}%` }}
+              >
+                <div className='absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer'></div>
+              </div>
+            </div>
+            <div className='flex items-center justify-center gap-2 mt-3'>
+              <Wallet className='text-[#D4AF37] animate-bounce' size={16} />
+              <p className='text-sm text-gray-400 animate-fade-in'>
+                {loadingSteps[loadingStep]}
+              </p>
+              <div className='flex gap-1'>
+                {[...Array(3)].map((_, i) => (
+                  <div
+                    key={i}
+                    className='w-1 h-1 bg-[#D4AF37] rounded-full animate-pulse'
+                    style={{ animationDelay: `${i * 0.2}s` }}
+                  ></div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Skeleton Tabs */}
+        <div className='bg-[#121214] border border-[#1E1E21] rounded-xl overflow-hidden'>
+          <div className='border-b border-[#1E1E21] p-6'>
+            <div className='flex gap-6'>
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className='flex items-center gap-2'>
+                  <div className='w-4 h-4 bg-[#D4AF37]/40 rounded animate-pulse'></div>
+                  <SkeletonText width='w-16' />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className='p-6 space-y-6'>
+            {/* Skeleton Connect Status Card */}
+            <div className='bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-xl p-6'>
+              <div className='flex items-start justify-between'>
+                <div className='flex-1 space-y-3'>
+                  <div className='flex items-center gap-3'>
+                    <div className='w-5 h-5 bg-blue-400/40 rounded animate-pulse'></div>
+                    <SkeletonText width='w-40' height='h-5' />
+                  </div>
+                  <SkeletonText width='w-96' height='h-4' />
+                  <div className='flex gap-3 pt-2'>
+                    <SkeletonButton width='w-28' />
+                    <SkeletonButton width='w-20' />
+                  </div>
+                </div>
+                <div className='w-8 h-8 bg-blue-400/20 rounded animate-pulse'></div>
+              </div>
+            </div>
+
+            {/* Skeleton Stats Grid */}
+            <div className='grid grid-cols-1 md:grid-cols-4 gap-4'>
+              {[...Array(4)].map((_, i) => (
+                <div
+                  key={i}
+                  className='bg-[#121214] border border-[#1E1E21] rounded-xl p-4 space-y-3'
+                >
+                  <div className='flex items-center justify-between'>
+                    <SkeletonText width='w-16' height='h-4' />
+                    <div className='w-4 h-4 bg-green-400/40 rounded animate-pulse'></div>
+                  </div>
+                  <SkeletonText width='w-20' height='h-8' />
+                  <SkeletonText width='w-24' height='h-3' />
+                </div>
+              ))}
+            </div>
+
+            {/* Skeleton Action Buttons */}
+            <div className='flex gap-4'>
+              <SkeletonButton width='flex-1' />
+              <SkeletonButton width='flex-1' />
+            </div>
+
+            {/* Skeleton Recent Earnings */}
+            <div className='bg-[#121214] border border-[#1E1E21] rounded-xl p-6 space-y-4'>
+              <SkeletonText width='w-32' height='h-5' />
+              <div className='space-y-3'>
+                {[...Array(3)].map((_, i) => (
+                  <div
+                    key={i}
+                    className='flex items-center justify-between p-3 bg-[#1A1A1C] rounded-lg'
+                  >
+                    <div className='flex-1 space-y-2'>
+                      <SkeletonText width='w-32' height='h-4' />
+                      <SkeletonText width='w-48' height='h-3' />
+                    </div>
+                    <div className='text-right space-y-2'>
+                      <SkeletonText width='w-16' height='h-4' />
+                      <div className='w-16 h-6 bg-yellow-500/20 rounded-lg animate-pulse'></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Floating Loading Indicator */}
+        <div className='fixed bottom-6 right-6 bg-[#121214] border border-[#D4AF37]/30 rounded-full px-4 py-2 shadow-2xl'>
+          <div className='flex items-center gap-2'>
+            <div className='relative'>
+              <Loader2 size={16} className='text-[#D4AF37] animate-spin' />
+              <div className='absolute inset-0 rounded-full border border-[#D4AF37]/30 animate-ping'></div>
+            </div>
+            <span className='text-xs text-gray-400'>Loading...</span>
+          </div>
+        </div>
+      </div>
+
+      <style jsx>{`
+        @keyframes shimmer {
+          0% {
+            background-position: -200% 0;
+          }
+          100% {
+            background-position: 200% 0;
+          }
+        }
+        @keyframes fade-in {
+          0% {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-shimmer {
+          animation: shimmer 2s infinite linear;
+        }
+        .animate-fade-in {
+          animation: fade-in 0.5s ease-out;
+        }
+      `}</style>
+    </Layout>
+  )
+}
 
 const PayoutDashboard = () => {
   const [showRequestModal, setShowRequestModal] = useState(false)
@@ -634,18 +845,9 @@ const PayoutDashboard = () => {
     )
   }
 
-  // Loading state
+  // Show enhanced loading state
   if (loading && !connectStatus) {
-    return (
-      <Layout>
-        <div className='max-w-6xl mx-auto p-6 flex items-center justify-center min-h-screen'>
-          <div className='flex items-center gap-3 text-[#EDEDED]'>
-            <Loader2 size={24} className='animate-spin' />
-            Loading payout dashboard...
-          </div>
-        </div>
-      </Layout>
-    )
+    return <PayoutDashboardLoader />
   }
 
   // Error state

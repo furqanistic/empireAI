@@ -1,4 +1,4 @@
-// File: models/User.js - UPDATED WITH PASSWORD RESET FUNCTIONALITY
+// File: models/User.js - COMPLETE FIXED VERSION WITH ALL METHODS
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import mongoose from 'mongoose'
@@ -141,8 +141,8 @@ const UserSchema = new mongoose.Schema(
     stripeConnect: {
       accountId: {
         type: String,
-        unique: true,
-        sparse: true,
+        // FIXED: Removed unique constraint to prevent duplicate key errors
+        sparse: true, // Allows multiple null values
       },
 
       // Account verification status
@@ -369,7 +369,11 @@ UserSchema.index({ email: 1 })
 UserSchema.index({ referralCode: 1 })
 UserSchema.index({ referredBy: 1 })
 UserSchema.index({ stripeCustomerId: 1 })
-UserSchema.index({ 'stripeConnect.accountId': 1 })
+// FIXED: Use sparse unique index for Connect account ID to allow multiple null values
+UserSchema.index(
+  { 'stripeConnect.accountId': 1 },
+  { sparse: true, unique: true }
+)
 UserSchema.index({ 'discord.discordId': 1 })
 UserSchema.index({ isDeleted: 1, isActive: 1 })
 UserSchema.index({ lastDailyClaim: 1 })
@@ -659,6 +663,32 @@ UserSchema.methods.addReferral = async function (
     }
     return false
   } catch (error) {
+    throw error
+  }
+}
+
+// FIXED: Method to safely reset Connect account without duplicate key errors
+UserSchema.methods.safeResetConnectAccount = async function () {
+  try {
+    // Use $unset to completely remove the accountId field instead of setting to null
+    const updateResult = await this.updateOne({
+      $unset: { 'stripeConnect.accountId': 1 },
+      $set: {
+        'stripeConnect.isVerified': false,
+        'stripeConnect.onboardingCompleted': false,
+        'stripeConnect.capabilities': {
+          cardPayments: 'inactive',
+          transfers: 'inactive',
+        },
+        'stripeConnect.requirementsNeeded': [],
+        'stripeConnect.lastUpdated': new Date(),
+      },
+    })
+
+    console.log(`✅ Successfully reset Connect account for user: ${this.email}`)
+    return true
+  } catch (error) {
+    console.error('❌ Error resetting Connect account:', error)
     throw error
   }
 }
