@@ -1,8 +1,10 @@
+// File: client/src/pages/Profile/ProfilePage.jsx - FIXED WITH REAL SUBSCRIPTION DATA
 import {
   AlertCircle,
   CheckCircle,
   ChevronDown,
   CreditCard,
+  ExternalLink,
   Loader2,
   Save,
   Shield,
@@ -11,10 +13,13 @@ import {
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
+import { useNavigate } from 'react-router-dom'
 
 import {
   useChangePassword,
+  useCreateBillingPortalSession,
   useCurrentUser,
+  useGetSubscription,
   useLogout,
   useUpdateProfile,
   useUserProfile,
@@ -23,13 +28,17 @@ import { authService } from '../../services/authServices'
 import Layout from '../Layout/Layout'
 
 const ProfilePage = () => {
+  const navigate = useNavigate()
   const currentUser = useCurrentUser()
   const { data: userProfile, isLoading: profileLoading } = useUserProfile(
     currentUser?.id
   )
+  const { data: subscriptionData, isLoading: subscriptionLoading } =
+    useGetSubscription()
   const updateProfileMutation = useUpdateProfile()
   const changePasswordMutation = useChangePassword()
   const logoutMutation = useLogout()
+  const createBillingPortalMutation = useCreateBillingPortalSession()
 
   const [showSuccessMessage, setShowSuccessMessage] = useState('')
   const [showErrorMessage, setShowErrorMessage] = useState('')
@@ -158,6 +167,51 @@ const ProfilePage = () => {
       setShowDeleteModal(false)
       deleteForm.reset()
     }
+  }
+
+  const handleManageBilling = async () => {
+    try {
+      await createBillingPortalMutation.mutateAsync()
+    } catch (error) {
+      const errorMessage =
+        error.response?.data?.message || 'Failed to open billing portal'
+      showMessage(errorMessage, true)
+    }
+  }
+
+  const handleUpgradePlan = () => {
+    navigate('/pricing')
+  }
+
+  // Get subscription info
+  const subscription = subscriptionData?.data?.subscription
+  const hasActiveSubscription = subscription?.isActive || false
+
+  // Format subscription plan name
+  const formatPlanName = (plan) => {
+    if (!plan) return 'Free'
+    return plan.charAt(0).toUpperCase() + plan.slice(1)
+  }
+
+  // Format amount
+  const formatAmount = (amount, currency = 'USD') => {
+    if (!amount) return '$0.00'
+    return `$${(amount / 100).toFixed(2)}`
+  }
+
+  // Format billing cycle
+  const formatBillingCycle = (cycle) => {
+    return cycle === 'yearly' ? 'year' : 'month'
+  }
+
+  // Format next billing date
+  const formatNextBilling = (date) => {
+    if (!date) return 'N/A'
+    return new Date(date).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
   }
 
   const FormInput = ({
@@ -515,72 +569,149 @@ const ProfilePage = () => {
                     </div>
                   </div>
 
-                  <div className='p-4 sm:p-6 bg-gradient-to-r from-[#D4AF37]/20 via-[#D4AF37]/10 to-[#D4AF37]/20 border border-[#D4AF37]/40 rounded-3xl mb-6 sm:mb-8 relative overflow-hidden'>
-                    <div className='absolute inset-0 bg-gradient-to-r from-transparent via-[#D4AF37]/5 to-transparent'></div>
-                    <div className='relative'>
-                      <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4'>
-                        <div>
-                          <h4 className='text-[#D4AF37] font-bold text-2xl tracking-wide'>
-                            Empire Plan
-                          </h4>
-                          <p className='text-gray-300 text-base'>
-                            $89.70/month • Next billing: Sep 1, 2025
-                          </p>
+                  {subscriptionLoading ? (
+                    <div className='flex items-center justify-center py-12'>
+                      <Loader2
+                        className='animate-spin text-[#D4AF37]'
+                        size={32}
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <div
+                        className={`p-4 sm:p-6 border rounded-3xl mb-6 sm:mb-8 relative overflow-hidden ${
+                          hasActiveSubscription
+                            ? 'bg-gradient-to-r from-[#D4AF37]/20 via-[#D4AF37]/10 to-[#D4AF37]/20 border-[#D4AF37]/40'
+                            : 'bg-gradient-to-r from-gray-500/20 via-gray-500/10 to-gray-500/20 border-gray-500/40'
+                        }`}
+                      >
+                        <div className='absolute inset-0 bg-gradient-to-r from-transparent via-[#D4AF37]/5 to-transparent'></div>
+                        <div className='relative'>
+                          <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4'>
+                            <div>
+                              <h4
+                                className={`font-bold text-2xl tracking-wide ${
+                                  hasActiveSubscription
+                                    ? 'text-[#D4AF37]'
+                                    : 'text-gray-400'
+                                }`}
+                              >
+                                {formatPlanName(subscription?.plan)} Plan
+                              </h4>
+                              <p className='text-gray-300 text-base'>
+                                {hasActiveSubscription ? (
+                                  <>
+                                    {formatAmount(subscription?.amount)}/
+                                    {formatBillingCycle(
+                                      subscription?.billingCycle
+                                    )}
+                                    {subscription?.currentPeriodEnd && (
+                                      <>
+                                        {' '}
+                                        • Next billing:{' '}
+                                        {formatNextBilling(
+                                          subscription.currentPeriodEnd
+                                        )}
+                                      </>
+                                    )}
+                                    {subscription?.cancelAtPeriodEnd && (
+                                      <span className='text-red-400'>
+                                        {' '}
+                                        • Cancels on{' '}
+                                        {formatNextBilling(
+                                          subscription.currentPeriodEnd
+                                        )}
+                                      </span>
+                                    )}
+                                  </>
+                                ) : (
+                                  'No active subscription'
+                                )}
+                              </p>
+                              {subscription?.status &&
+                                subscription.status !== 'active' && (
+                                  <p className='text-orange-400 text-sm mt-1'>
+                                    Status:{' '}
+                                    {subscription.status
+                                      .replace('_', ' ')
+                                      .toUpperCase()}
+                                  </p>
+                                )}
+                            </div>
+                            <div className='flex gap-2 flex-shrink-0'>
+                              {hasActiveSubscription ? (
+                                <>
+                                  <button
+                                    onClick={handleManageBilling}
+                                    disabled={
+                                      createBillingPortalMutation.isLoading
+                                    }
+                                    className='bg-[#0A0A0C]/80 backdrop-blur border border-[#2A2A2E] px-4 h-9 rounded-2xl text-sm text-[#EDEDED] hover:border-[#D4AF37] hover:bg-[#D4AF37]/10 transition-all duration-300 flex-shrink-0 transform hover:scale-105 disabled:opacity-50 flex items-center gap-2'
+                                  >
+                                    {createBillingPortalMutation.isLoading ? (
+                                      <Loader2
+                                        size={14}
+                                        className='animate-spin'
+                                      />
+                                    ) : (
+                                      <ExternalLink size={14} />
+                                    )}
+                                    Manage Billing
+                                  </button>
+                                  <button
+                                    onClick={handleUpgradePlan}
+                                    className='bg-[#D4AF37]/20 border border-[#D4AF37]/40 px-4 h-9 rounded-2xl text-sm text-[#D4AF37] hover:bg-[#D4AF37]/30 transition-all duration-300 flex-shrink-0 transform hover:scale-105'
+                                  >
+                                    Change Plan
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  onClick={handleUpgradePlan}
+                                  className='bg-[#D4AF37] text-black px-4 h-9 rounded-2xl text-sm font-semibold hover:bg-[#E6C547] transition-all duration-300 flex-shrink-0 transform hover:scale-105'
+                                >
+                                  Upgrade Now
+                                </button>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <button className='bg-[#0A0A0C]/80 backdrop-blur border border-[#2A2A2E] px-6 h-9 rounded-2xl text-sm text-[#EDEDED] hover:border-[#D4AF37] hover:bg-[#D4AF37]/10 transition-all duration-300 flex-shrink-0 transform hover:scale-105'>
-                          Change Plan
-                        </button>
                       </div>
-                    </div>
-                  </div>
 
-                  <div className='mb-4 sm:mb-6'>
-                    <h3 className='text-[#EDEDED] font-bold text-xl mb-4 sm:mb-6 flex items-center gap-3'>
-                      <div className='w-2 h-6 bg-gradient-to-b from-[#D4AF37] to-[#B8941F] rounded-full'></div>
-                      Billing History
-                    </h3>
-                    <div className='space-y-3 sm:space-y-4'>
-                      {[
-                        {
-                          date: 'Aug 1, 2025',
-                          amount: '$89.70',
-                          status: 'Paid',
-                        },
-                        {
-                          date: 'Jul 1, 2025',
-                          amount: '$89.70',
-                          status: 'Paid',
-                        },
-                        {
-                          date: 'Jun 1, 2025',
-                          amount: '$89.70',
-                          status: 'Paid',
-                        },
-                      ].map((invoice, index) => (
-                        <div
-                          key={index}
-                          className='flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-5 bg-gradient-to-r from-[#0A0A0C]/80 to-[#0D0D0F]/60 border border-[#1E1E21] rounded-2xl'
-                        >
-                          <div className='flex-1'>
-                            <div className='text-[#EDEDED] font-semibold text-base'>
-                              {invoice.date}
-                            </div>
-                            <div className='text-gray-400 text-sm'>
-                              Empire Plan subscription
-                            </div>
+                      <div className='mb-4 sm:mb-6'>
+                        <h3 className='text-[#EDEDED] font-bold text-xl mb-4 sm:mb-6 flex items-center gap-3'>
+                          <div className='w-2 h-6 bg-gradient-to-b from-[#D4AF37] to-[#B8941F] rounded-full'></div>
+                          Billing History
+                        </h3>
+
+                        {hasActiveSubscription ? (
+                          <div className='text-center py-8'>
+                            <p className='text-gray-400 mb-4'>
+                              Billing history is managed through Stripe
+                            </p>
+                            <button
+                              onClick={handleManageBilling}
+                              disabled={createBillingPortalMutation.isLoading}
+                              className='bg-[#D4AF37]/20 border border-[#D4AF37]/40 px-6 h-9 rounded-2xl text-sm text-[#D4AF37] hover:bg-[#D4AF37]/30 transition-all duration-300 flex items-center gap-2 mx-auto disabled:opacity-50'
+                            >
+                              {createBillingPortalMutation.isLoading ? (
+                                <Loader2 size={14} className='animate-spin' />
+                              ) : (
+                                <ExternalLink size={14} />
+                              )}
+                              View Billing History
+                            </button>
                           </div>
-                          <div className='flex items-center gap-4'>
-                            <span className='text-[#EDEDED] font-bold text-lg'>
-                              {invoice.amount}
-                            </span>
-                            <span className='bg-gradient-to-r from-emerald-500/20 to-emerald-400/20 text-emerald-400 px-4 py-2 rounded-xl text-sm font-semibold border border-emerald-500/20'>
-                              {invoice.status}
-                            </span>
+                        ) : (
+                          <div className='text-center py-8'>
+                            <p className='text-gray-400'>
+                              No billing history available
+                            </p>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
