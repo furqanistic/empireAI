@@ -1,32 +1,120 @@
-// File: client/src/services/authServices.js - COMPLETE WITH ALL FEATURES
+// File: client/src/services/authServices.js - UPDATED WITH EMAIL VERIFICATION
 import axiosInstance from '../config/config.js'
 
 export const authService = {
-  // Sign up user
-  signup: async (userData) => {
-    const response = await axiosInstance.post('/auth/signup', userData)
+  // =============================================================================
+  // SIGNUP FLOW WITH EMAIL VERIFICATION
+  // =============================================================================
+
+  // NEW: Send OTP for signup verification
+  sendSignupOTP: async (userData) => {
+    const response = await axiosInstance.post('/auth/signup/send-otp', userData)
     return response.data
   },
-  // Sign in user
+
+  // NEW: Verify OTP and complete signup
+  verifySignupOTP: async (email, otp) => {
+    const response = await axiosInstance.post('/auth/signup/verify-otp', {
+      email,
+      otp,
+    })
+    return response.data
+  },
+
+  // =============================================================================
+  // EMAIL VERIFICATION FOR EXISTING USERS
+  // =============================================================================
+
+  // NEW: Resend verification OTP
+  resendVerificationOTP: async (email) => {
+    const response = await axiosInstance.post('/auth/resend-verification-otp', {
+      email,
+    })
+    return response.data
+  },
+
+  // NEW: Verify email with OTP
+  verifyEmail: async (email, otp) => {
+    const response = await axiosInstance.post('/auth/verify-email', {
+      email,
+      otp,
+    })
+    return response.data
+  },
+
+  // =============================================================================
+  // AUTHENTICATION
+  // =============================================================================
+
+  // Sign in user (now requires verified email)
   signin: async (credentials) => {
     const response = await axiosInstance.post('/auth/signin', credentials)
     return response.data
   },
+
   // Logout user
   logout: async () => {
     const response = await axiosInstance.post('/auth/logout')
     return response.data
   },
+
+  // =============================================================================
+  // PASSWORD RESET FLOW
+  // =============================================================================
+
+  // Forgot password - Send OTP
+  forgotPassword: async (email) => {
+    const response = await axiosInstance.post('/auth/forgot-password', {
+      email,
+    })
+    return response.data
+  },
+
+  // Verify OTP for password reset
+  verifyOTP: async (email, otp) => {
+    const response = await axiosInstance.post('/auth/verify-otp', {
+      email,
+      otp,
+    })
+    return response.data
+  },
+
+  // Reset password with reset token (from OTP verification)
+  resetPassword: async (resetToken, password, confirmPassword) => {
+    const response = await axiosInstance.post('/auth/reset-password', {
+      resetToken,
+      password,
+      confirmPassword,
+    })
+    return response.data
+  },
+
+  // =============================================================================
+  // LEGACY SIGNUP (Admin only)
+  // =============================================================================
+
+  // LEGACY: Sign up user (admin only - still requires email verification)
+  signup: async (userData) => {
+    const response = await axiosInstance.post('/auth/signup', userData)
+    return response.data
+  },
+
+  // =============================================================================
+  // USER PROFILE MANAGEMENT
+  // =============================================================================
+
   // Get user profile
   getUserProfile: async (userId) => {
     const response = await axiosInstance.get(`/auth/profile/${userId}`)
     return response.data
   },
+
   // Update user profile
   updateProfile: async (userData) => {
     const response = await axiosInstance.put('/auth/profile', userData)
     return response.data
   },
+
   // Change password
   changePassword: async (passwordData) => {
     const response = await axiosInstance.put(
@@ -35,11 +123,13 @@ export const authService = {
     )
     return response.data
   },
+
   // Delete user (admin)
   deleteUser: async (userId) => {
     const response = await axiosInstance.delete(`/auth/admin/users/${userId}`)
     return response.data
   },
+
   // Get all users (admin)
   getAllUsers: async (params = {}) => {
     const response = await axiosInstance.get('/auth/all-users', { params })

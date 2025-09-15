@@ -1,14 +1,19 @@
-// File: controllers/auth.js - UPDATED WITH PASSWORD RESET FUNCTIONALITY
+// File: controllers/auth.js - FIXED WITH EMAIL VERIFICATION + RATE LIMITING
+import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
 import mongoose from 'mongoose'
 import { createError } from '../error.js'
 import Notification from '../models/Notification.js'
 import User from '../models/User.js'
 import {
+  checkEmailRateLimit,
   checkPasswordResetRateLimit,
   isValidEmail,
-  sendPasswordResetEmail,
+  sendOTPVerificationSuccessEmail,
+  sendPasswordResetOTP,
   sendPasswordResetSuccessEmail,
+  sendSignupVerificationEmail,
+  sendWelcomeEmail,
 } from '../services/emailService.js'
 
 const signToken = (id) => {
@@ -56,110 +61,275 @@ const createSendToken = (user, statusCode, res) => {
   }
 }
 
-export const signup = async (req, res, next) => {
-  const session = await mongoose.startSession()
-  session.startTransaction()
-
+// NEW: Send OTP for signup verification
+export const sendSignupOTP = async (req, res, next) => {
   try {
-    const { name, email, password, role, referralCode } = req.body
+    const { name, email, password, referralCode } = req.body
 
     // Check if all required fields are provided
     if (!name || !email || !password) {
-      await session.abortTransaction()
       return next(createError(400, 'Please provide name, email and password'))
     }
 
     // Validate email format
     if (!isValidEmail(email)) {
-      await session.abortTransaction()
       return next(createError(400, 'Please provide a valid email address'))
     }
 
     // Validate password strength
     if (password.length < 8) {
-      await session.abortTransaction()
       return next(
         createError(400, 'Password must be at least 8 characters long')
       )
     }
 
-    // Set default role to user if not provided
-    const userRole = role || 'user'
-
     // Check if user with this email already exists
-    const existingUser = await User.findOne({ email }).session(session)
+    const existingUser = await User.findOne({
+      email: email.toLowerCase().trim(),
+    })
+
     if (existingUser) {
-      await session.abortTransaction()
       return next(createError(400, 'User with this email already exists'))
     }
 
-    let referrerUser = null
+    // Check rate limiting for this email (FIXES MULTIPLE EMAIL ISSUE)
+    const rateLimitCheck = checkEmailRateLimit(
+      email.toLowerCase().trim(),
+      'signup'
+    )
+    if (!rateLimitCheck.allowed) {
+      return next(createError(429, rateLimitCheck.message))
+    }
 
-    // Handle referral code if provided
+    // Validate referral code if provided
+    let referrerUser = null
     if (referralCode && referralCode.trim()) {
       referrerUser = await User.findByReferralCode(
         referralCode.trim().toUpperCase()
-      ).session(session)
+      )
 
       if (!referrerUser) {
-        await session.abortTransaction()
         return next(createError(400, 'Invalid referral code'))
       }
 
-      // Check if referrer is trying to refer themselves (edge case)
-      if (referrerUser.email === email) {
-        await session.abortTransaction()
+      // Check if referrer is trying to refer themselves
+      if (referrerUser.email === email.toLowerCase().trim()) {
         return next(createError(400, 'You cannot refer yourself'))
       }
     }
 
-    // Create new user (password will be hashed by the pre-save middleware)
-    const newUserData = {
+    // Create temporary user data (store in session/cache or database with pending status)
+    // For now, we'll use a simple in-memory store (in production, use Redis)
+    const tempUserData = {
       name: name.trim(),
       email: email.toLowerCase().trim(),
-      password,
-      role: userRole,
+      password, // Will be hashed when creating the actual user
+      referredBy: referrerUser ? referrerUser._id : null,
+      referralCode: referralCode?.trim().toUpperCase(),
+      timestamp: Date.now(),
+    }
+
+    // Generate OTP and store it temporarily
+    const otp = Math.floor(100000 + Math.random() * 900000).toString()
+    const otpHash = crypto.createHash('sha256').update(otp).digest('hex')
+
+    // Store temp data with OTP (in production, use Redis with expiry)
+    global.signupOTPStore = global.signupOTPStore || new Map()
+    global.signupOTPStore.set(email.toLowerCase().trim(), {
+      ...tempUserData,
+      otp: otpHash,
+      otpExpires: Date.now() + 10 * 60 * 1000, // 10 minutes
+      attempts: 0,
+    })
+
+    try {
+      // Send OTP email (RATE LIMITED - PREVENTS MULTIPLE EMAILS)
+      const emailResult = await sendSignupVerificationEmail(
+        {
+          name: tempUserData.name,
+          email: tempUserData.email,
+        },
+        otp
+      )
+
+      console.log(`Signup OTP sent to ${email}:`, emailResult.id)
+
+      // In development, also log the OTP for testing
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Signup OTP (DEV ONLY):', otp)
+      }
+
+      res.status(200).json({
+        status: 'success',
+        message:
+          'Please check your email for a 6-digit verification code to complete your registration.',
+        data: {
+          email: tempUserData.email,
+          name: tempUserData.name,
+        },
+        // Include additional info in development
+        ...(process.env.NODE_ENV === 'development' && {
+          dev: {
+            otp,
+            expiresIn: '10 minutes',
+          },
+        }),
+      })
+    } catch (emailError) {
+      // Clean up temp data if email fails
+      global.signupOTPStore?.delete(email.toLowerCase().trim())
+
+      console.error('Failed to send signup OTP:', emailError)
+      return next(
+        createError(
+          500,
+          'There was an error sending the verification email. Please try again.'
+        )
+      )
+    }
+  } catch (error) {
+    console.error('Error in sendSignupOTP:', error)
+    next(
+      createError(500, 'An unexpected error occurred. Please try again later.')
+    )
+  }
+}
+
+// NEW: Verify OTP and complete signup
+export const verifySignupOTP = async (req, res, next) => {
+  const session = await mongoose.startSession()
+  session.startTransaction()
+
+  try {
+    const { email, otp } = req.body
+
+    if (!email || !otp) {
+      await session.abortTransaction()
+      return next(createError(400, 'Please provide email and OTP'))
+    }
+
+    if (!isValidEmail(email)) {
+      await session.abortTransaction()
+      return next(createError(400, 'Please provide a valid email address'))
+    }
+
+    if (!/^\d{6}$/.test(otp)) {
+      await session.abortTransaction()
+      return next(createError(400, 'OTP must be a 6-digit number'))
+    }
+
+    // Get temp data from store
+    const tempData = global.signupOTPStore?.get(email.toLowerCase().trim())
+    if (!tempData) {
+      await session.abortTransaction()
+      return next(
+        createError(
+          400,
+          'No pending registration found. Please start the signup process again.'
+        )
+      )
+    }
+
+    // Check if OTP expired
+    if (tempData.otpExpires <= Date.now()) {
+      global.signupOTPStore?.delete(email.toLowerCase().trim())
+      await session.abortTransaction()
+      return next(
+        createError(
+          400,
+          'OTP has expired. Please start the signup process again.'
+        )
+      )
+    }
+
+    // Check attempts limit
+    if (tempData.attempts >= 5) {
+      await session.abortTransaction()
+      return next(
+        createError(
+          400,
+          'Too many failed attempts. Please start the signup process again.'
+        )
+      )
+    }
+
+    // Verify OTP
+    const otpHash = crypto.createHash('sha256').update(otp).digest('hex')
+    if (tempData.otp !== otpHash) {
+      // Increment attempts
+      tempData.attempts += 1
+      global.signupOTPStore?.set(email.toLowerCase().trim(), tempData)
+
+      await session.abortTransaction()
+      return next(
+        createError(
+          400,
+          `Invalid OTP. ${5 - tempData.attempts} attempts remaining.`
+        )
+      )
+    }
+
+    // OTP is valid, create the user
+    let referrerUser = null
+    if (tempData.referredBy) {
+      referrerUser = await User.findById(tempData.referredBy).session(session)
+    }
+
+    // Create new user with EMAIL VERIFIED
+    const newUserData = {
+      name: tempData.name,
+      email: tempData.email,
+      password: tempData.password, // Will be hashed by pre-save middleware
+      role: 'user',
       referredBy: referrerUser ? referrerUser._id : null,
       points: 100, // Give new users starting points
       totalPointsEarned: 100,
+      isEmailVerified: true, // MARK EMAIL AS VERIFIED
+      emailVerifiedAt: new Date(), // SET VERIFICATION DATE
     }
 
     const [newUser] = await User.create([newUserData], { session })
 
-    // If there's a referrer, add this user to their referrals and create notification
+    // If there's a referrer, add this user to their referrals
     if (referrerUser) {
       await referrerUser.addReferral(newUser._id)
 
       // Create notification for the referrer
       try {
         await Notification.createReferralNotification(referrerUser._id, newUser)
-        console.log(`Created notification for referrer ${referrerUser.name}`)
+        console.log(`Created referral notification for ${referrerUser.name}`)
       } catch (notificationError) {
-        // Log error but don't fail the signup process
         console.error(
           'Failed to create referral notification:',
           notificationError
         )
       }
-
-      console.log(`User ${referrerUser.name} referred ${newUser.name}`)
     }
+
+    // Clean up temp data
+    global.signupOTPStore?.delete(email.toLowerCase().trim())
 
     await session.commitTransaction()
 
-    // Populate referral information for response
+    // Send welcome email (don't fail if this fails)
+    try {
+      await sendWelcomeEmail(newUser)
+    } catch (emailError) {
+      console.error('Failed to send welcome email:', emailError)
+    }
+
+    // Populate user data for response
     const populatedUser = await User.findById(newUser._id)
       .populate('referredBy', 'name email referralCode')
       .select('-password')
 
-    // Send token to the new user
+    // Sign in the user automatically after successful verification
     createSendToken(populatedUser, 201, res)
   } catch (err) {
     await session.abortTransaction()
-    console.error('Error in signup:', err)
+    console.error('Error in verifySignupOTP:', err)
 
     if (err.code === 11000) {
-      // Handle duplicate key errors
       const field = Object.keys(err.keyValue)[0]
       return next(createError(400, `${field} already exists`))
     }
@@ -170,6 +340,10 @@ export const signup = async (req, res, next) => {
   }
 }
 
+// LEGACY: Keep original signup for backward compatibility (REMOVED - NOT NEEDED)
+// Removed the legacy signup function as requested
+
+// UPDATED: Signin with email verification check
 export const signin = async (req, res, next) => {
   try {
     const { email, password } = req.body
@@ -189,6 +363,16 @@ export const signin = async (req, res, next) => {
       return next(createError(401, 'Incorrect email or password'))
     }
 
+    // CHECK IF EMAIL IS VERIFIED
+    if (!user.isEmailVerified) {
+      return next(
+        createError(
+          403,
+          'Please verify your email address before signing in. Check your email for the verification code.'
+        )
+      )
+    }
+
     // Update last login
     user.lastLogin = new Date()
     await user.save({ validateBeforeSave: false })
@@ -205,7 +389,7 @@ export const signin = async (req, res, next) => {
   }
 }
 
-// NEW: Forgot Password - Send reset email
+// Forgot Password - Send OTP email
 export const forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body
@@ -218,7 +402,7 @@ export const forgotPassword = async (req, res, next) => {
       return next(createError(400, 'Please provide a valid email address'))
     }
 
-    // Check rate limiting for this email
+    // Check rate limiting for this email (FIXES MULTIPLE EMAIL ISSUE)
     const rateLimitCheck = checkPasswordResetRateLimit(
       email.toLowerCase().trim()
     )
@@ -236,7 +420,7 @@ export const forgotPassword = async (req, res, next) => {
 
     // Always return success message for security (don't reveal if email exists)
     const successMessage =
-      'If an account with that email exists, we have sent a password reset link.'
+      'If an account with that email exists, we have sent a 6-digit OTP to reset your password.'
 
     if (!user) {
       return res.status(200).json({
@@ -245,24 +429,21 @@ export const forgotPassword = async (req, res, next) => {
       })
     }
 
-    // Generate password reset token
-    const resetToken = user.createPasswordResetToken()
+    // Generate OTP
+    const otp = user.createPasswordResetOTP()
 
-    // Save user with reset token (don't run validations)
+    // Save user with OTP (don't run validations)
     await user.save({ validateBeforeSave: false })
 
     try {
-      // Send password reset email
-      const emailResult = await sendPasswordResetEmail(user, resetToken)
+      // Send OTP email (RATE LIMITED - PREVENTS MULTIPLE EMAILS)
+      const emailResult = await sendPasswordResetOTP(user, otp)
 
-      console.log(
-        `Password reset email sent to ${user.email}:`,
-        emailResult.messageId
-      )
+      console.log(`Password reset OTP sent to ${user.email}:`, emailResult.id)
 
-      // In development, also log the reset URL for testing
+      // In development, also log the OTP for testing
       if (process.env.NODE_ENV === 'development') {
-        console.log('Password reset URL (DEV ONLY):', emailResult.resetUrl)
+        console.log('Password reset OTP (DEV ONLY):', otp)
       }
 
       res.status(200).json({
@@ -271,19 +452,19 @@ export const forgotPassword = async (req, res, next) => {
         // Include additional info in development
         ...(process.env.NODE_ENV === 'development' && {
           dev: {
-            resetToken,
-            resetUrl: emailResult.resetUrl,
+            otp,
             expiresIn: '10 minutes',
+            email: user.email,
           },
         }),
       })
     } catch (emailError) {
-      // If email fails, clear the reset token
-      user.passwordResetToken = undefined
-      user.passwordResetExpires = undefined
+      // If email fails, clear the OTP
+      user.passwordResetOTP = undefined
+      user.passwordResetOTPExpires = undefined
       await user.save({ validateBeforeSave: false })
 
-      console.error('Failed to send password reset email:', emailError)
+      console.error('Failed to send password reset OTP:', emailError)
       return next(
         createError(
           500,
@@ -299,14 +480,100 @@ export const forgotPassword = async (req, res, next) => {
   }
 }
 
-// NEW: Reset Password - Validate token and update password
+// Verify OTP for password reset
+export const verifyOTP = async (req, res, next) => {
+  try {
+    const { email, otp } = req.body
+
+    if (!email || !otp) {
+      return next(createError(400, 'Please provide email and OTP'))
+    }
+
+    if (!isValidEmail(email)) {
+      return next(createError(400, 'Please provide a valid email address'))
+    }
+
+    if (!/^\d{6}$/.test(otp)) {
+      return next(createError(400, 'OTP must be a 6-digit number'))
+    }
+
+    // Find user by email
+    const user = await User.findOne({
+      email: email.toLowerCase().trim(),
+      isActive: true,
+      isDeleted: false,
+    }).select(
+      '+passwordResetOTP +passwordResetOTPExpires +passwordResetAttempts +passwordResetLastAttempt'
+    )
+
+    if (!user) {
+      return next(createError(400, 'Invalid request. Please try again.'))
+    }
+
+    // Check if user has an OTP set
+    if (!user.passwordResetOTP || !user.passwordResetOTPExpires) {
+      return next(
+        createError(400, 'No OTP found. Please request a new password reset.')
+      )
+    }
+
+    // Validate OTP
+    const validation = user.validatePasswordResetOTP(otp)
+
+    // Save the user to update attempt counts
+    await user.save({ validateBeforeSave: false })
+
+    if (!validation.isValid) {
+      return next(createError(400, validation.error))
+    }
+
+    // OTP is valid - send success notification email
+    try {
+      await sendOTPVerificationSuccessEmail(user)
+    } catch (emailError) {
+      console.error(
+        'Failed to send OTP verification success email:',
+        emailError
+      )
+      // Continue with success response even if email fails
+    }
+
+    // Generate a temporary token for password reset (valid for 15 minutes)
+    const resetToken = jwt.sign(
+      {
+        userId: user._id,
+        email: user.email,
+        purpose: 'password_reset',
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '15m' }
+    )
+
+    console.log(`OTP verified successfully for user: ${user.email}`)
+
+    res.status(200).json({
+      status: 'success',
+      message: 'OTP verified successfully. You can now reset your password.',
+      data: {
+        resetToken, // This token will be used for password reset
+        expiresIn: 15 * 60, // 15 minutes in seconds
+      },
+    })
+  } catch (error) {
+    console.error('Error in verifyOTP:', error)
+    next(
+      createError(500, 'An unexpected error occurred. Please try again later.')
+    )
+  }
+}
+
+// Reset Password - Now requires reset token from OTP verification
 export const resetPassword = async (req, res, next) => {
   try {
-    const { token } = req.params
-    const { password, confirmPassword } = req.body
+    const { resetToken, password, confirmPassword } = req.body
 
-    if (!token) {
-      return next(createError(400, 'Password reset token is required'))
+    if (!resetToken) {
+      return next(createError(400, 'Reset token is required'))
     }
 
     if (!password || !confirmPassword) {
@@ -327,20 +594,58 @@ export const resetPassword = async (req, res, next) => {
       )
     }
 
-    // Find user by valid reset token
-    const user = await User.findByValidResetToken(token)
+    // Verify the reset token
+    let decoded
+    try {
+      decoded = jwt.verify(resetToken, process.env.JWT_SECRET)
+    } catch (jwtError) {
+      if (jwtError.name === 'TokenExpiredError') {
+        return next(
+          createError(
+            400,
+            'Reset token has expired. Please verify your OTP again.'
+          )
+        )
+      }
+      return next(createError(400, 'Invalid reset token'))
+    }
+
+    // Check if token is for password reset
+    if (decoded.purpose !== 'password_reset') {
+      return next(createError(400, 'Invalid reset token purpose'))
+    }
+
+    // Find user
+    const user = await User.findById(decoded.userId).select(
+      '+passwordResetOTP +passwordResetOTPExpires +passwordResetAttempts +passwordResetLastAttempt'
+    )
 
     if (!user) {
       return next(
         createError(
           400,
-          'Password reset token is invalid or has expired. Please request a new one.'
+          'User not found. Please start the password reset process again.'
+        )
+      )
+    }
+
+    // Verify email matches
+    if (user.email !== decoded.email) {
+      return next(createError(400, 'Invalid reset token'))
+    }
+
+    // Check if user still has valid OTP (additional security)
+    if (!user.passwordResetOTP || user.passwordResetOTPExpires <= Date.now()) {
+      return next(
+        createError(
+          400,
+          'Reset session has expired. Please start the password reset process again.'
         )
       )
     }
 
     // Update password (will be hashed by pre-save middleware)
-    // The pre-save middleware will also clear the reset token fields
+    // The pre-save middleware will also clear the OTP fields
     user.password = password
     user.passwordChangedAt = new Date()
 
@@ -356,18 +661,19 @@ export const resetPassword = async (req, res, next) => {
       // Continue with success response even if email fails
     }
 
-    // Create notification for successful password reset
+    // Create notification with correct field names and enum value
     try {
       await Notification.create({
-        user: user._id,
+        recipient: user._id,
         title: 'Password Reset Successful',
-        message: 'Your password has been successfully updated.',
-        type: 'security',
-        isRead: false,
-        metadata: {
-          action: 'password_reset',
+        message:
+          'Your password has been successfully updated using OTP verification.',
+        type: 'security_alert',
+        data: {
+          action: 'password_reset_otp',
           timestamp: new Date(),
         },
+        priority: 'high',
       })
     } catch (notificationError) {
       console.error(
@@ -391,7 +697,7 @@ export const resetPassword = async (req, res, next) => {
   }
 }
 
-// NEW: Claim daily points
+// Claim daily points
 export const claimDailyPoints = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id)
@@ -418,16 +724,16 @@ export const claimDailyPoints = async (req, res, next) => {
     // Create notification for successful claim
     try {
       await Notification.create({
-        user: user._id,
+        recipient: user._id,
         title: 'Daily Points Claimed!',
         message: `You've earned ${claimResult.pointsAwarded} points! Current streak: ${claimResult.streak} days`,
         type: 'points',
-        isRead: false,
-        metadata: {
+        data: {
           pointsAwarded: claimResult.pointsAwarded,
           streak: claimResult.streak,
           totalPoints: claimResult.totalPoints,
         },
+        priority: 'medium',
       })
     } catch (notificationError) {
       console.error('Failed to create points notification:', notificationError)
@@ -449,7 +755,7 @@ export const claimDailyPoints = async (req, res, next) => {
   }
 }
 
-// NEW: Get user points status
+// Get user points status
 export const getPointsStatus = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id)
@@ -478,7 +784,7 @@ export const getPointsStatus = async (req, res, next) => {
   }
 }
 
-// NEW: Get points leaderboard
+// Get points leaderboard
 export const getPointsLeaderboard = async (req, res, next) => {
   try {
     const limit = parseInt(req.query.limit) || 10

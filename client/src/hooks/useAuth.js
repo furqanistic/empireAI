@@ -1,4 +1,4 @@
-// File: src/hooks/useAuth.js - COMPLETE WITH ALL FEATURES
+// File: src/hooks/useAuth.js - COMPLETE WITH ALL FEATURES INCLUDING OTP
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDispatch, useSelector } from 'react-redux'
 import {
@@ -27,6 +27,45 @@ import {
 // BASIC AUTH HOOKS
 // =============================================================================
 
+// NEW: Send OTP for signup verification
+export const useSendSignupOTP = () => {
+  return useMutation({
+    mutationFn: authService.sendSignupOTP,
+    onError: (error) => {
+      console.error('Send signup OTP error:', error)
+    },
+  })
+}
+
+// NEW: Verify OTP and complete signup
+export const useVerifySignupOTP = () => {
+  const dispatch = useDispatch()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ email, otp }) => authService.verifySignupOTP(email, otp),
+    onMutate: () => {
+      dispatch(loginStart())
+    },
+    onSuccess: (data) => {
+      dispatch(loginSuccess(data))
+      // Invalidate and refetch any user-related queries
+      queryClient.invalidateQueries({ queryKey: ['user'] })
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+      queryClient.invalidateQueries({ queryKey: ['points'] })
+    },
+    onError: (error) => {
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        'Signup verification failed'
+      dispatch(loginFailure(errorMessage))
+      console.error('Signup OTP verification error:', error)
+    },
+  })
+}
+
+// LEGACY: Keep original signup for backward compatibility
 export const useSignup = () => {
   const dispatch = useDispatch()
   const queryClient = useQueryClient()
@@ -96,6 +135,51 @@ export const useLogout = () => {
     },
   })
 }
+
+// =============================================================================
+// PASSWORD RESET HOOKS (NEW OTP FLOW)
+// =============================================================================
+
+export const useForgotPassword = () => {
+  return useMutation({
+    mutationFn: authService.forgotPassword,
+    onError: (error) => {
+      console.error('Forgot password error:', error)
+    },
+  })
+}
+
+export const useVerifyOTP = () => {
+  return useMutation({
+    mutationFn: ({ email, otp }) => authService.verifyOTP(email, otp),
+    onError: (error) => {
+      console.error('OTP verification error:', error)
+    },
+  })
+}
+
+export const useResetPassword = () => {
+  const dispatch = useDispatch()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ resetToken, password, confirmPassword }) =>
+      authService.resetPassword(resetToken, password, confirmPassword),
+    onSuccess: (data) => {
+      // User is automatically logged in after password reset
+      dispatch(loginSuccess(data))
+      queryClient.invalidateQueries({ queryKey: ['user'] })
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+    },
+    onError: (error) => {
+      console.error('Password reset error:', error)
+    },
+  })
+}
+
+// =============================================================================
+// USER PROFILE HOOKS
+// =============================================================================
 
 export const useUserProfile = (userId, enabled = true) => {
   return useQuery({

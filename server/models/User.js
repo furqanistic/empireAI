@@ -1,4 +1,4 @@
-// File: models/User.js - COMPLETE FIXED VERSION WITH ALL METHODS
+// File: models/User.js - UPDATED WITH EMAIL VERIFICATION STATUS
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import mongoose from 'mongoose'
@@ -34,14 +34,44 @@ const UserSchema = new mongoose.Schema(
       type: Date,
     },
 
-    // Password Reset Fields
-    passwordResetToken: {
+    // EMAIL VERIFICATION FIELDS
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+      required: true,
+    },
+    emailVerifiedAt: {
+      type: Date,
+      default: null,
+    },
+
+    // Password Reset Fields - OTP BASED
+    passwordResetOTP: {
       type: String,
       select: false, // Don't include in queries by default
     },
-    passwordResetExpires: {
+    passwordResetOTPExpires: {
       type: Date,
       select: false, // Don't include in queries by default
+    },
+    passwordResetAttempts: {
+      type: Number,
+      default: 0,
+      select: false,
+    },
+    passwordResetLastAttempt: {
+      type: Date,
+      select: false,
+    },
+
+    // Legacy token fields (keep for backward compatibility)
+    passwordResetToken: {
+      type: String,
+      select: false,
+    },
+    passwordResetExpires: {
+      type: Date,
+      select: false,
     },
 
     // Points System
@@ -109,7 +139,7 @@ const UserSchema = new mongoose.Schema(
           'trialing',
           'past_due',
           'unpaid',
-        ], // ✅ Added Stripe statuses
+        ],
         default: 'inactive',
       },
       startDate: Date,
@@ -135,92 +165,6 @@ const UserSchema = new mongoose.Schema(
       type: String,
       unique: true,
       sparse: true, // Allows multiple null values but unique non-null values
-    },
-
-    // Stripe Connect Fields for Payouts
-    stripeConnect: {
-      accountId: {
-        type: String,
-        // FIXED: Removed unique constraint to prevent duplicate key errors
-        sparse: true, // Allows multiple null values
-      },
-
-      // Account verification status
-      isVerified: {
-        type: Boolean,
-        default: false,
-      },
-
-      // Current verification requirements
-      requirementsNeeded: [
-        {
-          type: String,
-        },
-      ],
-
-      // Account capabilities
-      capabilities: {
-        cardPayments: {
-          type: String,
-          enum: ['active', 'inactive', 'pending'],
-          default: 'inactive',
-        },
-        transfers: {
-          type: String,
-          enum: ['active', 'inactive', 'pending'],
-          default: 'inactive',
-        },
-      },
-
-      // Payout settings
-      payoutSettings: {
-        schedule: {
-          type: String,
-          enum: ['manual', 'weekly', 'monthly'],
-          default: 'manual',
-        },
-        minimumAmount: {
-          type: Number,
-          default: 1000, // $10.00 in cents
-        },
-        currency: {
-          type: String,
-          default: 'USD',
-        },
-      },
-
-      // Business information
-      businessProfile: {
-        name: String,
-        supportEmail: String,
-        supportPhone: String,
-        supportUrl: String,
-        country: String,
-        businessType: {
-          type: String,
-          enum: ['individual', 'company'],
-          default: 'individual',
-        },
-      },
-
-      // Account status tracking
-      onboardingCompleted: {
-        type: Boolean,
-        default: false,
-      },
-
-      lastUpdated: {
-        type: Date,
-        default: Date.now,
-      },
-
-      // Restrictions or issues
-      restrictedFeatures: [
-        {
-          feature: String,
-          reason: String,
-        },
-      ],
     },
 
     // Enhanced Referral System Fields
@@ -293,60 +237,6 @@ const UserSchema = new mongoose.Schema(
       },
     },
 
-    // Earnings and Payout Information
-    earningsInfo: {
-      totalEarned: {
-        type: Number,
-        default: 0, // Total lifetime earnings in cents
-      },
-      availableForPayout: {
-        type: Number,
-        default: 0, // Currently available for payout in cents
-      },
-      totalPaidOut: {
-        type: Number,
-        default: 0, // Total amount paid out in cents
-      },
-      lastPayoutDate: {
-        type: Date,
-      },
-      nextAutomaticPayout: {
-        type: Date,
-      },
-    },
-
-    // Notification preferences
-    notificationPreferences: {
-      emailNotifications: {
-        earnings: {
-          type: Boolean,
-          default: true,
-        },
-        payouts: {
-          type: Boolean,
-          default: true,
-        },
-        referrals: {
-          type: Boolean,
-          default: true,
-        },
-        marketing: {
-          type: Boolean,
-          default: false,
-        },
-      },
-      pushNotifications: {
-        earnings: {
-          type: Boolean,
-          default: true,
-        },
-        payouts: {
-          type: Boolean,
-          default: true,
-        },
-      },
-    },
-
     // Account Status
     isDeleted: {
       type: Boolean,
@@ -369,17 +259,15 @@ UserSchema.index({ email: 1 })
 UserSchema.index({ referralCode: 1 })
 UserSchema.index({ referredBy: 1 })
 UserSchema.index({ stripeCustomerId: 1 })
-// FIXED: Use sparse unique index for Connect account ID to allow multiple null values
-UserSchema.index(
-  { 'stripeConnect.accountId': 1 },
-  { sparse: true, unique: true }
-)
 UserSchema.index({ 'discord.discordId': 1 })
 UserSchema.index({ isDeleted: 1, isActive: 1 })
+UserSchema.index({ isEmailVerified: 1 }) // New index for email verification
 UserSchema.index({ lastDailyClaim: 1 })
 UserSchema.index({ points: -1 })
-UserSchema.index({ passwordResetToken: 1 }) // Index for password reset tokens
-UserSchema.index({ passwordResetExpires: 1 }) // Index for password reset expiry
+UserSchema.index({ passwordResetOTP: 1 }) // Index for OTP
+UserSchema.index({ passwordResetOTPExpires: 1 }) // Index for OTP expiry
+UserSchema.index({ passwordResetToken: 1 }) // Legacy index
+UserSchema.index({ passwordResetExpires: 1 }) // Legacy index
 
 // Pre-save middleware to hash password
 UserSchema.pre('save', async function (next) {
@@ -396,6 +284,10 @@ UserSchema.pre('save', async function (next) {
     // Clear password reset fields when password is changed
     this.passwordResetToken = undefined
     this.passwordResetExpires = undefined
+    this.passwordResetOTP = undefined
+    this.passwordResetOTPExpires = undefined
+    this.passwordResetAttempts = 0
+    this.passwordResetLastAttempt = undefined
 
     next()
   } catch (error) {
@@ -459,7 +351,91 @@ UserSchema.methods.changedPasswordAfter = function (JWTTimestamp) {
   return false
 }
 
-// Method to create password reset token
+// NEW: Method to mark email as verified
+UserSchema.methods.verifyEmail = function () {
+  this.isEmailVerified = true
+  this.emailVerifiedAt = new Date()
+}
+
+// NEW: Method to create password reset OTP
+UserSchema.methods.createPasswordResetOTP = function () {
+  // Generate 6-digit OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString()
+
+  // Hash OTP and save to database
+  this.passwordResetOTP = crypto.createHash('sha256').update(otp).digest('hex')
+
+  // Set expiry time (10 minutes from now)
+  this.passwordResetOTPExpires = Date.now() + 10 * 60 * 1000
+
+  // Reset attempts counter
+  this.passwordResetAttempts = 0
+  this.passwordResetLastAttempt = new Date()
+
+  // Return unhashed OTP (this will be sent via email)
+  return otp
+}
+
+// NEW: Method to validate password reset OTP
+UserSchema.methods.validatePasswordResetOTP = function (otp) {
+  // Check if too many attempts
+  if (this.passwordResetAttempts >= 5) {
+    const timeSinceLastAttempt = Date.now() - this.passwordResetLastAttempt
+    const cooldownTime = 15 * 60 * 1000 // 15 minutes
+
+    if (timeSinceLastAttempt < cooldownTime) {
+      return {
+        isValid: false,
+        error: 'Too many attempts. Please wait 15 minutes before trying again.',
+        remainingTime: Math.ceil((cooldownTime - timeSinceLastAttempt) / 60000),
+      }
+    } else {
+      // Reset attempts after cooldown
+      this.passwordResetAttempts = 0
+    }
+  }
+
+  // Hash the incoming OTP
+  const hashedOTP = crypto.createHash('sha256').update(otp).digest('hex')
+
+  // Check if OTP matches and hasn't expired
+  const isValid =
+    this.passwordResetOTP === hashedOTP &&
+    this.passwordResetOTPExpires > Date.now()
+
+  // Increment attempts
+  this.passwordResetAttempts += 1
+  this.passwordResetLastAttempt = new Date()
+
+  if (!isValid) {
+    return {
+      isValid: false,
+      error:
+        this.passwordResetOTPExpires <= Date.now()
+          ? 'OTP has expired. Please request a new one.'
+          : 'Invalid OTP. Please check and try again.',
+      attemptsRemaining: Math.max(0, 5 - this.passwordResetAttempts),
+    }
+  }
+
+  return { isValid: true }
+}
+
+// NEW: Static method to find user by valid reset OTP
+UserSchema.statics.findByValidResetOTP = function (otp) {
+  const hashedOTP = crypto.createHash('sha256').update(otp).digest('hex')
+
+  return this.findOne({
+    passwordResetOTP: hashedOTP,
+    passwordResetOTPExpires: { $gt: Date.now() },
+    isActive: true,
+    isDeleted: false,
+  }).select(
+    '+passwordResetOTP +passwordResetOTPExpires +passwordResetAttempts +passwordResetLastAttempt'
+  )
+}
+
+// Legacy method to create password reset token (keep for backward compatibility)
 UserSchema.methods.createPasswordResetToken = function () {
   // Generate random token
   const resetToken = crypto.randomBytes(32).toString('hex')
@@ -477,7 +453,7 @@ UserSchema.methods.createPasswordResetToken = function () {
   return resetToken
 }
 
-// Method to validate password reset token
+// Legacy method to validate password reset token
 UserSchema.methods.validatePasswordResetToken = function (token) {
   // Hash the incoming token
   const hashedToken = crypto.createHash('sha256').update(token).digest('hex')
@@ -489,7 +465,7 @@ UserSchema.methods.validatePasswordResetToken = function (token) {
   )
 }
 
-// Static method to find user by valid reset token
+// Legacy static method to find user by valid reset token
 UserSchema.statics.findByValidResetToken = function (token) {
   const hashedToken = crypto.createHash('sha256').update(token).digest('hex')
 
@@ -667,112 +643,6 @@ UserSchema.methods.addReferral = async function (
   }
 }
 
-// FIXED: Method to safely reset Connect account without duplicate key errors
-UserSchema.methods.safeResetConnectAccount = async function () {
-  try {
-    // Use $unset to completely remove the accountId field instead of setting to null
-    const updateResult = await this.updateOne({
-      $unset: { 'stripeConnect.accountId': 1 },
-      $set: {
-        'stripeConnect.isVerified': false,
-        'stripeConnect.onboardingCompleted': false,
-        'stripeConnect.capabilities': {
-          cardPayments: 'inactive',
-          transfers: 'inactive',
-        },
-        'stripeConnect.requirementsNeeded': [],
-        'stripeConnect.lastUpdated': new Date(),
-      },
-    })
-
-    console.log(`✅ Successfully reset Connect account for user: ${this.email}`)
-    return true
-  } catch (error) {
-    console.error('❌ Error resetting Connect account:', error)
-    throw error
-  }
-}
-
-// Method to update Stripe Connect account status
-UserSchema.methods.updateConnectAccountStatus = async function (accountData) {
-  if (!this.stripeConnect) {
-    this.stripeConnect = {}
-  }
-
-  this.stripeConnect.accountId = accountData.id
-  this.stripeConnect.isVerified =
-    accountData.details_submitted && accountData.charges_enabled
-  this.stripeConnect.requirementsNeeded =
-    accountData.requirements?.currently_due || []
-
-  // Update capabilities
-  if (accountData.capabilities) {
-    this.stripeConnect.capabilities = {
-      cardPayments: accountData.capabilities.card_payments || 'inactive',
-      transfers: accountData.capabilities.transfers || 'inactive',
-    }
-  }
-
-  // Update business profile if available
-  if (accountData.business_profile) {
-    this.stripeConnect.businessProfile = {
-      ...this.stripeConnect.businessProfile,
-      name: accountData.business_profile.name,
-      supportEmail: accountData.business_profile.support_email,
-      supportPhone: accountData.business_profile.support_phone,
-      supportUrl: accountData.business_profile.support_url,
-      country: accountData.country,
-    }
-  }
-
-  this.stripeConnect.onboardingCompleted = accountData.details_submitted
-  this.stripeConnect.lastUpdated = new Date()
-
-  return this.save()
-}
-
-// Method to update earnings information
-UserSchema.methods.updateEarningsInfo = async function () {
-  try {
-    const Earnings = mongoose.model('Earnings')
-
-    // Get earnings summary
-    const summary = await Earnings.getEarningsSummary(this._id)
-
-    this.earningsInfo.totalEarned =
-      summary.approved.total + summary.paid.total + summary.pending.total
-    this.earningsInfo.availableForPayout = summary.approved.total
-    this.earningsInfo.totalPaidOut = summary.paid.total
-
-    // Update referral stats
-    this.referralStats.totalEarnings = this.earningsInfo.totalEarned
-    this.referralStats.pendingEarnings =
-      summary.pending.total + summary.approved.total
-    this.referralStats.paidEarnings = summary.paid.total
-
-    return this.save()
-  } catch (error) {
-    console.error('Error updating earnings info:', error)
-    // Don't throw error to prevent breaking other operations
-    return this
-  }
-}
-
-// Method to check if user can receive payouts
-UserSchema.methods.canReceivePayouts = function () {
-  return (
-    this.stripeConnect?.accountId &&
-    this.stripeConnect.isVerified &&
-    this.stripeConnect.capabilities?.transfers === 'active' &&
-    this.stripeConnect.onboardingCompleted
-  )
-}
-
-// Method to get minimum payout amount
-UserSchema.methods.getMinimumPayoutAmount = function () {
-  return this.stripeConnect?.payoutSettings?.minimumAmount || 1000 // Default $10
-}
-
 // Virtual for referral URL
 UserSchema.virtual('referralUrl').get(function () {
   return `${
@@ -823,54 +693,12 @@ UserSchema.virtual('subscriptionStatus').get(function () {
   }
 })
 
-// Virtual for Connect account status
-UserSchema.virtual('connectStatus').get(function () {
-  if (!this.stripeConnect?.accountId) {
-    return {
-      status: 'not_connected',
-      canReceivePayouts: false,
-      needsVerification: false,
-    }
-  }
-
+// Virtual for email verification status
+UserSchema.virtual('emailVerificationStatus').get(function () {
   return {
-    status: this.stripeConnect.isVerified ? 'verified' : 'pending',
-    canReceivePayouts: this.canReceivePayouts(),
-    needsVerification: this.stripeConnect.requirementsNeeded.length > 0,
-    requirements: this.stripeConnect.requirementsNeeded,
-  }
-})
-
-// Virtual for formatted earnings
-UserSchema.virtual('formattedEarnings').get(function () {
-  const info = this.earningsInfo
-  return {
-    totalEarned: (info.totalEarned / 100).toFixed(2),
-    availableForPayout: (info.availableForPayout / 100).toFixed(2),
-    totalPaidOut: (info.totalPaidOut / 100).toFixed(2),
-    currency: this.stripeConnect?.payoutSettings?.currency || 'USD',
-  }
-})
-
-// Virtual for Discord status
-UserSchema.virtual('discordStatus').get(function () {
-  if (!this.discord?.isConnected) {
-    return {
-      isConnected: false,
-      needsConnection: true,
-    }
-  }
-
-  return {
-    isConnected: true,
-    username: this.discord.username,
-    discriminator: this.discord.discriminator,
-    avatar: this.discord.avatar,
-    connectedAt: this.discord.connectedAt,
-    currentRoles: this.discord.currentRoles || [],
-    lastRoleUpdate: this.discord.lastRoleUpdate,
-    expectedRole: this.getDiscordRole(),
-    needsRoleUpdate: this.needsRoleUpdate(),
+    isVerified: this.isEmailVerified,
+    verifiedAt: this.emailVerifiedAt,
+    canLogin: this.isEmailVerified && this.isActive && !this.isDeleted,
   }
 })
 
@@ -883,15 +711,6 @@ UserSchema.statics.findByReferralCode = function (code) {
   })
 }
 
-// Static method to find users with pending Connect verification
-UserSchema.statics.findPendingVerification = function () {
-  return this.find({
-    'stripeConnect.accountId': { $exists: true },
-    'stripeConnect.isVerified': false,
-    'stripeConnect.onboardingCompleted': false,
-  })
-}
-
 // Static method to get top earners by points
 UserSchema.statics.getTopPointEarners = function (limit = 10) {
   return this.find({ totalPointsEarned: { $gt: 0 } })
@@ -899,30 +718,6 @@ UserSchema.statics.getTopPointEarners = function (limit = 10) {
       'name email points totalPointsEarned dailyClaimStreak discord.isConnected'
     )
     .sort({ totalPointsEarned: -1 })
-    .limit(limit)
-}
-
-// Static method to get top earners
-UserSchema.statics.getTopEarners = function (limit = 10, period = 'all') {
-  const match = { 'earningsInfo.totalEarned': { $gt: 0 } }
-
-  if (period !== 'all') {
-    // Add date filtering if needed
-    const startDate = new Date()
-    switch (period) {
-      case 'month':
-        startDate.setMonth(startDate.getMonth() - 1)
-        break
-      case 'year':
-        startDate.setFullYear(startDate.getFullYear() - 1)
-        break
-    }
-    match.updatedAt = { $gte: startDate }
-  }
-
-  return this.find(match)
-    .select('name email earningsInfo referralStats discord.isConnected')
-    .sort({ 'earningsInfo.totalEarned': -1 })
     .limit(limit)
 }
 

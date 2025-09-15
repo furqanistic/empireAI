@@ -1,5 +1,6 @@
-// File: client/src/pages/Auth/AuthPage.jsx
+// File: client/src/pages/Auth/AuthPage.jsx - FIXED WITH OTP SIGNUP FLOW
 import {
+  ArrowLeft,
   ArrowRight,
   CheckCircle,
   Eye,
@@ -7,17 +8,23 @@ import {
   Gift,
   Lock,
   Mail,
+  Shield,
+  Timer,
   User,
   XCircle,
 } from 'lucide-react'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useSelector } from 'react-redux'
 import {
   useAuthLoading,
   useCurrentUser,
+  useForgotPassword,
+  useResetPassword,
+  useSendSignupOTP, // NEW: For sending signup OTP
   useSignin,
-  useSignup,
   useValidateReferralCode,
+  useVerifyOTP,
+  useVerifySignupOTP, // NEW: For verifying signup OTP
 } from '../../hooks/useAuth.js'
 import { selectIsLoading } from '../../redux/userSlice.js'
 
@@ -80,13 +87,14 @@ const Button = ({
   ...props
 }) => {
   const baseClasses =
-    'h-8 px-4 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed'
+    'h-10 px-4 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed'
 
   const variants = {
     primary:
       'bg-[#D4AF37] text-black hover:bg-[#D4AF37]/90 active:scale-[0.98]',
     secondary:
       'bg-[#121214] border border-[#1E1E21] text-[#EDEDED] hover:border-[#D4AF37]/30 hover:bg-[#1E1E21]/30',
+    ghost: 'text-[#D4AF37] hover:text-[#D4AF37]/80 hover:bg-[#D4AF37]/10',
   }
 
   return (
@@ -104,14 +112,78 @@ const Button = ({
   )
 }
 
+// OTP Input Component
+const OTPInput = ({ value, onChange, length = 6, error }) => {
+  const inputRefs = useRef([])
+
+  const handleChange = (index, val) => {
+    if (!/^\d*$/.test(val)) return // Only allow digits
+
+    const newValue = value.split('')
+    newValue[index] = val
+    const otpValue = newValue.join('')
+
+    onChange(otpValue)
+
+    // Auto-focus next input
+    if (val && index < length - 1) {
+      inputRefs.current[index + 1]?.focus()
+    }
+  }
+
+  const handleKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !value[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus()
+    }
+  }
+
+  const handlePaste = (e) => {
+    e.preventDefault()
+    const pasteData = e.clipboardData.getData('text').slice(0, length)
+    if (/^\d+$/.test(pasteData)) {
+      onChange(pasteData.padEnd(length, ''))
+      // Focus the next empty input or the last one
+      const nextIndex = Math.min(pasteData.length, length - 1)
+      inputRefs.current[nextIndex]?.focus()
+    }
+  }
+
+  return (
+    <div className='space-y-1'>
+      <div className='flex justify-center gap-3'>
+        {Array.from({ length }, (_, index) => (
+          <input
+            key={index}
+            ref={(el) => (inputRefs.current[index] = el)}
+            type='text'
+            maxLength={1}
+            value={value[index] || ''}
+            onChange={(e) => handleChange(index, e.target.value)}
+            onKeyDown={(e) => handleKeyDown(index, e)}
+            onPaste={handlePaste}
+            className={`w-12 h-12 text-center text-xl font-mono bg-[#121214] border rounded-lg text-[#EDEDED] transition-all duration-200 focus:outline-none focus:ring-1 focus:ring-[#D4AF37]/20 focus:border-[#D4AF37] ${
+              error ? 'border-red-500' : 'border-[#1E1E21]'
+            } hover:border-[#D4AF37]/30`}
+            autoComplete='off'
+          />
+        ))}
+      </div>
+      {error && <p className='text-red-400 text-sm text-center'>{error}</p>}
+    </div>
+  )
+}
+
 export default function AuthPage() {
-  const [isLogin, setIsLogin] = useState(true)
+  // Auth flow states - UPDATED with signup-otp flow
+  const [authFlow, setAuthFlow] = useState('signin') // 'signin', 'signup', 'signup-otp', 'forgot', 'otp', 'reset'
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     confirmPassword: '',
     name: '',
     referralCode: '',
+    otp: '',
+    resetToken: '',
   })
   const [errors, setErrors] = useState({})
   const [referralValidation, setReferralValidation] = useState(null)
@@ -122,8 +194,12 @@ export default function AuthPage() {
   const authError = useSelector((state) => state.user.error)
 
   // React Query hooks
-  const signupMutation = useSignup()
   const signinMutation = useSignin()
+  const sendSignupOTPMutation = useSendSignupOTP() // NEW: Send signup OTP
+  const verifySignupOTPMutation = useVerifySignupOTP() // NEW: Verify signup OTP
+  const forgotPasswordMutation = useForgotPassword()
+  const verifyOTPMutation = useVerifyOTP()
+  const resetPasswordMutation = useResetPassword()
 
   // Check for referral code in URL parameters
   useEffect(() => {
@@ -136,7 +212,7 @@ export default function AuthPage() {
         referralCode: refCode.trim().toUpperCase(),
       }))
       // Switch to signup mode if referral code is present
-      setIsLogin(false)
+      setAuthFlow('signup')
     }
   }, [])
 
@@ -147,7 +223,7 @@ export default function AuthPage() {
     error: referralValidationError,
   } = useValidateReferralCode(
     formData.referralCode.trim(),
-    !isLogin && formData.referralCode.trim().length >= 3
+    authFlow === 'signup' && formData.referralCode.trim().length >= 3
   )
 
   // Redirect if user is already authenticated
@@ -188,21 +264,32 @@ export default function AuthPage() {
     if (field === 'referralCode') {
       setReferralValidation(null)
     }
+
+    // Clear general error when user makes changes
+    if (errors.general) {
+      setErrors((prev) => ({ ...prev, general: '' }))
+    }
   }
 
   const validateForm = () => {
     const newErrors = {}
 
-    if (!formData.email) newErrors.email = 'Email is required'
-    else if (!/\S+@\S+\.\S+/.test(formData.email))
-      newErrors.email = 'Email is invalid'
+    if (authFlow === 'signin') {
+      if (!formData.email) newErrors.email = 'Email is required'
+      else if (!/\S+@\S+\.\S+/.test(formData.email))
+        newErrors.email = 'Email is invalid'
 
-    if (!formData.password) newErrors.password = 'Password is required'
-    else if (formData.password.length < 8)
-      newErrors.password = 'Password must be at least 8 characters'
-
-    if (!isLogin) {
+      if (!formData.password) newErrors.password = 'Password is required'
+    } else if (authFlow === 'signup') {
       if (!formData.name) newErrors.name = 'Name is required'
+      if (!formData.email) newErrors.email = 'Email is required'
+      else if (!/\S+@\S+\.\S+/.test(formData.email))
+        newErrors.email = 'Email is invalid'
+
+      if (!formData.password) newErrors.password = 'Password is required'
+      else if (formData.password.length < 8)
+        newErrors.password = 'Password must be at least 8 characters'
+
       if (!formData.confirmPassword)
         newErrors.confirmPassword = 'Please confirm your password'
       else if (formData.password !== formData.confirmPassword) {
@@ -218,6 +305,28 @@ export default function AuthPage() {
             referralValidation.message || 'Invalid referral code'
         }
       }
+    } else if (authFlow === 'signup-otp') {
+      if (!formData.otp) newErrors.otp = 'OTP is required'
+      else if (!/^\d{6}$/.test(formData.otp))
+        newErrors.otp = 'OTP must be 6 digits'
+    } else if (authFlow === 'forgot') {
+      if (!formData.email) newErrors.email = 'Email is required'
+      else if (!/\S+@\S+\.\S+/.test(formData.email))
+        newErrors.email = 'Email is invalid'
+    } else if (authFlow === 'otp') {
+      if (!formData.otp) newErrors.otp = 'OTP is required'
+      else if (!/^\d{6}$/.test(formData.otp))
+        newErrors.otp = 'OTP must be 6 digits'
+    } else if (authFlow === 'reset') {
+      if (!formData.password) newErrors.password = 'Password is required'
+      else if (formData.password.length < 8)
+        newErrors.password = 'Password must be at least 8 characters'
+
+      if (!formData.confirmPassword)
+        newErrors.confirmPassword = 'Please confirm your password'
+      else if (formData.password !== formData.confirmPassword) {
+        newErrors.confirmPassword = 'Passwords do not match'
+      }
     }
 
     setErrors(newErrors)
@@ -227,115 +336,110 @@ export default function AuthPage() {
   const handleSubmit = async () => {
     if (!validateForm()) return
 
-    // Clear any previous errors
     setErrors({})
 
     try {
-      if (isLogin) {
+      if (authFlow === 'signin') {
         const result = await signinMutation.mutateAsync({
           email: formData.email.trim(),
           password: formData.password,
         })
-
         if (result.status === 'success') {
           window.location.href = '/dashboard'
         }
-      } else {
+      } else if (authFlow === 'signup') {
+        // FIXED: Use new OTP-based signup flow
         const signupData = {
           name: formData.name.trim(),
           email: formData.email.trim(),
           password: formData.password,
         }
 
-        // Only include referral code if valid
+        // Include referral code if valid
         if (formData.referralCode.trim() && referralValidation?.isValid) {
           signupData.referralCode = formData.referralCode.trim()
         }
 
-        const result = await signupMutation.mutateAsync(signupData)
-
+        const result = await sendSignupOTPMutation.mutateAsync(signupData)
+        if (result.status === 'success') {
+          // Move to OTP verification step
+          setAuthFlow('signup-otp')
+        }
+      } else if (authFlow === 'signup-otp') {
+        // FIXED: Verify signup OTP
+        const result = await verifySignupOTPMutation.mutateAsync({
+          email: formData.email.trim(),
+          otp: formData.otp,
+        })
+        if (result.status === 'success') {
+          window.location.href = '/dashboard'
+        }
+      } else if (authFlow === 'forgot') {
+        const result = await forgotPasswordMutation.mutateAsync(
+          formData.email.trim()
+        )
+        if (result.status === 'success') {
+          setAuthFlow('otp')
+        }
+      } else if (authFlow === 'otp') {
+        const result = await verifyOTPMutation.mutateAsync({
+          email: formData.email.trim(),
+          otp: formData.otp,
+        })
+        if (result.status === 'success') {
+          setFormData((prev) => ({
+            ...prev,
+            resetToken: result.data.resetToken,
+          }))
+          setAuthFlow('reset')
+        }
+      } else if (authFlow === 'reset') {
+        const result = await resetPasswordMutation.mutateAsync({
+          resetToken: formData.resetToken,
+          password: formData.password,
+          confirmPassword: formData.confirmPassword,
+        })
         if (result.status === 'success') {
           window.location.href = '/dashboard'
         }
       }
     } catch (error) {
-      console.error('Auth error details:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-        url: error.config?.url,
-        method: error.config?.method,
-      })
+      console.error('Auth error:', error)
 
       let errorMessage = ''
 
-      // ✅ Handle error response from backend
       if (error.response) {
-        const { status, data } = error.response
-
-        // Use backend's message if available
+        const { data } = error.response
         if (data?.message) {
           errorMessage = data.message
         } else {
-          // Fallback based on status
-          switch (status) {
-            case 400:
-              errorMessage = 'Please check your input and try again.'
-              break
-            case 401:
-              errorMessage = 'Incorrect email or password'
-              break
-            case 409:
-              errorMessage = 'An account with this email already exists.'
-              break
-            case 500:
-              errorMessage = 'Server error. Please try again later.'
-              break
-            default:
-              errorMessage = 'An unexpected error occurred.'
-          }
+          errorMessage = 'An unexpected error occurred. Please try again.'
         }
       } else if (error.request) {
-        // Network error (no response)
         errorMessage = 'Network error. Please check your connection.'
       } else {
-        // Something else happened
         errorMessage = 'An error occurred. Please try again.'
       }
 
-      // Show user-friendly error
       setErrors((prev) => ({ ...prev, general: errorMessage }))
     }
   }
 
-  const toggleMode = () => {
-    const urlParams = new URLSearchParams(window.location.search)
-    const refCode = urlParams.get('ref')
-
-    setIsLogin(!isLogin)
-
-    if (!isLogin) {
-      // Switching to login mode
-      setFormData({
-        email: '',
-        password: '',
-        confirmPassword: '',
-        name: '',
-        referralCode: refCode ? refCode.trim().toUpperCase() : '',
-      })
-    } else {
-      // Switching to signup mode
-      setFormData({
-        email: '',
-        password: '',
-        confirmPassword: '',
-        name: '',
-        referralCode: refCode ? refCode.trim().toUpperCase() : '',
-      })
+  const goBack = () => {
+    if (authFlow === 'signup-otp') {
+      setAuthFlow('signup')
+    } else if (authFlow === 'otp' || authFlow === 'reset') {
+      setAuthFlow('forgot')
+    } else if (authFlow === 'forgot') {
+      setAuthFlow('signin')
     }
-
     setErrors({})
-    setReferralValidation(null)
+  }
+
+  const startForgotPassword = () => {
+    setFormData((prev) => ({ ...prev, email: '', otp: '', resetToken: '' }))
+    setAuthFlow('forgot')
+    setErrors({})
   }
 
   // Show loading spinner if redirecting to dashboard
@@ -350,6 +454,44 @@ export default function AuthPage() {
     )
   }
 
+  const getTitle = () => {
+    switch (authFlow) {
+      case 'signin':
+        return 'Welcome back'
+      case 'signup':
+        return 'Start your journey'
+      case 'signup-otp':
+        return 'Verify your email'
+      case 'forgot':
+        return 'Reset your password'
+      case 'otp':
+        return 'Verify OTP'
+      case 'reset':
+        return 'Create new password'
+      default:
+        return 'Welcome'
+    }
+  }
+
+  const getSubtitle = () => {
+    switch (authFlow) {
+      case 'signin':
+        return 'Sign in to your account'
+      case 'signup':
+        return 'Create your Ascend AI account'
+      case 'signup-otp':
+        return `Enter the 6-digit code sent to ${formData.email}`
+      case 'forgot':
+        return 'Enter your email to receive an OTP'
+      case 'otp':
+        return `Enter the 6-digit code sent to ${formData.email}`
+      case 'reset':
+        return 'Enter your new password'
+      default:
+        return ''
+    }
+  }
+
   return (
     <div className='min-h-screen bg-[#0B0B0C] flex items-center justify-center p-4'>
       <div className='w-full max-w-md'>
@@ -358,38 +500,48 @@ export default function AuthPage() {
             <span className='text-xl font-bold text-[#EDEDED]'>Ascend AI</span>
           </div>
           <h1 className='text-2xl font-bold text-[#EDEDED] mb-2'>
-            {isLogin ? 'Welcome back' : 'Start your journey'}
+            {getTitle()}
           </h1>
-          <p className='text-gray-400'>
-            {isLogin
-              ? 'Sign in to your account'
-              : 'Create your Ascend AI account'}
-          </p>
+          <p className='text-gray-400'>{getSubtitle()}</p>
         </div>
 
         <div className='bg-[#121214] rounded-xl border border-[#1E1E21] p-6'>
-          <div className='flex bg-[#0B0B0C] rounded-lg p-1 mb-6'>
+          {/* Back button for multi-step flows */}
+          {['signup-otp', 'forgot', 'otp', 'reset'].includes(authFlow) && (
             <button
-              onClick={() => setIsLogin(true)}
-              className={`flex-1 h-8 rounded-md text-sm font-medium transition-all duration-200 ${
-                isLogin
-                  ? 'bg-[#D4AF37] text-black'
-                  : 'text-gray-400 hover:text-[#EDEDED]'
-              }`}
+              onClick={goBack}
+              className='flex items-center gap-2 text-gray-400 hover:text-[#EDEDED] transition-colors mb-4'
             >
-              Sign In
+              <ArrowLeft size={16} />
+              Back
             </button>
-            <button
-              onClick={() => setIsLogin(false)}
-              className={`flex-1 h-8 rounded-md text-sm font-medium transition-all duration-200 ${
-                !isLogin
-                  ? 'bg-[#D4AF37] text-black'
-                  : 'text-gray-400 hover:text-[#EDEDED]'
-              }`}
-            >
-              Sign Up
-            </button>
-          </div>
+          )}
+
+          {/* Tab switcher for signin/signup */}
+          {['signin', 'signup'].includes(authFlow) && (
+            <div className='flex bg-[#0B0B0C] rounded-lg p-1 mb-6'>
+              <button
+                onClick={() => setAuthFlow('signin')}
+                className={`flex-1 h-8 rounded-md text-sm font-medium transition-all duration-200 ${
+                  authFlow === 'signin'
+                    ? 'bg-[#D4AF37] text-black'
+                    : 'text-gray-400 hover:text-[#EDEDED]'
+                }`}
+              >
+                Sign In
+              </button>
+              <button
+                onClick={() => setAuthFlow('signup')}
+                className={`flex-1 h-8 rounded-md text-sm font-medium transition-all duration-200 ${
+                  authFlow === 'signup'
+                    ? 'bg-[#D4AF37] text-black'
+                    : 'text-gray-400 hover:text-[#EDEDED]'
+                }`}
+              >
+                Sign Up
+              </button>
+            </div>
+          )}
 
           {/* General error message */}
           {errors.general && (
@@ -398,7 +550,7 @@ export default function AuthPage() {
             </div>
           )}
 
-          {/* 🔥 Form now supports Enter key submission */}
+          {/* Form */}
           <form
             onSubmit={(e) => {
               e.preventDefault()
@@ -406,38 +558,70 @@ export default function AuthPage() {
             }}
             className='space-y-4'
           >
-            {!isLogin && (
-              <Input
-                icon={User}
-                placeholder='Full name'
-                value={formData.name}
-                onChange={(e) => handleInputChange('name', e.target.value)}
-                error={errors.name}
-                autoFocus
-              />
+            {/* Signin Form */}
+            {authFlow === 'signin' && (
+              <>
+                <Input
+                  icon={Mail}
+                  type='email'
+                  placeholder='Email address'
+                  value={formData.email}
+                  onChange={(e) => handleInputChange('email', e.target.value)}
+                  error={errors.email}
+                  autoFocus
+                />
+                <Input
+                  icon={Lock}
+                  type='password'
+                  placeholder='Password'
+                  value={formData.password}
+                  onChange={(e) =>
+                    handleInputChange('password', e.target.value)
+                  }
+                  error={errors.password}
+                />
+                <div className='flex justify-end'>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    onClick={startForgotPassword}
+                    className='text-sm'
+                  >
+                    Forgot password?
+                  </Button>
+                </div>
+              </>
             )}
 
-            <Input
-              icon={Mail}
-              type='email'
-              placeholder='Email address'
-              value={formData.email}
-              onChange={(e) => handleInputChange('email', e.target.value)}
-              error={errors.email}
-              autoFocus={isLogin && !formData.email}
-            />
-
-            <Input
-              icon={Lock}
-              type='password'
-              placeholder='Password'
-              value={formData.password}
-              onChange={(e) => handleInputChange('password', e.target.value)}
-              error={errors.password}
-            />
-
-            {!isLogin && (
+            {/* Signup Form */}
+            {authFlow === 'signup' && (
               <>
+                <Input
+                  icon={User}
+                  placeholder='Full name'
+                  value={formData.name}
+                  onChange={(e) => handleInputChange('name', e.target.value)}
+                  error={errors.name}
+                  autoFocus
+                />
+                <Input
+                  icon={Mail}
+                  type='email'
+                  placeholder='Email address'
+                  value={formData.email}
+                  onChange={(e) => handleInputChange('email', e.target.value)}
+                  error={errors.email}
+                />
+                <Input
+                  icon={Lock}
+                  type='password'
+                  placeholder='Password'
+                  value={formData.password}
+                  onChange={(e) =>
+                    handleInputChange('password', e.target.value)
+                  }
+                  error={errors.password}
+                />
                 <Input
                   icon={Lock}
                   type='password'
@@ -448,7 +632,6 @@ export default function AuthPage() {
                   }
                   error={errors.confirmPassword}
                 />
-
                 <div className='space-y-1'>
                   <div className='relative'>
                     <Input
@@ -463,8 +646,6 @@ export default function AuthPage() {
                       }
                       error={errors.referralCode}
                     />
-
-                    {/* Referral validation indicator */}
                     {formData.referralCode.trim().length >= 3 && (
                       <div className='absolute right-3 top-3 transform -translate-y-1/2'>
                         {isValidatingReferral ? (
@@ -477,8 +658,6 @@ export default function AuthPage() {
                       </div>
                     )}
                   </div>
-
-                  {/* Referral validation message */}
                   {referralValidation?.isValid &&
                     referralValidation.referrer && (
                       <div className='ml-1 mt-3 p-2 bg-green-500/10 border border-green-500/20 rounded text-xs'>
@@ -494,47 +673,193 @@ export default function AuthPage() {
               </>
             )}
 
-            {isLogin && (
-              <div className='flex justify-end'>
-                <button
-                  type='button'
-                  className='text-sm text-[#D4AF37] hover:text-[#D4AF37]/80 transition-colors'
-                >
-                  Forgot password?
-                </button>
-              </div>
+            {/* Signup OTP Verification Form */}
+            {authFlow === 'signup-otp' && (
+              <>
+                <div className='text-center space-y-4'>
+                  <div className='w-16 h-16 bg-[#D4AF37]/10 rounded-full flex items-center justify-center mx-auto'>
+                    <Shield className='w-8 h-8 text-[#D4AF37]' />
+                  </div>
+                  <p className='text-sm text-gray-400'>
+                    We've sent a 6-digit verification code to your email address
+                    to complete your registration
+                  </p>
+                </div>
+                <div className='space-y-4'>
+                  <OTPInput
+                    value={formData.otp}
+                    onChange={(otp) => handleInputChange('otp', otp)}
+                    error={errors.otp}
+                  />
+                  <div className='text-center'>
+                    <Timer
+                      seconds={600} // 10 minutes
+                      onExpire={() => {
+                        setErrors((prev) => ({
+                          ...prev,
+                          otp: 'OTP has expired. Please request a new one.',
+                        }))
+                      }}
+                    />
+                  </div>
+                  <div className='text-center'>
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      onClick={() => setAuthFlow('signup')}
+                      className='text-sm'
+                    >
+                      Didn't receive the code? Try again
+                    </Button>
+                  </div>
+                </div>
+              </>
             )}
 
+            {/* Forgot Password Form */}
+            {authFlow === 'forgot' && (
+              <>
+                <Input
+                  icon={Mail}
+                  type='email'
+                  placeholder='Enter your email address'
+                  value={formData.email}
+                  onChange={(e) => handleInputChange('email', e.target.value)}
+                  error={errors.email}
+                  autoFocus
+                />
+                <div className='text-center text-sm text-gray-400'>
+                  We'll send you a 6-digit code to reset your password
+                </div>
+              </>
+            )}
+
+            {/* Password Reset OTP Verification Form */}
+            {authFlow === 'otp' && (
+              <>
+                <div className='text-center space-y-4'>
+                  <div className='w-16 h-16 bg-[#D4AF37]/10 rounded-full flex items-center justify-center mx-auto'>
+                    <Shield className='w-8 h-8 text-[#D4AF37]' />
+                  </div>
+                  <p className='text-sm text-gray-400'>
+                    We've sent a 6-digit verification code to your email address
+                  </p>
+                </div>
+                <div className='space-y-4'>
+                  <OTPInput
+                    value={formData.otp}
+                    onChange={(otp) => handleInputChange('otp', otp)}
+                    error={errors.otp}
+                  />
+                  <div className='text-center'>
+                    <Timer
+                      seconds={600} // 10 minutes
+                      onExpire={() => {
+                        setErrors((prev) => ({
+                          ...prev,
+                          otp: 'OTP has expired. Please request a new one.',
+                        }))
+                      }}
+                    />
+                  </div>
+                  <div className='text-center'>
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      onClick={() => setAuthFlow('forgot')}
+                      className='text-sm'
+                    >
+                      Didn't receive the code? Try again
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Reset Password Form */}
+            {authFlow === 'reset' && (
+              <>
+                <div className='text-center space-y-2 mb-4'>
+                  <div className='w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto'>
+                    <CheckCircle className='w-8 h-8 text-green-500' />
+                  </div>
+                  <p className='text-sm text-green-400'>
+                    OTP verified successfully!
+                  </p>
+                </div>
+                <Input
+                  icon={Lock}
+                  type='password'
+                  placeholder='New password'
+                  value={formData.password}
+                  onChange={(e) =>
+                    handleInputChange('password', e.target.value)
+                  }
+                  error={errors.password}
+                  autoFocus
+                />
+                <Input
+                  icon={Lock}
+                  type='password'
+                  placeholder='Confirm new password'
+                  value={formData.confirmPassword}
+                  onChange={(e) =>
+                    handleInputChange('confirmPassword', e.target.value)
+                  }
+                  error={errors.confirmPassword}
+                />
+              </>
+            )}
+
+            {/* Submit Button */}
             <Button
-              type='submit' // ✅ Critical for form submission
+              type='submit'
               onClick={handleSubmit}
-              loading={isLoading}
+              loading={
+                isLoading ||
+                sendSignupOTPMutation.isPending ||
+                verifySignupOTPMutation.isPending ||
+                forgotPasswordMutation.isPending ||
+                verifyOTPMutation.isPending ||
+                resetPasswordMutation.isPending
+              }
               className='w-full'
               disabled={
                 isLoading ||
-                (formData.referralCode.trim().length >= 3 &&
+                (authFlow === 'signup' &&
+                  formData.referralCode.trim().length >= 3 &&
                   isValidatingReferral)
               }
             >
-              {isLogin ? 'Sign In' : 'Create Account'}
+              {authFlow === 'signin' && 'Sign In'}
+              {authFlow === 'signup' && 'Send Verification Code'}
+              {authFlow === 'signup-otp' && 'Verify & Create Account'}
+              {authFlow === 'forgot' && 'Send OTP'}
+              {authFlow === 'otp' && 'Verify OTP'}
+              {authFlow === 'reset' && 'Reset Password'}
               <ArrowRight size={18} />
             </Button>
           </form>
 
-          <div className='mt-6 text-center'>
-            <span className='text-gray-400 text-sm'>
-              {isLogin
-                ? "Don't have an account? "
-                : 'Already have an account? '}
-            </span>
-            <button
-              onClick={toggleMode}
-              className='text-[#D4AF37] hover:text-[#D4AF37]/80 text-sm font-medium transition-colors'
-              disabled={isLoading}
-            >
-              {isLogin ? 'Sign up' : 'Sign in'}
-            </button>
-          </div>
+          {/* Footer links */}
+          {['signin', 'signup'].includes(authFlow) && (
+            <div className='mt-6 text-center'>
+              <span className='text-gray-400 text-sm'>
+                {authFlow === 'signin'
+                  ? "Don't have an account? "
+                  : 'Already have an account? '}
+              </span>
+              <button
+                onClick={() =>
+                  setAuthFlow(authFlow === 'signin' ? 'signup' : 'signin')
+                }
+                className='text-[#D4AF37] hover:text-[#D4AF37]/80 text-sm font-medium transition-colors'
+                disabled={isLoading}
+              >
+                {authFlow === 'signin' ? 'Sign up' : 'Sign in'}
+              </button>
+            </div>
+          )}
         </div>
 
         <div className='text-center mt-6 text-xs text-gray-500'>
