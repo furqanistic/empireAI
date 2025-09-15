@@ -11,10 +11,12 @@ import {
   getPointsStatus,
   getUserProfile,
   logout,
-  resetPassword, // Password reset: Step 3 - Reset password with token
-  sendSignupOTP, // NEW: Signup: Step 1 - Send OTP for email verification
+  resetPassword, // NEW: Signup: Step 1 - Send OTP for email verification
+  sendExistingUserVerificationOTP, // Password reset: Step 3 - Reset password with token
+  sendSignupOTP, // NEW: For existing users
   signin,
-  updateUser,
+  updateUser, // NEW: Signup: Step 2 - Verify OTP and create account
+  verifyExistingUserEmail,
   verifyOTP, // Password reset: Step 2 - Verify OTP
   verifySignupOTP, // NEW: Signup: Step 2 - Verify OTP and create account
 } from '../controllers/auth.js'
@@ -28,6 +30,10 @@ const router = express.Router()
 // NEW: OTP-BASED SIGNUP FLOW
 router.post('/signup/send-otp', sendSignupOTP) // Step 1: Send OTP for signup verification
 router.post('/signup/verify-otp', verifySignupOTP) // Step 2: Verify OTP and create account
+
+// NEW: EXISTING USER EMAIL VERIFICATION (for users created before email verification)
+router.post('/verify-email/send-otp', sendExistingUserVerificationOTP) // Send OTP to existing unverified users
+router.post('/verify-email/verify-otp', verifyExistingUserEmail) // Verify existing user's email
 
 // Resend signup OTP endpoint
 router.post('/signup/resend-otp', async (req, res, next) => {

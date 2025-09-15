@@ -1,4 +1,4 @@
-// File: services/emailService.js - FIXED RATE LIMITING + RESEND RESPONSE
+// File: services/emailService.js - COMPLETE RESEND EMAIL SERVICE WITH RATE LIMITING
 import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -7,48 +7,37 @@ const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@updates.ascndlabs.com'
 // Rate limiting store (use Redis in production)
 const emailRateLimit = new Map()
 
-// FIXED: Check email rate limiting (prevents multiple emails)
+// Check email rate limiting (prevents multiple emails)
 export const checkEmailRateLimit = (email, type = 'general') => {
-  const key = `${email.toLowerCase().trim()}_${type}`
+  const key = `${email}_${type}`
   const now = Date.now()
   const limit = emailRateLimit.get(key)
 
   if (limit && now - limit.lastSent < 60000) {
     // 1 minute cooldown
-    const remainingTime = Math.ceil((60000 - (now - limit.lastSent)) / 1000)
-    console.log(
-      `Rate limit active for ${email} (${type}): ${remainingTime}s remaining`
-    )
     return {
       allowed: false,
-      message: `Please wait ${remainingTime} seconds before requesting another email`,
-      remainingTime,
+      message: 'Please wait 1 minute before requesting another email',
+      remainingTime: Math.ceil((60000 - (now - limit.lastSent)) / 1000),
     }
   }
 
   return { allowed: true }
 }
 
-// FIXED: Update rate limit after sending email
+// Update rate limit after sending email
 const updateEmailRateLimit = (email, type = 'general') => {
-  const key = `${email.toLowerCase().trim()}_${type}`
-  const now = Date.now()
+  const key = `${email}_${type}`
   emailRateLimit.set(key, {
-    lastSent: now,
+    lastSent: Date.now(),
     count: (emailRateLimit.get(key)?.count || 0) + 1,
   })
-  console.log(
-    `Rate limit updated for ${email} (${type}) at ${new Date(
-      now
-    ).toISOString()}`
-  )
 }
 
-// FIXED: Check password reset rate limiting (more restrictive)
+// Check password reset rate limiting (more restrictive)
 export const checkPasswordResetRateLimit = (email) => {
-  const key = `${email.toLowerCase().trim()}_reset`
   const now = Date.now()
-  const limit = emailRateLimit.get(key)
+  const limit = emailRateLimit.get(`${email}_reset`)
 
   if (limit) {
     // Max 3 attempts per hour
@@ -60,14 +49,12 @@ export const checkPasswordResetRateLimit = (email) => {
       }
     }
 
-    // 2 minute cooldown between attempts for password reset
-    if (now - limit.lastSent < 120000) {
-      const remainingTime = Math.ceil((120000 - (now - limit.lastSent)) / 1000)
+    // 1 minute cooldown between attempts
+    if (now - limit.lastSent < 60000) {
       return {
         allowed: false,
-        message: `Please wait ${Math.ceil(
-          remainingTime / 60
-        )} minutes before requesting another password reset`,
+        message:
+          'Please wait 1 minute before requesting another password reset',
       }
     }
   }
@@ -81,23 +68,18 @@ export const isValidEmail = (email) => {
   return emailRegex.test(email)
 }
 
-// FIXED: Send signup verification email with proper rate limiting
+// Send signup verification email
 export const sendSignupVerificationEmail = async (user, otp) => {
-  const email = user.email.toLowerCase().trim()
-
-  // STRICT rate limiting check
-  const rateLimitCheck = checkEmailRateLimit(email, 'signup')
+  // FIXED: Check rate limiting FIRST and throw error if not allowed
+  const rateLimitCheck = checkEmailRateLimit(user.email, 'signup')
   if (!rateLimitCheck.allowed) {
-    console.log(`Signup email blocked by rate limit for ${email}`)
     throw new Error(rateLimitCheck.message)
   }
 
   try {
-    console.log(`Attempting to send signup verification email to ${email}`)
-
     const emailData = {
       from: FROM_EMAIL,
-      to: email,
+      to: user.email,
       subject: 'Verify Your Email - Ascend AI',
       html: `
         <!DOCTYPE html>
@@ -146,120 +128,29 @@ export const sendSignupVerificationEmail = async (user, otp) => {
 
     const result = await resend.emails.send(emailData)
 
-    // FIXED: Handle Resend response properly
-    const messageId = result?.data?.id || result?.id || 'unknown'
+    // FIXED: Update rate limit AFTER successful send
+    updateEmailRateLimit(user.email, 'signup')
 
-    // Update rate limit ONLY after successful send
-    updateEmailRateLimit(email, 'signup')
+    // FIXED: Proper logging of Resend response
 
-    console.log(
-      `Signup verification email sent successfully to ${email}, ID: ${messageId}`
-    )
-    return { id: messageId, success: true }
+    return result
   } catch (error) {
     console.error('Failed to send signup verification email:', error)
     throw new Error('Failed to send verification email')
   }
 }
 
-// NEW: Send email verification for existing users
-export const sendEmailVerificationOTP = async (user, otp) => {
-  const email = user.email.toLowerCase().trim()
-
-  // Rate limiting check for email verification
-  const rateLimitCheck = checkEmailRateLimit(email, 'email_verification')
-  if (!rateLimitCheck.allowed) {
-    console.log(`Email verification blocked by rate limit for ${email}`)
-    throw new Error(rateLimitCheck.message)
-  }
-
-  try {
-    console.log(`Attempting to send email verification OTP to ${email}`)
-
-    const emailData = {
-      from: FROM_EMAIL,
-      to: email,
-      subject: 'Verify Your Email Address - Ascend AI',
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Verify Your Email</title>
-        </head>
-        <body style="margin: 0; padding: 0; background-color: #0B0B0C; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-          <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
-            <div style="background-color: #121214; border: 1px solid #1E1E21; border-radius: 12px; padding: 40px; text-align: center;">
-              <div style="margin-bottom: 32px;">
-                <h1 style="color: #D4AF37; font-size: 24px; margin: 0; font-weight: bold;">Ascend AI</h1>
-              </div>
-              
-              <h2 style="color: #EDEDED; font-size: 20px; margin: 0 0 16px 0; font-weight: 600;">Verify Your Email Address</h2>
-              <p style="color: #9CA3AF; font-size: 16px; line-height: 1.5; margin: 0 0 32px 0;">
-                Hi ${user.name},<br><br>
-                To continue using your Ascend AI account, please verify your email address using the code below:
-              </p>
-              
-              <div style="background-color: #0B0B0C; border: 1px solid #1E1E21; border-radius: 8px; padding: 24px; margin: 32px 0;">
-                <p style="color: #9CA3AF; font-size: 14px; margin: 0 0 8px 0;">Your verification code:</p>
-                <div style="color: #D4AF37; font-size: 32px; font-weight: bold; font-family: monospace; letter-spacing: 4px; margin: 8px 0;">
-                  ${otp}
-                </div>
-                <p style="color: #9CA3AF; font-size: 12px; margin: 8px 0 0 0;">This code expires in 10 minutes</p>
-              </div>
-              
-              <p style="color: #9CA3AF; font-size: 14px; line-height: 1.5; margin: 32px 0 0 0;">
-                After verification, you'll be able to access your account normally.
-              </p>
-              
-              <div style="margin-top: 40px; padding-top: 24px; border-top: 1px solid #1E1E21;">
-                <p style="color: #6B7280; font-size: 12px; margin: 0;">
-                  © 2024 Ascend AI. All rights reserved.
-                </p>
-              </div>
-            </div>
-          </div>
-        </body>
-        </html>
-      `,
-    }
-
-    const result = await resend.emails.send(emailData)
-
-    // Handle Resend response properly
-    const messageId = result?.data?.id || result?.id || 'unknown'
-
-    // Update rate limit ONLY after successful send
-    updateEmailRateLimit(email, 'email_verification')
-
-    console.log(
-      `Email verification OTP sent successfully to ${email}, ID: ${messageId}`
-    )
-    return { id: messageId, success: true }
-  } catch (error) {
-    console.error('Failed to send email verification OTP:', error)
-    throw new Error('Failed to send verification email')
-  }
-}
-
-// FIXED: Send password reset OTP with proper rate limiting
+// Send password reset OTP
 export const sendPasswordResetOTP = async (user, otp) => {
-  const email = user.email.toLowerCase().trim()
-
-  // STRICT rate limiting check
-  const rateLimitCheck = checkPasswordResetRateLimit(email)
+  const rateLimitCheck = checkPasswordResetRateLimit(user.email)
   if (!rateLimitCheck.allowed) {
-    console.log(`Password reset email blocked by rate limit for ${email}`)
     throw new Error(rateLimitCheck.message)
   }
 
   try {
-    console.log(`Attempting to send password reset OTP to ${email}`)
-
     const emailData = {
       from: FROM_EMAIL,
-      to: email,
+      to: user.email,
       subject: 'Password Reset Code - Ascend AI',
       html: `
         <!DOCTYPE html>
@@ -308,11 +199,8 @@ export const sendPasswordResetOTP = async (user, otp) => {
 
     const result = await resend.emails.send(emailData)
 
-    // Handle Resend response properly
-    const messageId = result?.data?.id || result?.id || 'unknown'
-
-    // Update rate limit for password reset ONLY after successful send
-    const key = `${email}_reset`
+    // Update rate limit for password reset
+    const key = `${user.email}_reset`
     const existing = emailRateLimit.get(key)
     emailRateLimit.set(key, {
       firstAttempt: existing?.firstAttempt || Date.now(),
@@ -320,10 +208,7 @@ export const sendPasswordResetOTP = async (user, otp) => {
       count: (existing?.count || 0) + 1,
     })
 
-    console.log(
-      `Password reset email sent successfully to ${email}, ID: ${messageId}`
-    )
-    return { id: messageId, success: true }
+    return result
   } catch (error) {
     console.error('Failed to send password reset email:', error)
     throw new Error('Failed to send password reset email')
@@ -375,7 +260,6 @@ export const sendOTPVerificationSuccessEmail = async (user) => {
     }
 
     const result = await resend.emails.send(emailData)
-    console.log(`OTP verification success email sent to ${user.email}`)
     return result
   } catch (error) {
     console.error('Failed to send OTP verification success email:', error)
@@ -506,7 +390,6 @@ export const sendWelcomeEmail = async (user) => {
     }
 
     const result = await resend.emails.send(emailData)
-    console.log(`Welcome email sent to ${user.email}`)
     return result
   } catch (error) {
     console.error('Failed to send welcome email:', error)
@@ -514,27 +397,99 @@ export const sendWelcomeEmail = async (user) => {
   }
 }
 
+// Send login notification email (optional security feature)
+export const sendLoginNotificationEmail = async (user, loginInfo = {}) => {
+  try {
+    const { ip, userAgent, location } = loginInfo
+
+    const emailData = {
+      from: FROM_EMAIL,
+      to: user.email,
+      subject: 'New Sign-in to Your Account - Ascend AI',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>New Sign-in</title>
+        </head>
+        <body style="margin: 0; padding: 0; background-color: #0B0B0C; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+            <div style="background-color: #121214; border: 1px solid #1E1E21; border-radius: 12px; padding: 40px; text-align: center;">
+              <div style="margin-bottom: 32px;">
+                <h1 style="color: #D4AF37; font-size: 24px; margin: 0; font-weight: bold;">Ascend AI</h1>
+              </div>
+              
+              <h2 style="color: #EDEDED; font-size: 20px; margin: 0 0 16px 0; font-weight: 600;">New Sign-in Detected</h2>
+              <p style="color: #9CA3AF; font-size: 16px; line-height: 1.5; margin: 0 0 32px 0;">
+                Hi ${user.name},<br><br>
+                We detected a new sign-in to your Ascend AI account.
+              </p>
+              
+              <div style="background-color: #0B0B0C; border: 1px solid #1E1E21; border-radius: 8px; padding: 24px; margin: 32px 0; text-align: left;">
+                <h3 style="color: #EDEDED; font-size: 14px; margin: 0 0 12px 0;">Sign-in Details:</h3>
+                <p style="color: #9CA3AF; font-size: 13px; margin: 4px 0;"><strong>Time:</strong> ${new Date().toLocaleString()}</p>
+                ${
+                  ip
+                    ? `<p style="color: #9CA3AF; font-size: 13px; margin: 4px 0;"><strong>IP Address:</strong> ${ip}</p>`
+                    : ''
+                }
+                ${
+                  location
+                    ? `<p style="color: #9CA3AF; font-size: 13px; margin: 4px 0;"><strong>Location:</strong> ${location}</p>`
+                    : ''
+                }
+                ${
+                  userAgent
+                    ? `<p style="color: #9CA3AF; font-size: 13px; margin: 4px 0;"><strong>Device:</strong> ${userAgent}</p>`
+                    : ''
+                }
+              </div>
+              
+              <p style="color: #9CA3AF; font-size: 14px; line-height: 1.5; margin: 32px 0 0 0;">
+                If this wasn't you, please change your password immediately and contact our support team.
+              </p>
+              
+              <div style="margin-top: 40px; padding-top: 24px; border-top: 1px solid #1E1E21;">
+                <p style="color: #6B7280; font-size: 12px; margin: 0;">
+                  © 2024 Ascend AI. All rights reserved.
+                </p>
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    }
+
+    const result = await resend.emails.send(emailData)
+    return result
+  } catch (error) {
+    console.error('Failed to send login notification email:', error)
+    // Don't throw error for notification emails
+  }
+}
+
 // Clear rate limits (for admin use or testing)
 export const clearEmailRateLimit = (email, type = null) => {
-  const normalizedEmail = email.toLowerCase().trim()
   if (type) {
-    emailRateLimit.delete(`${normalizedEmail}_${type}`)
+    emailRateLimit.delete(`${email}_${type}`)
   } else {
     // Clear all rate limits for this email
     const keysToDelete = []
     for (const key of emailRateLimit.keys()) {
-      if (key.startsWith(`${normalizedEmail}_`)) {
+      if (key.startsWith(`${email}_`)) {
         keysToDelete.push(key)
       }
     }
     keysToDelete.forEach((key) => emailRateLimit.delete(key))
   }
-  console.log(`Cleared rate limits for ${normalizedEmail}`)
 }
 
 // Get rate limit status (for debugging)
 export const getRateLimitStatus = (email, type = 'general') => {
-  const key = `${email.toLowerCase().trim()}_${type}`
+  const key = `${email}_${type}`
   const limit = emailRateLimit.get(key)
 
   if (!limit) {
@@ -543,8 +498,7 @@ export const getRateLimitStatus = (email, type = 'general') => {
 
   const now = Date.now()
   const timeSinceLastSent = now - limit.lastSent
-  const cooldownTime = type === 'reset' ? 120000 : 60000 // 2 min for reset, 1 min for others
-  const canSend = timeSinceLastSent >= cooldownTime
+  const canSend = timeSinceLastSent >= 60000 // 1 minute cooldown
 
   return {
     hasLimit: true,
@@ -553,7 +507,7 @@ export const getRateLimitStatus = (email, type = 'general') => {
     timeSinceLastSent: Math.floor(timeSinceLastSent / 1000),
     remainingCooldown: canSend
       ? 0
-      : Math.ceil((cooldownTime - timeSinceLastSent) / 1000),
+      : Math.ceil((60000 - timeSinceLastSent) / 1000),
     count: limit.count,
   }
 }

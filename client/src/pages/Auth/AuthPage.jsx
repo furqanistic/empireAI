@@ -1,5 +1,6 @@
-// File: client/src/pages/Auth/AuthPage.jsx - FIXED WITH OTP SIGNUP FLOW
+// File: client/src/pages/Auth/AuthPage.jsx - UPDATED WITH EMAIL VERIFICATION FLOW
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   CheckCircle,
@@ -20,11 +21,13 @@ import {
   useCurrentUser,
   useForgotPassword,
   useResetPassword,
-  useSendSignupOTP, // NEW: For sending signup OTP
+  useSendExistingUserVerificationOTP,
+  useSendSignupOTP, // NEW: For existing users
   useSignin,
   useValidateReferralCode,
+  useVerifyExistingUserEmail,
   useVerifyOTP,
-  useVerifySignupOTP, // NEW: For verifying signup OTP
+  useVerifySignupOTP,
 } from '../../hooks/useAuth.js'
 import { selectIsLoading } from '../../redux/userSlice.js'
 
@@ -174,8 +177,8 @@ const OTPInput = ({ value, onChange, length = 6, error }) => {
 }
 
 export default function AuthPage() {
-  // Auth flow states - UPDATED with signup-otp flow
-  const [authFlow, setAuthFlow] = useState('signin') // 'signin', 'signup', 'signup-otp', 'forgot', 'otp', 'reset'
+  // Auth flow states - UPDATED with email verification flows
+  const [authFlow, setAuthFlow] = useState('signin') // 'signin', 'signup', 'signup-otp', 'forgot', 'otp', 'reset', 'verify-email', 'verify-email-otp'
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -195,11 +198,15 @@ export default function AuthPage() {
 
   // React Query hooks
   const signinMutation = useSignin()
-  const sendSignupOTPMutation = useSendSignupOTP() // NEW: Send signup OTP
-  const verifySignupOTPMutation = useVerifySignupOTP() // NEW: Verify signup OTP
+  const sendSignupOTPMutation = useSendSignupOTP()
+  const verifySignupOTPMutation = useVerifySignupOTP()
   const forgotPasswordMutation = useForgotPassword()
   const verifyOTPMutation = useVerifyOTP()
   const resetPasswordMutation = useResetPassword()
+
+  // NEW: Email verification hooks for existing users
+  const sendExistingUserOTPMutation = useSendExistingUserVerificationOTP()
+  const verifyExistingUserOTPMutation = useVerifyExistingUserEmail()
 
   // Check for referral code in URL parameters
   useEffect(() => {
@@ -305,7 +312,7 @@ export default function AuthPage() {
             referralValidation.message || 'Invalid referral code'
         }
       }
-    } else if (authFlow === 'signup-otp') {
+    } else if (['signup-otp', 'verify-email-otp', 'otp'].includes(authFlow)) {
       if (!formData.otp) newErrors.otp = 'OTP is required'
       else if (!/^\d{6}$/.test(formData.otp))
         newErrors.otp = 'OTP must be 6 digits'
@@ -313,10 +320,6 @@ export default function AuthPage() {
       if (!formData.email) newErrors.email = 'Email is required'
       else if (!/\S+@\S+\.\S+/.test(formData.email))
         newErrors.email = 'Email is invalid'
-    } else if (authFlow === 'otp') {
-      if (!formData.otp) newErrors.otp = 'OTP is required'
-      else if (!/^\d{6}$/.test(formData.otp))
-        newErrors.otp = 'OTP must be 6 digits'
     } else if (authFlow === 'reset') {
       if (!formData.password) newErrors.password = 'Password is required'
       else if (formData.password.length < 8)
@@ -340,15 +343,48 @@ export default function AuthPage() {
 
     try {
       if (authFlow === 'signin') {
-        const result = await signinMutation.mutateAsync({
+        try {
+          const result = await signinMutation.mutateAsync({
+            email: formData.email.trim(),
+            password: formData.password,
+          })
+          if (result.status === 'success') {
+            window.location.href = '/dashboard'
+          }
+        } catch (error) {
+          // NEW: Handle email not verified error
+          if (error.response?.data?.code === 'EMAIL_NOT_VERIFIED') {
+            // Update form data with user info from error response
+            setFormData((prev) => ({
+              ...prev,
+              email: error.response.data.data.email,
+              name: error.response.data.data.name,
+              otp: '', // Clear any previous OTP
+            }))
+            // Switch to email verification flow
+            setAuthFlow('verify-email')
+            return // Don't throw the error
+          }
+          throw error // Re-throw other errors
+        }
+      } else if (authFlow === 'verify-email') {
+        // NEW: Send verification OTP to existing user
+        const result = await sendExistingUserOTPMutation.mutateAsync({
           email: formData.email.trim(),
-          password: formData.password,
+        })
+        if (result.status === 'success') {
+          setAuthFlow('verify-email-otp')
+        }
+      } else if (authFlow === 'verify-email-otp') {
+        // NEW: Verify existing user's email
+        const result = await verifyExistingUserOTPMutation.mutateAsync({
+          email: formData.email.trim(),
+          otp: formData.otp,
         })
         if (result.status === 'success') {
           window.location.href = '/dashboard'
         }
       } else if (authFlow === 'signup') {
-        // FIXED: Use new OTP-based signup flow
         const signupData = {
           name: formData.name.trim(),
           email: formData.email.trim(),
@@ -362,11 +398,9 @@ export default function AuthPage() {
 
         const result = await sendSignupOTPMutation.mutateAsync(signupData)
         if (result.status === 'success') {
-          // Move to OTP verification step
           setAuthFlow('signup-otp')
         }
       } else if (authFlow === 'signup-otp') {
-        // FIXED: Verify signup OTP
         const result = await verifySignupOTPMutation.mutateAsync({
           email: formData.email.trim(),
           otp: formData.otp,
@@ -426,9 +460,11 @@ export default function AuthPage() {
   }
 
   const goBack = () => {
-    if (authFlow === 'signup-otp') {
-      setAuthFlow('signup')
-    } else if (authFlow === 'otp' || authFlow === 'reset') {
+    if (['signup-otp', 'verify-email-otp'].includes(authFlow)) {
+      setAuthFlow(authFlow === 'signup-otp' ? 'signup' : 'verify-email')
+    } else if (authFlow === 'verify-email') {
+      setAuthFlow('signin')
+    } else if (['otp', 'reset'].includes(authFlow)) {
       setAuthFlow('forgot')
     } else if (authFlow === 'forgot') {
       setAuthFlow('signin')
@@ -462,6 +498,10 @@ export default function AuthPage() {
         return 'Start your journey'
       case 'signup-otp':
         return 'Verify your email'
+      case 'verify-email':
+        return 'Verify your account'
+      case 'verify-email-otp':
+        return 'Enter verification code'
       case 'forgot':
         return 'Reset your password'
       case 'otp':
@@ -480,6 +520,10 @@ export default function AuthPage() {
       case 'signup':
         return 'Create your Ascend AI account'
       case 'signup-otp':
+        return `Enter the 6-digit code sent to ${formData.email}`
+      case 'verify-email':
+        return 'Your email needs to be verified before you can sign in'
+      case 'verify-email-otp':
         return `Enter the 6-digit code sent to ${formData.email}`
       case 'forgot':
         return 'Enter your email to receive an OTP'
@@ -507,7 +551,14 @@ export default function AuthPage() {
 
         <div className='bg-[#121214] rounded-xl border border-[#1E1E21] p-6'>
           {/* Back button for multi-step flows */}
-          {['signup-otp', 'forgot', 'otp', 'reset'].includes(authFlow) && (
+          {[
+            'signup-otp',
+            'verify-email',
+            'verify-email-otp',
+            'forgot',
+            'otp',
+            'reset',
+          ].includes(authFlow) && (
             <button
               onClick={goBack}
               className='flex items-center gap-2 text-gray-400 hover:text-[#EDEDED] transition-colors mb-4'
@@ -589,6 +640,64 @@ export default function AuthPage() {
                   >
                     Forgot password?
                   </Button>
+                </div>
+              </>
+            )}
+
+            {/* NEW: Email Verification Required */}
+            {authFlow === 'verify-email' && (
+              <>
+                <div className='text-center space-y-4'>
+                  <div className='w-16 h-16 bg-orange-500/10 rounded-full flex items-center justify-center mx-auto'>
+                    <AlertTriangle className='w-8 h-8 text-orange-500' />
+                  </div>
+                  <p className='text-sm text-gray-400'>
+                    Hi {formData.name}, your email address needs to be verified
+                    before you can sign in to your account.
+                  </p>
+                  <div className='bg-[#0B0B0C] border border-[#1E1E21] rounded-lg p-3'>
+                    <p className='text-[#EDEDED] text-sm font-medium'>
+                      {formData.email}
+                    </p>
+                  </div>
+                  <p className='text-xs text-gray-500'>
+                    Click below to send a verification code to your email
+                    address
+                  </p>
+                </div>
+              </>
+            )}
+
+            {/* NEW: Email Verification OTP */}
+            {authFlow === 'verify-email-otp' && (
+              <>
+                <div className='text-center space-y-4'>
+                  <div className='w-16 h-16 bg-[#D4AF37]/10 rounded-full flex items-center justify-center mx-auto'>
+                    <Shield className='w-8 h-8 text-[#D4AF37]' />
+                  </div>
+                  <p className='text-sm text-gray-400'>
+                    We've sent a 6-digit verification code to your email address
+                  </p>
+                </div>
+                <div className='space-y-4'>
+                  <OTPInput
+                    value={formData.otp}
+                    onChange={(otp) => handleInputChange('otp', otp)}
+                    error={errors.otp}
+                  />
+                  <div className='text-center'>
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      onClick={() => {
+                        setFormData((prev) => ({ ...prev, otp: '' }))
+                        setAuthFlow('verify-email')
+                      }}
+                      className='text-sm'
+                    >
+                      Didn't receive the code? Try again
+                    </Button>
+                  </div>
                 </div>
               </>
             )}
@@ -692,17 +801,6 @@ export default function AuthPage() {
                     error={errors.otp}
                   />
                   <div className='text-center'>
-                    <Timer
-                      seconds={600} // 10 minutes
-                      onExpire={() => {
-                        setErrors((prev) => ({
-                          ...prev,
-                          otp: 'OTP has expired. Please request a new one.',
-                        }))
-                      }}
-                    />
-                  </div>
-                  <div className='text-center'>
                     <Button
                       type='button'
                       variant='ghost'
@@ -751,17 +849,6 @@ export default function AuthPage() {
                     onChange={(otp) => handleInputChange('otp', otp)}
                     error={errors.otp}
                   />
-                  <div className='text-center'>
-                    <Timer
-                      seconds={600} // 10 minutes
-                      onExpire={() => {
-                        setErrors((prev) => ({
-                          ...prev,
-                          otp: 'OTP has expired. Please request a new one.',
-                        }))
-                      }}
-                    />
-                  </div>
                   <div className='text-center'>
                     <Button
                       type='button'
@@ -814,11 +901,12 @@ export default function AuthPage() {
             {/* Submit Button */}
             <Button
               type='submit'
-              onClick={handleSubmit}
               loading={
                 isLoading ||
                 sendSignupOTPMutation.isPending ||
                 verifySignupOTPMutation.isPending ||
+                sendExistingUserOTPMutation.isPending ||
+                verifyExistingUserOTPMutation.isPending ||
                 forgotPasswordMutation.isPending ||
                 verifyOTPMutation.isPending ||
                 resetPasswordMutation.isPending
@@ -834,6 +922,8 @@ export default function AuthPage() {
               {authFlow === 'signin' && 'Sign In'}
               {authFlow === 'signup' && 'Send Verification Code'}
               {authFlow === 'signup-otp' && 'Verify & Create Account'}
+              {authFlow === 'verify-email' && 'Send Verification Code'}
+              {authFlow === 'verify-email-otp' && 'Verify Email'}
               {authFlow === 'forgot' && 'Send OTP'}
               {authFlow === 'otp' && 'Verify OTP'}
               {authFlow === 'reset' && 'Reset Password'}

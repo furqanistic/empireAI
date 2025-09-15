@@ -1,4 +1,5 @@
 // File: src/hooks/useAuth.js - COMPLETE WITH ALL FEATURES INCLUDING OTP
+import axiosInstance from '@/config/config.js'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDispatch, useSelector } from 'react-redux'
 import {
@@ -1028,6 +1029,55 @@ export const useCloseSupportTicket = () => {
     },
     onError: (error) => {
       console.error('Close support ticket error:', error)
+    },
+  })
+}
+
+export const useSendExistingUserVerificationOTP = () => {
+  return useMutation({
+    mutationFn: async (data) => {
+      const response = await axiosInstance.post(
+        '/auth/verify-email/send-otp',
+        data
+      )
+      return response.data
+    },
+    onError: (error) => {
+      console.error('Send existing user verification OTP error:', error)
+    },
+  })
+}
+
+// NEW: Verify existing user's email with OTP
+export const useVerifyExistingUserEmail = () => {
+  const dispatch = useDispatch()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (data) => {
+      const response = await axiosInstance.post(
+        '/auth/verify-email/verify-otp',
+        data
+      )
+      return response.data
+    },
+    onMutate: () => {
+      dispatch(loginStart())
+    },
+    onSuccess: (data) => {
+      dispatch(loginSuccess(data))
+      // Invalidate and refetch any user-related queries
+      queryClient.invalidateQueries({ queryKey: ['user'] })
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+      queryClient.invalidateQueries({ queryKey: ['points'] })
+    },
+    onError: (error) => {
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        'Email verification failed'
+      dispatch(loginFailure(errorMessage))
+      console.error('Existing user email verification error:', error)
     },
   })
 }

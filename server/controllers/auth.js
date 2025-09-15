@@ -61,7 +61,213 @@ const createSendToken = (user, statusCode, res) => {
   }
 }
 
-// NEW: Send OTP for signup verification
+// NEW: Send verification OTP for existing users (who try to login but aren't verified)
+export const sendExistingUserVerificationOTP = async (req, res, next) => {
+  try {
+    const { email } = req.body
+
+    if (!email) {
+      return next(createError(400, 'Please provide email address'))
+    }
+
+    if (!isValidEmail(email)) {
+      return next(createError(400, 'Please provide a valid email address'))
+    }
+
+    // Find existing user
+    const existingUser = await User.findOne({
+      email: email.toLowerCase().trim(),
+      isActive: true,
+      isDeleted: false,
+    })
+
+    if (!existingUser) {
+      return next(createError(404, 'No account found with this email address'))
+    }
+
+    // If already verified, redirect to login
+    if (existingUser.isEmailVerified) {
+      return next(
+        createError(400, 'Email is already verified. Please sign in.')
+      )
+    }
+
+    // Check rate limiting (FIXED - checking BEFORE generating OTP)
+    const rateLimitCheck = checkEmailRateLimit(
+      email.toLowerCase().trim(),
+      'existing_verification'
+    )
+    if (!rateLimitCheck.allowed) {
+      return next(createError(429, rateLimitCheck.message))
+    }
+
+    // Generate OTP and store it temporarily
+    const otp = Math.floor(100000 + Math.random() * 900000).toString()
+    const otpHash = crypto.createHash('sha256').update(otp).digest('hex')
+
+    // Store temp data with OTP for existing user verification
+    global.existingUserOTPStore = global.existingUserOTPStore || new Map()
+    global.existingUserOTPStore.set(email.toLowerCase().trim(), {
+      userId: existingUser._id,
+      email: existingUser.email,
+      name: existingUser.name,
+      otp: otpHash,
+      otpExpires: Date.now() + 10 * 60 * 1000, // 10 minutes
+      attempts: 0,
+      timestamp: Date.now(),
+    })
+
+    try {
+      // Send OTP email (RATE LIMITED - PREVENTS MULTIPLE EMAILS)
+      await sendSignupVerificationEmail(
+        {
+          name: existingUser.name,
+          email: existingUser.email,
+        },
+        otp
+      )
+
+      console.log(`Existing user verification OTP sent to ${email}`)
+
+      // In development, also log the OTP for testing
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Existing user verification OTP (DEV ONLY):', otp)
+      }
+
+      res.status(200).json({
+        status: 'success',
+        message: 'Verification code sent to your email address.',
+        data: {
+          email: existingUser.email,
+          name: existingUser.name,
+        },
+        // Include additional info in development
+        ...(process.env.NODE_ENV === 'development' && {
+          dev: {
+            otp,
+            expiresIn: '10 minutes',
+          },
+        }),
+      })
+    } catch (emailError) {
+      // Clean up temp data if email fails
+      global.existingUserOTPStore?.delete(email.toLowerCase().trim())
+
+      console.error(
+        'Failed to send existing user verification OTP:',
+        emailError
+      )
+      return next(
+        createError(
+          500,
+          'There was an error sending the verification email. Please try again.'
+        )
+      )
+    }
+  } catch (error) {
+    console.error('Error in sendExistingUserVerificationOTP:', error)
+    next(
+      createError(500, 'An unexpected error occurred. Please try again later.')
+    )
+  }
+}
+
+// NEW: Verify existing user email
+export const verifyExistingUserEmail = async (req, res, next) => {
+  try {
+    const { email, otp } = req.body
+
+    if (!email || !otp) {
+      return next(createError(400, 'Please provide email and OTP'))
+    }
+
+    if (!isValidEmail(email)) {
+      return next(createError(400, 'Please provide a valid email address'))
+    }
+
+    if (!/^\d{6}$/.test(otp)) {
+      return next(createError(400, 'OTP must be a 6-digit number'))
+    }
+
+    // Get temp data from store
+    const tempData = global.existingUserOTPStore?.get(
+      email.toLowerCase().trim()
+    )
+    if (!tempData) {
+      return next(
+        createError(
+          400,
+          'No pending verification found. Please request a new verification code.'
+        )
+      )
+    }
+
+    // Check if OTP expired
+    if (tempData.otpExpires <= Date.now()) {
+      global.existingUserOTPStore?.delete(email.toLowerCase().trim())
+      return next(
+        createError(
+          400,
+          'OTP has expired. Please request a new verification code.'
+        )
+      )
+    }
+
+    // Check attempts limit
+    if (tempData.attempts >= 5) {
+      return next(
+        createError(
+          400,
+          'Too many failed attempts. Please request a new verification code.'
+        )
+      )
+    }
+
+    // Verify OTP
+    const otpHash = crypto.createHash('sha256').update(otp).digest('hex')
+    if (tempData.otp !== otpHash) {
+      // Increment attempts
+      tempData.attempts += 1
+      global.existingUserOTPStore?.set(email.toLowerCase().trim(), tempData)
+
+      return next(
+        createError(
+          400,
+          `Invalid OTP. ${5 - tempData.attempts} attempts remaining.`
+        )
+      )
+    }
+
+    // OTP is valid, update user's email verification status
+    const user = await User.findById(tempData.userId)
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    // Mark email as verified
+    user.isEmailVerified = true
+    user.emailVerifiedAt = new Date()
+    await user.save({ validateBeforeSave: false })
+
+    // Clean up temp data
+    global.existingUserOTPStore?.delete(email.toLowerCase().trim())
+
+    console.log(`Email verified for existing user: ${user.email}`)
+
+    // Get updated user for response
+    const updatedUser = await User.findById(user._id)
+      .populate('referredBy', 'name email referralCode')
+      .select('-password')
+
+    // Sign in the user automatically after verification
+    createSendToken(updatedUser, 200, res)
+  } catch (error) {
+    console.error('Error in verifyExistingUserEmail:', error)
+    next(
+      createError(500, 'An unexpected error occurred. Please try again later.')
+    )
+  }
+}
 export const sendSignupOTP = async (req, res, next) => {
   try {
     const { name, email, password, referralCode } = req.body
@@ -365,12 +571,16 @@ export const signin = async (req, res, next) => {
 
     // CHECK IF EMAIL IS VERIFIED
     if (!user.isEmailVerified) {
-      return next(
-        createError(
-          403,
-          'Please verify your email address before signing in. Check your email for the verification code.'
-        )
-      )
+      return res.status(403).json({
+        status: 'fail',
+        message: 'Email not verified',
+        code: 'EMAIL_NOT_VERIFIED',
+        data: {
+          email: user.email,
+          name: user.name,
+          needsVerification: true,
+        },
+      })
     }
 
     // Update last login
