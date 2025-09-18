@@ -1,4 +1,4 @@
-// File: client/src/pages/Dashboard/DashboardPage.jsx - REDESIGNED LAYOUT
+// File: client/src/pages/Dashboard/DashboardPage.jsx - CLEANED VERSION
 import {
   Award,
   Bot,
@@ -105,21 +105,81 @@ const DashboardPage = () => {
     setShowDiscordModal(false)
   }
 
-  // Fetch Discord status
-  React.useEffect(() => {
-    const fetchDiscordStatus = async () => {
-      try {
-        const response = await axiosInstance.get('/auth/discord/status')
-        setDiscordStatus(response.data.data.discord)
-      } catch (error) {
-        console.error('Error fetching Discord status:', error)
-        setDiscordStatus(null)
-      } finally {
-        setDiscordLoading(false)
-      }
-    }
+  // Handle Discord connection success/failure
+  const handleDiscordConnectionResult = (result) => {
+    if (result.success) {
+      // Refresh Discord status and close modal
+      setDiscordLoading(true)
+      fetchDiscordStatus()
+      setShowDiscordModal(false)
 
+      // Show success feedback
+      setFeedbackType('success')
+      setFeedbackMessage(
+        'Discord connected successfully! +25 daily bonus unlocked.'
+      )
+
+      // Auto-hide success message after 4 seconds
+      setTimeout(() => {
+        setFeedbackMessage(null)
+      }, 4000)
+    } else {
+      // Show failure message
+      setFeedbackType('error')
+      setFeedbackMessage(
+        'Discord connection failed. Please try again or contact support@ascndlabs.com.'
+      )
+
+      // Auto-hide error message after 8 seconds
+      setTimeout(() => {
+        setFeedbackMessage(null)
+      }, 8000)
+    }
+  }
+
+  // Fetch Discord status function
+  const fetchDiscordStatus = async () => {
+    try {
+      const response = await axiosInstance.get('/auth/discord/status')
+      setDiscordStatus(response.data.data.discord)
+    } catch (error) {
+      console.error('Error fetching Discord status:', error)
+      setDiscordStatus(null)
+    } finally {
+      setDiscordLoading(false)
+    }
+  }
+
+  // Fetch Discord status on mount and handle OAuth redirect
+  React.useEffect(() => {
     fetchDiscordStatus()
+
+    // Check for Discord OAuth success/failure in URL params
+    const urlParams = new URLSearchParams(window.location.search)
+    const discordSuccess = urlParams.get('discord_connected')
+    const discordError = urlParams.get('discord_error')
+
+    if (discordSuccess === 'true') {
+      // Show success message and refresh status
+      setFeedbackType('success')
+      setFeedbackMessage(
+        'Discord connected successfully! +25 daily bonus unlocked.'
+      )
+      setTimeout(() => setFeedbackMessage(null), 4000)
+
+      // Clean URL
+      window.history.replaceState({}, document.title, '/dashboard')
+    } else if (discordError || discordSuccess === 'false') {
+      // Show error message
+      setFeedbackType('error')
+      setFeedbackMessage(
+        'Discord connection failed. Please try again or contact support@ascndlabs.com.'
+      )
+      setTimeout(() => setFeedbackMessage(null), 8000)
+
+      // Clean URL
+      window.history.replaceState({}, document.title, '/dashboard')
+    }
   }, [])
 
   // Quick action card component
@@ -234,6 +294,25 @@ const DashboardPage = () => {
           </div>
         </div>
 
+        {/* Global Feedback Messages */}
+        {feedbackMessage && (
+          <div
+            className={`p-4 rounded-lg border ${
+              feedbackType === 'success'
+                ? 'bg-emerald-500/10 border-emerald-500/20'
+                : 'bg-red-500/10 border-red-500/20'
+            }`}
+          >
+            <p
+              className={`text-sm ${
+                feedbackType === 'success' ? 'text-emerald-400' : 'text-red-400'
+              }`}
+            >
+              {feedbackMessage}
+            </p>
+          </div>
+        )}
+
         {/* Daily Bonus & Stats Row (2 cards only) */}
         <div className='grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6'>
           {/* Daily Check-in Bonus */}
@@ -284,27 +363,6 @@ const DashboardPage = () => {
                 </div>
               </div>
             </div>
-
-            {/* Feedback Messages */}
-            {feedbackMessage && (
-              <div
-                className={`mb-4 p-3 rounded-lg border ${
-                  feedbackType === 'success'
-                    ? 'bg-emerald-500/10 border-emerald-500/20'
-                    : 'bg-red-500/10 border-red-500/20'
-                }`}
-              >
-                <p
-                  className={`text-sm ${
-                    feedbackType === 'success'
-                      ? 'text-emerald-400'
-                      : 'text-red-400'
-                  }`}
-                >
-                  {feedbackMessage}
-                </p>
-              </div>
-            )}
 
             {/* Benefits */}
             <div className='flex items-center justify-between text-sm mb-4 sm:mb-0'>
@@ -362,10 +420,10 @@ const DashboardPage = () => {
           </div>
         </div>
 
-        {/* NEW DISCORD SECTION - Compact & Consistent */}
+        {/* SINGLE DISCORD SECTION - Clean & Simple */}
         <div className='bg-gradient-to-r from-[#5865F2]/8 via-[#5865F2]/12 to-[#5865F2]/8 border border-[#5865F2]/20 rounded-xl p-6'>
           <div className='grid grid-cols-1 lg:grid-cols-12 gap-6 items-center'>
-            {/* Left: Branding & Info - Fixed width */}
+            {/* Left: Branding & Info */}
             <div className='lg:col-span-4 text-center lg:text-left'>
               <div className='flex items-center justify-center lg:justify-start gap-4 mb-3'>
                 <div className='w-12 h-12 bg-[#5865F2] rounded-xl flex items-center justify-center'>
@@ -373,10 +431,10 @@ const DashboardPage = () => {
                 </div>
                 <div>
                   <h2 className='text-xl font-bold text-[#EDEDED] mb-1'>
-                    Discord Empire
+                    Discord Connect
                   </h2>
                   <p className='text-[#5865F2] text-sm font-medium'>
-                    Join 2,847+ Builders
+                    {discordStatus?.isConnected ? 'Connected' : 'Not Connected'}
                   </p>
                 </div>
               </div>
@@ -386,7 +444,7 @@ const DashboardPage = () => {
               </p>
             </div>
 
-            {/* Center: Status - Perfectly Centered with fixed width */}
+            {/* Center: Status */}
             <div className='lg:col-span-4 flex justify-center'>
               <div className='w-full max-w-xs'>
                 {discordLoading ? (
@@ -448,7 +506,7 @@ const DashboardPage = () => {
                     </div>
 
                     {/* Compact Warnings */}
-                    {(discordStatus.needsRoleUpdate ||
+                    {/* {(discordStatus.needsRoleUpdate ||
                       discordStatus.isInServer === false) && (
                       <div className='bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-2 mt-3 flex items-center gap-2'>
                         <span className='text-yellow-500 text-sm flex-shrink-0'>
@@ -460,7 +518,7 @@ const DashboardPage = () => {
                             : 'Role update needed'}
                         </span>
                       </div>
-                    )}
+                    )} */}
                   </div>
                 ) : (
                   <div className='bg-[#121214]/50 border border-[#1E1E21] rounded-xl p-4 text-center'>
@@ -482,7 +540,7 @@ const DashboardPage = () => {
               </div>
             </div>
 
-            {/* Right: Actions & Stats - Fixed width */}
+            {/* Right: Actions */}
             <div className='lg:col-span-4 space-y-3'>
               <div className='flex flex-col sm:flex-row lg:flex-col gap-3'>
                 <button
@@ -492,7 +550,7 @@ const DashboardPage = () => {
                   {discordStatus?.isConnected ? (
                     <>
                       <Settings size={16} />
-                      Manage Discord
+                      Discord Connected • Manage
                     </>
                   ) : (
                     <>
@@ -512,19 +570,6 @@ const DashboardPage = () => {
                   Join Server
                   <ExternalLink size={12} />
                 </a>
-              </div>
-
-              {/* Compact Stats */}
-              <div className='flex items-center justify-center gap-4 text-xs'>
-                <div className='text-center'>
-                  <div className='text-[#EDEDED] font-bold'>2.8K+</div>
-                  <div className='text-gray-400'>Members</div>
-                </div>
-                <div className='w-px h-6 bg-[#1E1E21]'></div>
-                <div className='text-center'>
-                  <div className='text-emerald-400 font-bold'>24/7</div>
-                  <div className='text-gray-400'>Active</div>
-                </div>
               </div>
             </div>
           </div>
@@ -566,138 +611,58 @@ const DashboardPage = () => {
           </div>
         </div>
 
-        {/* Community & Command Briefing */}
-        <div className='grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6'>
-          {/* Empire Community */}
-          <div className='lg:col-span-2 bg-[#121214] border border-[#1E1E21] rounded-xl p-4 sm:p-6'>
-            <div className='flex items-center gap-3 mb-3'>
-              <div className='bg-[#5865F2]/10 p-2.5 rounded-xl flex-shrink-0'>
-                <MessageCircle
-                  size={20}
-                  className='sm:w-6 sm:h-6 text-[#5865F2]'
-                />
+        {/* AI Strategic Command - Single Section */}
+        <div className='bg-[#121214] border border-[#1E1E21] rounded-xl overflow-hidden'>
+          <div className='bg-gradient-to-r from-[#D4AF37]/10 to-transparent p-4 sm:p-6 border-b border-[#1E1E21]'>
+            <div className='flex items-center gap-3'>
+              <div className='bg-[#D4AF37] p-2 rounded-xl flex-shrink-0'>
+                <Shield size={18} className='sm:w-5 sm:h-5 text-black' />
               </div>
-              <div>
-                <h3 className='text-[#EDEDED] font-bold text-base sm:text-lg'>
-                  Empire Community
-                </h3>
-                <p className='text-gray-400 text-xs sm:text-sm'>
-                  Join 2,847+ entrepreneurs
-                </p>
-              </div>
+              <h2 className='text-lg sm:text-xl font-bold text-[#EDEDED]'>
+                AI Strategic Command
+              </h2>
             </div>
-
-            <p className='text-gray-400 text-sm leading-relaxed mb-4'>
-              Connect with fellow empire builders, share strategies, and get
-              exclusive insights.
-            </p>
-
-            {/* Community Stats */}
-            <div className='grid grid-cols-3 gap-3 mb-4'>
-              <div className='bg-[#1A1A1C] rounded-lg p-3 text-center'>
-                <div className='text-[#D4AF37] font-bold text-lg'>2.8K+</div>
-                <div className='text-gray-400 text-xs'>Members</div>
-              </div>
-              <div className='bg-[#1A1A1C] rounded-lg p-3 text-center'>
-                <div className='text-emerald-400 font-bold text-lg'>24/7</div>
-                <div className='text-gray-400 text-xs'>Active</div>
-              </div>
-              <div className='bg-[#1A1A1C] rounded-lg p-3 text-center'>
-                <div className='text-blue-400 font-bold text-lg'>150+</div>
-                <div className='text-gray-400 text-xs'>Daily</div>
-              </div>
-            </div>
-
-            {/* Benefits */}
-            <div className='space-y-2 mb-4'>
-              <div className='flex items-center gap-2 text-sm'>
-                <div className='w-1.5 h-1.5 rounded-full bg-[#D4AF37]'></div>
-                <span className='text-[#EDEDED]'>
-                  Exclusive strategies & case studies
-                </span>
-              </div>
-              <div className='flex items-center gap-2 text-sm'>
-                <div className='w-1.5 h-1.5 rounded-full bg-emerald-500'></div>
-                <span className='text-[#EDEDED]'>
-                  Weekly live sessions with experts
-                </span>
-              </div>
-              <div className='flex items-center gap-2 text-sm'>
-                <div className='w-1.5 h-1.5 rounded-full bg-blue-500'></div>
-                <span className='text-[#EDEDED]'>
-                  Direct networking opportunities
-                </span>
-              </div>
-            </div>
-
-            <a
-              href='https://discord.gg/t7r94BZUXv'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='block w-full'
-            >
-              <button className='w-full h-8 bg-[#5865F2] text-white rounded-xl font-semibold hover:bg-[#5865F2]/90 transition-all duration-300 flex items-center justify-center gap-2 text-sm'>
-                <MessageCircle size={16} />
-                <span className='hidden sm:inline'>Join Discord Community</span>
-                <span className='sm:hidden'>Join Discord</span>
-                <ExternalLink size={14} />
-              </button>
-            </a>
           </div>
 
-          {/* AI Strategic Command */}
-          <div className='lg:col-span-3 bg-[#121214] border border-[#1E1E21] rounded-xl overflow-hidden'>
-            <div className='bg-gradient-to-r from-[#D4AF37]/10 to-transparent p-4 sm:p-6 border-b border-[#1E1E21]'>
+          <div className='p-4 sm:p-6 space-y-4 sm:space-y-6'>
+            {/* Status Indicators */}
+            <div className='space-y-2 sm:space-y-3'>
               <div className='flex items-center gap-3'>
-                <div className='bg-[#D4AF37] p-2 rounded-xl flex-shrink-0'>
-                  <Shield size={18} className='sm:w-5 sm:h-5 text-black' />
-                </div>
-                <h2 className='text-lg sm:text-xl font-bold text-[#EDEDED]'>
-                  AI Strategic Command
-                </h2>
+                <div className='w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-emerald-500 flex-shrink-0'></div>
+                <span className='text-[#EDEDED] font-medium text-sm sm:text-base'>
+                  Training Phase Complete
+                </span>
+              </div>
+              <div className='flex items-center gap-3'>
+                <div className='w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#D4AF37] flex-shrink-0'></div>
+                <span className='text-[#EDEDED] font-medium text-sm sm:text-base'>
+                  Marketplace Ready
+                </span>
+              </div>
+              <div className='flex items-center gap-3'>
+                <div className='w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-blue-500 flex-shrink-0'></div>
+                <span className='text-[#EDEDED] font-medium text-sm sm:text-base'>
+                  AI Systems Online
+                </span>
               </div>
             </div>
 
-            <div className='p-4 sm:p-6 space-y-4 sm:space-y-6'>
-              {/* Status Indicators */}
-              <div className='space-y-2 sm:space-y-3'>
-                <div className='flex items-center gap-3'>
-                  <div className='w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-emerald-500 flex-shrink-0'></div>
-                  <span className='text-[#EDEDED] font-medium text-sm sm:text-base'>
-                    Training Phase Complete
-                  </span>
-                </div>
-                <div className='flex items-center gap-3'>
-                  <div className='w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#D4AF37] flex-shrink-0'></div>
-                  <span className='text-[#EDEDED] font-medium text-sm sm:text-base'>
-                    Marketplace Ready
-                  </span>
-                </div>
-                <div className='flex items-center gap-3'>
-                  <div className='w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-blue-500 flex-shrink-0'></div>
-                  <span className='text-[#EDEDED] font-medium text-sm sm:text-base'>
-                    AI Systems Online
-                  </span>
-                </div>
-              </div>
+            {/* Strategic Counsel */}
+            <div className='bg-[#1A1A1C]/50 rounded-xl p-4 border border-[#1E1E21]'>
+              <p className='text-[#EDEDED] leading-relaxed mb-3 sm:mb-4 text-sm sm:text-base'>
+                <span className='text-[#D4AF37] font-semibold'>
+                  Mission Brief:
+                </span>{' '}
+                Your empire requires its first digital asset. Deploy the AI
+                Builder to establish your market presence.
+              </p>
 
-              {/* Strategic Counsel */}
-              <div className='bg-[#1A1A1C]/50 rounded-xl p-4 border border-[#1E1E21]'>
-                <p className='text-[#EDEDED] leading-relaxed mb-3 sm:mb-4 text-sm sm:text-base'>
-                  <span className='text-[#D4AF37] font-semibold'>
-                    Mission Brief:
-                  </span>{' '}
-                  Your empire requires its first digital asset. Deploy the AI
-                  Builder to establish your market presence.
-                </p>
-
-                <Link to='/build'>
-                  <button className='bg-[#D4AF37] text-black h-8 px-4 rounded-xl font-semibold text-sm hover:bg-[#D4AF37]/90 transition-all duration-300 hover:scale-105 flex items-center gap-2 shadow-lg'>
-                    <Rocket size={14} />
-                    Launch First Mission
-                  </button>
-                </Link>
-              </div>
+              <Link to='/build'>
+                <button className='bg-[#D4AF37] text-black h-8 px-4 rounded-xl font-semibold text-sm hover:bg-[#D4AF37]/90 transition-all duration-300 hover:scale-105 flex items-center gap-2 shadow-lg'>
+                  <Rocket size={14} />
+                  Launch First Mission
+                </button>
+              </Link>
             </div>
           </div>
         </div>
@@ -728,7 +693,10 @@ const DashboardPage = () => {
             {/* Scrollable Content Container */}
             <div className='max-h-[85vh] overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent pr-2'>
               {/* Discord Connection Component */}
-              <DiscordConnection />
+              <DiscordConnection
+                onConnectionResult={handleDiscordConnectionResult}
+                onClose={handleDiscordModalClose}
+              />
             </div>
           </div>
         </div>

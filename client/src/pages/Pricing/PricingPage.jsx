@@ -1,4 +1,4 @@
-// File: client/src/pages/Pricing/PricingPage.jsx - COMPLETE FIXED VERSION WITH 7-DAY TRIAL
+// File: client/src/pages/Pricing/PricingPage.jsx - UPDATED WITH REFERRAL DISCOUNT DISPLAY
 import {
   useCreateBillingPortalSession,
   useCreateCheckoutSession,
@@ -6,6 +6,7 @@ import {
   useGetPlans,
   useSubscriptionStatus,
   useUpdateSubscription,
+  useValidateReferralCode,
 } from '@/hooks/useAuth'
 import {
   AlertTriangle,
@@ -13,8 +14,10 @@ import {
   Check,
   Crown,
   DollarSign,
+  Gift,
   Loader,
   MessageCircle,
+  Percent,
   Rocket,
   Shield,
   Star,
@@ -23,13 +26,17 @@ import {
   Users,
   Zap,
 } from 'lucide-react'
-import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useEffect, useState } from 'react'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import Layout from '../Layout/Layout'
 
 const PricingPage = () => {
   const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
   const [billingCycle, setBillingCycle] = useState('monthly')
+  const [referralCode, setReferralCode] = useState('')
+  const [showReferralInput, setShowReferralInput] = useState(false)
   const currentUser = useCurrentUser()
 
   // Stripe hooks
@@ -44,6 +51,53 @@ const PricingPage = () => {
   const updateSubscription = useUpdateSubscription()
   const createBillingPortal = useCreateBillingPortalSession()
 
+  // Referral validation
+  const {
+    data: referralValidation,
+    isLoading: validatingReferral,
+    error: referralError,
+  } = useValidateReferralCode(referralCode, referralCode.length >= 3)
+
+  // Check for referral code in URL or user's referral status
+  useEffect(() => {
+    const urlReferralCode = searchParams.get('ref')
+    if (urlReferralCode) {
+      setReferralCode(urlReferralCode.toUpperCase())
+      setShowReferralInput(true)
+    } else if (
+      currentUser?.referredBy &&
+      !currentUser?.hasUsedReferralDiscount
+    ) {
+      // User was referred but hasn't used discount yet
+      setShowReferralInput(true)
+    }
+  }, [searchParams, currentUser])
+
+  // Check if user is eligible for discount
+  const isEligibleForDiscount = () => {
+    // User must be logged in, referred by someone, and not have used discount yet
+    return (
+      currentUser &&
+      currentUser.referredBy &&
+      !currentUser.hasUsedReferralDiscount
+    )
+  }
+
+  // Calculate discounted price
+  const calculateDiscountedPrice = (originalPrice, discountPercentage = 10) => {
+    const discountAmount = Math.floor(
+      originalPrice * (discountPercentage / 100)
+    )
+    const discountedPrice = originalPrice - discountAmount
+
+    return {
+      originalPrice,
+      discountedPrice,
+      discountAmount,
+      savings: discountAmount,
+    }
+  }
+
   // Map your local plans to Stripe plans
   const mapPlanToStripe = (localPlan) => {
     const stripeMapping = {
@@ -56,7 +110,10 @@ const PricingPage = () => {
 
   const handleGetStarted = async (planName) => {
     if (!currentUser) {
-      navigate('/auth?redirect=pricing')
+      // Store the intended plan in localStorage and redirect
+      localStorage.setItem('intendedPlan', planName)
+      localStorage.setItem('intendedBillingCycle', billingCycle)
+      navigate(`/auth?redirect=pricing&ref=${referralCode || ''}`)
       return
     }
 
@@ -105,7 +162,6 @@ const PricingPage = () => {
             isUpgrade ? 'upgraded' : 'changed'
           } to ${planName} plan!`
         )
-        // Optionally reload to show updated subscription status
         window.location.reload()
       } catch (error) {
         console.error('Failed to update subscription:', error)
@@ -115,7 +171,7 @@ const PricingPage = () => {
       return
     }
 
-    // For new subscriptions (no active subscription)
+    // For new subscriptions
     console.log(
       'Creating checkout session for new subscription:',
       stripePlanName
@@ -136,7 +192,6 @@ const PricingPage = () => {
       if (subscriptionStatus.plan === stripePlan) {
         return 'Current Plan'
       }
-      // Show different text for plan changes
       const planHierarchy = { starter: 1, pro: 2, empire: 3 }
       const currentLevel = planHierarchy[subscriptionStatus.plan] || 0
       const targetLevel = planHierarchy[stripePlan] || 0
@@ -158,7 +213,6 @@ const PricingPage = () => {
 
   const PricingCard = ({
     plan,
-    price,
     monthlyPrice,
     yearlyPrice,
     description,
@@ -176,6 +230,13 @@ const PricingPage = () => {
             ((monthlyPrice * 12 - yearlyPrice) / (monthlyPrice * 12)) * 100
           )
         : 0
+
+    // Calculate referral discount for first month
+    const hasReferralDiscount = isEligibleForDiscount()
+    const discountCalculation =
+      hasReferralDiscount && billingCycle === 'monthly'
+        ? calculateDiscountedPrice(displayPrice, 10)
+        : null
 
     const actualButtonText = getButtonText(plan)
     const isDisabled =
@@ -224,16 +285,41 @@ const PricingPage = () => {
 
         <div className='mb-6'>
           <div className='flex items-baseline gap-2 mb-2'>
-            <span className='text-3xl font-bold text-[#EDEDED]'>
-              ${displayPrice}
-            </span>
-            <span className='text-gray-400 text-sm'>
-              /{billingCycle === 'monthly' ? 'month' : 'year'}
-            </span>
+            {discountCalculation ? (
+              <>
+                <span className='text-xl text-gray-500 line-through'>
+                  ${displayPrice}
+                </span>
+                <span className='text-3xl font-bold text-[#EDEDED]'>
+                  ${discountCalculation.discountedPrice}
+                </span>
+                <span className='text-gray-400 text-sm'>
+                  /{billingCycle === 'monthly' ? 'month' : 'year'}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className='text-3xl font-bold text-[#EDEDED]'>
+                  ${displayPrice}
+                </span>
+                <span className='text-gray-400 text-sm'>
+                  /{billingCycle === 'monthly' ? 'month' : 'year'}
+                </span>
+              </>
+            )}
           </div>
+
           {billingCycle === 'yearly' && savings > 0 && (
             <div className='text-emerald-400 text-sm font-medium'>
               Save {savings}% with yearly billing
+            </div>
+          )}
+
+          {/* Referral Discount Badge */}
+          {discountCalculation && (
+            <div className='inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-blue-500/20 border border-emerald-500/30 text-emerald-400 px-3 py-1 rounded-lg text-xs font-medium mt-2'>
+              <Gift size={12} />
+              10% OFF First Month - Referral Bonus!
             </div>
           )}
 
@@ -242,7 +328,7 @@ const PricingPage = () => {
             🚀 Founder Pricing - Limited Time
           </div>
 
-          {/* Trial Notice - UPDATED TO 7-DAY */}
+          {/* Trial Notice */}
           {!isCurrentPlan(plan) &&
             currentUser &&
             !subscriptionStatus.hasSubscription && (
@@ -281,6 +367,20 @@ const PricingPage = () => {
           </div>
         </div>
 
+        {/* Special referral discount notice */}
+        {discountCalculation && (
+          <div className='bg-gradient-to-r from-emerald-500/5 to-blue-500/5 border border-emerald-500/20 rounded-lg p-3 mb-4'>
+            <div className='flex items-center gap-2 text-emerald-400 text-sm mb-1'>
+              <Gift size={14} />
+              <span className='font-medium'>Referral Bonus Applied!</span>
+            </div>
+            <div className='text-xs text-emerald-300'>
+              Save ${discountCalculation.savings} on your first month
+              {currentUser?.referredBy ? ` thanks to your referral!` : ''}
+            </div>
+          </div>
+        )}
+
         <button
           onClick={() => handleGetStarted(plan)}
           disabled={isDisabled}
@@ -316,6 +416,26 @@ const PricingPage = () => {
       <p className='text-gray-400 text-sm leading-relaxed'>{description}</p>
     </div>
   )
+
+  const ReferralDiscountBanner = () => {
+    if (!isEligibleForDiscount() || billingCycle !== 'monthly') return null
+
+    return (
+      <div className='bg-gradient-to-r from-emerald-500/10 via-emerald-400/5 to-blue-500/10 border border-emerald-500/20 rounded-xl p-4 max-w-3xl mx-auto mb-6'>
+        <div className='flex items-center justify-center gap-3 text-emerald-400 mb-2'>
+          <Gift size={20} />
+          <span className='font-semibold text-sm'>
+            10% Off Your First Month!
+          </span>
+        </div>
+        <p className='text-emerald-300 text-sm text-center'>
+          {currentUser?.referredBy
+            ? `Thanks to your referral, you'll save 10% on your first month of any plan!`
+            : 'You have a valid referral code - save 10% on your first month!'}
+        </p>
+      </div>
+    )
+  }
 
   const pricingPlans = [
     {
@@ -474,6 +594,9 @@ const PricingPage = () => {
           </div>
         </div>
 
+        {/* Referral Discount Banner */}
+        <ReferralDiscountBanner />
+
         {/* Billing Toggle */}
         <div className='flex justify-center'>
           <div className='bg-[#121214] border border-[#1E1E21] rounded-xl p-1 flex'>
@@ -509,6 +632,39 @@ const PricingPage = () => {
             <PricingCard key={index} {...plan} />
           ))}
         </div>
+
+        {/* Referral Discount Explanation */}
+        {isEligibleForDiscount() && billingCycle === 'monthly' && (
+          <div className='bg-gradient-to-r from-emerald-500/5 to-blue-500/5 border border-emerald-500/20 rounded-xl p-6 max-w-3xl mx-auto'>
+            <div className='text-center'>
+              <div className='flex items-center justify-center gap-2 text-emerald-400 mb-3'>
+                <Percent size={20} />
+                <h3 className='text-lg font-semibold'>
+                  Your Referral Discount
+                </h3>
+              </div>
+              <p className='text-emerald-300 text-sm mb-4'>
+                You'll automatically receive a 10% discount on your first month
+                when you subscribe. This discount applies to the monthly billing
+                option only.
+              </p>
+              <div className='grid grid-cols-3 gap-4 text-center'>
+                <div className='bg-emerald-500/10 rounded-lg p-3'>
+                  <div className='text-emerald-400 font-bold text-lg'>10%</div>
+                  <div className='text-emerald-300 text-xs'>First Month</div>
+                </div>
+                <div className='bg-emerald-500/10 rounded-lg p-3'>
+                  <div className='text-emerald-400 font-bold text-lg'>7</div>
+                  <div className='text-emerald-300 text-xs'>Day Free Trial</div>
+                </div>
+                <div className='bg-emerald-500/10 rounded-lg p-3'>
+                  <div className='text-emerald-400 font-bold text-lg'>∞</div>
+                  <div className='text-emerald-300 text-xs'>No Lock-in</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Affiliate Program Highlight */}
         <div className='bg-gradient-to-r from-[#121214] via-[#1A1A1C] to-[#121214] border border-[#1E1E21] rounded-xl p-6 sm:p-8'>
@@ -613,7 +769,7 @@ const PricingPage = () => {
           </div>
         </div>
 
-        {/* CTA Section - UPDATED TO 7-DAY */}
+        {/* CTA Section */}
         <div className='bg-gradient-to-r from-[#121214] via-[#1A1A1C] to-[#121214] border border-[#1E1E21] rounded-xl p-6 sm:p-8 text-center'>
           <div className='max-w-3xl mx-auto space-y-6'>
             <div className='flex items-center justify-center gap-3 mb-4'>
@@ -628,7 +784,8 @@ const PricingPage = () => {
             <p className='text-gray-400 text-lg leading-relaxed'>
               Join thousands of entrepreneurs who are building their digital
               empires with our AI-powered platform. Lock in founder pricing with
-              a 7-day free trial.
+              a 7-day free trial
+              {isEligibleForDiscount() ? ' plus 10% off your first month' : ''}.
             </p>
 
             <div className='flex items-center justify-center gap-6 text-sm text-gray-400'>

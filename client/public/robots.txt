@@ -1,0 +1,23 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /build
+Disallow: /earn
+Disallow: /invite
+Disallow: /chat
+Disallow: /profile
+Disallow: /pricing
+Disallow: /payout
+
+# Allow public pages
+Allow: /auth
+Allow: /product/success
+Allow: /purchases
+Allow: /pricing/success
+
+# Crawl delay (optional - prevents aggressive crawling)
+Crawl-delay: 1
+
+# Sitemap location
+Sitemap: https://ascndlabs.com/sitemap.xml

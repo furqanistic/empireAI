@@ -1,10 +1,18 @@
-// File: config/stripe.js - UPDATED WITH STRIPE CONNECT
+// File: config/stripe.js - UPDATED WITH REFERRAL DISCOUNT FUNCTIONALITY
 import dotenv from 'dotenv'
 import Stripe from 'stripe'
 dotenv.config({ quiet: true })
 
 // Initialize Stripe
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+
+// REFERRAL DISCOUNT CONFIGURATION
+export const REFERRAL_DISCOUNT = {
+  percentage: 10, // 10% off
+  duration: 'once', // Apply only to first payment
+  description: 'First Month Referral Discount - 10% Off',
+  couponId: 'referral-10-off-first-month', // Stripe coupon ID
+}
 
 // Subscription Plans Configuration - UPDATED TO MATCH FRONTEND
 export const SUBSCRIPTION_PLANS = {
@@ -24,12 +32,12 @@ export const SUBSCRIPTION_PLANS = {
     },
     pricing: {
       monthly: {
-        amount: 500, // $5.00 in cents - UPDATED TO MATCH FRONTEND
+        amount: 500, // $5.00 in cents
         priceId: process.env.STRIPE_STARTER_MONTHLY_PRICE_ID,
         interval: 'month',
       },
       yearly: {
-        amount: 5000, // $50.00 in cents - UPDATED TO MATCH FRONTEND
+        amount: 5000, // $50.00 in cents
         priceId: process.env.STRIPE_STARTER_YEARLY_PRICE_ID,
         interval: 'year',
       },
@@ -52,19 +60,19 @@ export const SUBSCRIPTION_PLANS = {
     },
     pricing: {
       monthly: {
-        amount: 1200, // $12.00 in cents - UPDATED TO MATCH FRONTEND
+        amount: 1200, // $12.00 in cents
         priceId: process.env.STRIPE_PRO_MONTHLY_PRICE_ID,
         interval: 'month',
       },
       yearly: {
-        amount: 12000, // $120.00 in cents - UPDATED TO MATCH FRONTEND
+        amount: 12000, // $120.00 in cents
         priceId: process.env.STRIPE_PRO_YEARLY_PRICE_ID,
         interval: 'year',
       },
     },
   },
   empire: {
-    name: 'Empire', // Display name for frontend
+    name: 'Empire',
     description: 'For empire builders who want total domination.',
     features: [
       'Everything in Pro',
@@ -81,12 +89,12 @@ export const SUBSCRIPTION_PLANS = {
     },
     pricing: {
       monthly: {
-        amount: 2500, // $25.00 in cents - UPDATED TO MATCH FRONTEND
+        amount: 2500, // $25.00 in cents
         priceId: process.env.STRIPE_EMPIRE_MONTHLY_PRICE_ID,
         interval: 'month',
       },
       yearly: {
-        amount: 25000, // $250.00 in cents - UPDATED TO MATCH FRONTEND
+        amount: 25000, // $250.00 in cents
         priceId: process.env.STRIPE_EMPIRE_YEARLY_PRICE_ID,
         interval: 'year',
       },
@@ -96,31 +104,22 @@ export const SUBSCRIPTION_PLANS = {
 
 // STRIPE CONNECT CONFIGURATION
 export const CONNECT_CONFIG = {
-  // Commission rates for different plan types
   commissionRates: {
     starter: 0.05, // 5%
     pro: 0.08, // 8%
     empire: 0.12, // 12%
   },
-
-  // Minimum payout amounts (in cents)
   minimumPayout: {
     USD: 1000, // $10.00
     EUR: 1000, // €10.00
     GBP: 800, // £8.00
   },
-
-  // Payout schedules
   payoutSchedule: {
     manual: 'Manual payouts on request',
     weekly: 'Weekly automatic payouts',
     monthly: 'Monthly automatic payouts',
   },
-
-  // Connect account capabilities
   capabilities: ['card_payments', 'transfers'],
-
-  // Countries supported for Connect accounts
   supportedCountries: [
     'US',
     'CA',
@@ -238,10 +237,61 @@ export const validateMinimumPayout = (amount, currency = 'USD') => {
   return amount >= minimum
 }
 
-// Free trial configuration - CHANGED FROM 14 TO 7 DAYS
+// NEW: Create or retrieve referral discount coupon
+export const createOrRetrieveReferralCoupon = async () => {
+  try {
+    // Try to retrieve existing coupon
+    try {
+      const coupon = await stripe.coupons.retrieve(REFERRAL_DISCOUNT.couponId)
+      return coupon
+    } catch (error) {
+      // If coupon doesn't exist, create it
+      if (error.code === 'resource_missing') {
+        console.log('Creating referral discount coupon...')
+
+        const coupon = await stripe.coupons.create({
+          id: REFERRAL_DISCOUNT.couponId,
+          percent_off: REFERRAL_DISCOUNT.percentage,
+          duration: REFERRAL_DISCOUNT.duration,
+          name: REFERRAL_DISCOUNT.description,
+          metadata: {
+            type: 'referral_discount',
+            description: 'First month 10% discount for referral signups',
+          },
+        })
+
+        console.log('✅ Created referral discount coupon:', coupon.id)
+        return coupon
+      }
+      throw error
+    }
+  } catch (error) {
+    console.error('Error creating/retrieving referral coupon:', error)
+    throw error
+  }
+}
+
+// NEW: Calculate discounted amount (for display purposes)
+export const calculateDiscountedAmount = (
+  originalAmount,
+  discountPercentage = 10
+) => {
+  const discountAmount = Math.floor(originalAmount * (discountPercentage / 100))
+  const discountedAmount = originalAmount - discountAmount
+
+  return {
+    originalAmount,
+    discountAmount,
+    discountedAmount,
+    discountPercentage,
+    savings: discountAmount,
+  }
+}
+
+// Free trial configuration
 export const TRIAL_PERIOD_DAYS = 7
 
-// Stripe webhook events we care about (UPDATED WITH CONNECT EVENTS)
+// Stripe webhook events we care about
 export const STRIPE_EVENTS = {
   // Subscription events
   CUSTOMER_SUBSCRIPTION_CREATED: 'customer.subscription.created',

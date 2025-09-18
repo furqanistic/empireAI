@@ -1,10 +1,13 @@
-// File: controllers/stripe.js - UPDATED WITH NOTIFICATION INTEGRATION
+// File: controllers/stripe.js - UPDATED WITH REFERRAL DISCOUNT FUNCTIONALITY
 import {
+  calculateDiscountedAmount,
   createOrRetrieveCustomer,
+  createOrRetrieveReferralCoupon,
   getAllPlans,
   getAmount,
   getPlanDetails,
   getPriceId,
+  REFERRAL_DISCOUNT,
   stripe,
   TRIAL_PERIOD_DAYS,
   validatePlanAndBilling,
@@ -12,18 +15,17 @@ import {
 import { createError } from '../error.js'
 import Subscription from '../models/Subscription.js'
 import User from '../models/User.js'
-// NEW: Import notification service
+// Import notification service
 import NotificationService from '../services/notificationService.js'
-// NEW: Import earnings integration
+// Import earnings integration
 import {
   approveEarningAfterPayment,
   createEarningForSubscription,
 } from '../utils/earningsIntegration.js'
 
-// ADDED: Simple helper function to sync User model subscription field
+// Helper function to sync User model subscription field
 const updateUserSubscriptionField = async (userId, subscription) => {
   try {
-    // Status mapping code (as before)
     const statusMapping = {
       trialing: 'trial',
       active: 'active',
@@ -50,7 +52,7 @@ const updateUserSubscriptionField = async (userId, subscription) => {
 
     const user = await User.findByIdAndUpdate(userId, updateData, { new: true })
 
-    // ADD THIS: Automatic Discord role update
+    // Automatic Discord role update
     if (user?.discord?.isConnected) {
       try {
         const { updateUserDiscordRoles } = await import('./discordAuth.js')
@@ -69,7 +71,6 @@ const updateUserSubscriptionField = async (userId, subscription) => {
         }
       } catch (discordError) {
         console.error('Error auto-updating Discord roles:', discordError)
-        // Don't throw error to avoid breaking subscription flow
       }
     }
 
@@ -114,6 +115,11 @@ export const getPlans = async (req, res, next) => {
       data: {
         plans,
         trialPeriodDays: TRIAL_PERIOD_DAYS,
+        referralDiscount: {
+          percentage: REFERRAL_DISCOUNT.percentage,
+          description: REFERRAL_DISCOUNT.description,
+          availableFor: 'First month only with valid referral code',
+        },
       },
     })
   } catch (error) {
@@ -122,7 +128,7 @@ export const getPlans = async (req, res, next) => {
   }
 }
 
-// Create a checkout session for new subscription
+// Create a checkout session for new subscription - UPDATED WITH REFERRAL DISCOUNT
 export const createCheckoutSession = async (req, res, next) => {
   try {
     const { planName, billingCycle = 'monthly' } = req.body
@@ -157,12 +163,42 @@ export const createCheckoutSession = async (req, res, next) => {
 
     const priceId = getPriceId(planName, billingCycle)
 
-    // UPDATED SUCCESS URL TO MATCH THE ACTUAL COMPONENT PATH
     const successUrl = `${process.env.FRONTEND_URL}/pricing/success?session_id={CHECKOUT_SESSION_ID}`
     const cancelUrl = `${process.env.FRONTEND_URL}/pricing?canceled=true`
 
-    // Create checkout session
-    const session = await stripe.checkout.sessions.create({
+    // NEW: Check if user has a referral and apply discount
+    let discountCoupon = null
+    let hasReferralDiscount = false
+
+    // Check if user was referred by someone (and hasn't used a discount before)
+    const userWithReferral = await User.findById(user._id).populate(
+      'referredBy',
+      'name referralCode'
+    )
+
+    if (
+      userWithReferral.referredBy &&
+      !userWithReferral.hasUsedReferralDiscount
+    ) {
+      console.log(
+        `User ${user.email} has referral from ${userWithReferral.referredBy.name}, applying 10% discount`
+      )
+
+      try {
+        // Create or retrieve the referral discount coupon
+        discountCoupon = await createOrRetrieveReferralCoupon()
+        hasReferralDiscount = true
+
+        console.log(`✅ Referral discount coupon ready: ${discountCoupon.id}`)
+      } catch (couponError) {
+        console.error('Error setting up referral discount:', couponError)
+        // Continue without discount if there's an error
+        hasReferralDiscount = false
+      }
+    }
+
+    // Create checkout session configuration
+    const sessionConfig = {
       customer: customer.id,
       payment_method_types: ['card'],
       line_items: [
@@ -180,20 +216,77 @@ export const createCheckoutSession = async (req, res, next) => {
           userId: user._id.toString(),
           planName: planName,
           billingCycle: billingCycle,
+          hasReferralDiscount: hasReferralDiscount.toString(),
+          referredBy: userWithReferral.referredBy?._id?.toString() || '',
         },
       },
       metadata: {
         userId: user._id.toString(),
         planName: planName,
         billingCycle: billingCycle,
+        hasReferralDiscount: hasReferralDiscount.toString(),
+        referredBy: userWithReferral.referredBy?._id?.toString() || '',
       },
-    })
+    }
+
+    // Add discount if user has referral
+    if (hasReferralDiscount && discountCoupon) {
+      sessionConfig.discounts = [
+        {
+          coupon: discountCoupon.id,
+        },
+      ]
+
+      console.log(
+        `✅ Applied referral discount to checkout session for ${user.email}`
+      )
+    }
+
+    // Create checkout session
+    const session = await stripe.checkout.sessions.create(sessionConfig)
+
+    // If we applied a referral discount, mark user as having used it
+    if (hasReferralDiscount) {
+      try {
+        await User.findByIdAndUpdate(user._id, {
+          hasUsedReferralDiscount: true,
+          referralDiscountUsedAt: new Date(),
+        })
+        console.log(
+          `✅ Marked user ${user.email} as having used referral discount`
+        )
+      } catch (updateError) {
+        console.error('Error marking referral discount as used:', updateError)
+        // Don't fail the checkout creation for this
+      }
+    }
+
+    // Calculate discount info for response
+    let discountInfo = null
+    if (hasReferralDiscount) {
+      const originalAmount = getAmount(planName, billingCycle)
+      const discountCalculation = calculateDiscountedAmount(
+        originalAmount,
+        REFERRAL_DISCOUNT.percentage
+      )
+
+      discountInfo = {
+        applied: true,
+        percentage: REFERRAL_DISCOUNT.percentage,
+        originalAmount: (originalAmount / 100).toFixed(2),
+        discountAmount: (discountCalculation.discountAmount / 100).toFixed(2),
+        finalAmount: (discountCalculation.discountedAmount / 100).toFixed(2),
+        referrerName: userWithReferral.referredBy.name,
+        description: `10% off first month thanks to ${userWithReferral.referredBy.name}'s referral`,
+      }
+    }
 
     res.status(200).json({
       status: 'success',
       data: {
         sessionId: session.id,
         url: session.url,
+        referralDiscount: discountInfo,
       },
     })
   } catch (error) {
@@ -228,7 +321,6 @@ export const verifyCheckoutSession = async (req, res, next) => {
       return next(createError(403, 'Unauthorized access to this session'))
     }
 
-    // For subscriptions with trials, payment_status might be 'unpaid' initially
     if (session.status !== 'complete') {
       console.error('Session not complete:', {
         status: session.status,
@@ -250,7 +342,6 @@ export const verifyCheckoutSession = async (req, res, next) => {
       user: user._id,
     })
 
-    // FIXED: Handle undefined period dates during trial
     const subscriptionData = {
       user: user._id,
       stripeCustomerId: session.customer.id || session.customer,
@@ -276,6 +367,15 @@ export const verifyCheckoutSession = async (req, res, next) => {
       trialEnd: stripeSubscription.trial_end
         ? new Date(stripeSubscription.trial_end * 1000)
         : null,
+      // NEW: Track referral discount usage
+      metadata: {
+        hasReferralDiscount: session.metadata.hasReferralDiscount === 'true',
+        referredBy: session.metadata.referredBy || null,
+        discountApplied:
+          session.metadata.hasReferralDiscount === 'true'
+            ? REFERRAL_DISCOUNT.percentage
+            : 0,
+      },
     }
 
     try {
@@ -287,13 +387,10 @@ export const verifyCheckoutSession = async (req, res, next) => {
         await subscription.save()
       }
 
-      // Verify the subscription was saved
-      const savedSubscription = await Subscription.findById(subscription._id)
-
-      // ADDED: Update User model's subscription field
+      // Update User model's subscription field
       await updateUserSubscriptionField(user._id, subscription)
 
-      // NEW: Send notifications for subscription events
+      // Send notifications for subscription events
       try {
         const planDisplayName = getPlanDetails(session.metadata.planName).name
 
@@ -307,32 +404,89 @@ export const verifyCheckoutSession = async (req, res, next) => {
           console.log(`✅ Trial started notification sent to ${user.email}`)
         }
 
-        // Send subscription activated notification
-        await NotificationService.notifySubscriptionActivated(user._id, {
+        // Send subscription activated notification with discount info
+        const notificationData = {
           planName: planDisplayName,
           amount: subscription.amount,
           currency: subscription.currency,
           billingCycle: subscription.billingCycle,
           periodStart: subscription.currentPeriodStart,
           periodEnd: subscription.currentPeriodEnd,
-        })
+          referralDiscount: subscription.metadata?.hasReferralDiscount
+            ? {
+                percentage: REFERRAL_DISCOUNT.percentage,
+                description: 'First month 10% referral discount applied',
+              }
+            : null,
+        }
+
+        await NotificationService.notifySubscriptionActivated(
+          user._id,
+          notificationData
+        )
         console.log(
           `✅ Subscription activated notification sent to ${user.email}`
         )
+
+        // If referral discount was applied, send special notification
+        if (
+          subscription.metadata?.hasReferralDiscount &&
+          subscription.metadata?.referredBy
+        ) {
+          try {
+            const referrer = await User.findById(
+              subscription.metadata.referredBy
+            )
+            if (referrer) {
+              // Notify the new subscriber about their discount
+              await NotificationService.createNotification(user._id, {
+                title: '🎉 Referral Discount Applied!',
+                message: `You saved ${REFERRAL_DISCOUNT.percentage}% on your first month thanks to ${referrer.name}'s referral. Enjoy your discount!`,
+                type: 'referral_bonus',
+                priority: 'medium',
+                data: {
+                  discountPercentage: REFERRAL_DISCOUNT.percentage,
+                  referrerName: referrer.name,
+                  planName: planDisplayName,
+                },
+              })
+
+              // Notify the referrer that their referral got a discount
+              await NotificationService.createNotification(referrer._id, {
+                title: '🎁 Your Referral Got a Discount!',
+                message: `${user.name} just subscribed to the ${planDisplayName} plan and received a 10% discount thanks to your referral!`,
+                type: 'referral_success',
+                priority: 'medium',
+                data: {
+                  referredUserName: user.name,
+                  planName: planDisplayName,
+                  discountPercentage: REFERRAL_DISCOUNT.percentage,
+                },
+              })
+
+              console.log(
+                `✅ Referral discount notifications sent for ${user.email} -> ${referrer.email}`
+              )
+            }
+          } catch (referralNotificationError) {
+            console.error(
+              'Error sending referral discount notifications:',
+              referralNotificationError
+            )
+          }
+        }
       } catch (notificationError) {
         console.error(
           'Error sending subscription notifications:',
           notificationError
         )
-        // Don't fail the subscription creation if notification fails
       }
 
-      // NEW: Create earning for referral commission
+      // Create earning for referral commission
       try {
         await createEarningForSubscription(subscription, user._id)
       } catch (earningError) {
         console.error('Error creating earning:', earningError)
-        // Don't fail the subscription creation if earning creation fails
       }
     } catch (saveError) {
       console.error('Error saving subscription to database:', saveError)
@@ -349,6 +503,13 @@ export const verifyCheckoutSession = async (req, res, next) => {
       data: {
         subscription,
         message: 'Subscription created successfully',
+        referralDiscount: subscription.metadata?.hasReferralDiscount
+          ? {
+              applied: true,
+              percentage: REFERRAL_DISCOUNT.percentage,
+              description: 'First month discount applied',
+            }
+          : null,
       },
     })
   } catch (error) {
@@ -359,13 +520,12 @@ export const verifyCheckoutSession = async (req, res, next) => {
   }
 }
 
-// NEW: Handle successful payments (for approving earnings)
+// Handle successful payments (for approving earnings)
 export const handleSuccessfulPayment = async (
   paymentIntentId,
   subscriptionId
 ) => {
   try {
-    // This would be called from a webhook handler
     await approveEarningAfterPayment(subscriptionId, paymentIntentId)
   } catch (error) {
     console.error('Error handling successful payment:', error)
@@ -399,11 +559,10 @@ export const getCurrentSubscription = async (req, res, next) => {
         )
         await subscription.updateFromStripe(stripeSubscription)
 
-        // ADDED: Update User model's subscription field
+        // Update User model's subscription field
         await updateUserSubscriptionField(user._id, subscription)
       } catch (error) {
         console.error('Error syncing with Stripe:', error)
-        // Continue with database data if Stripe sync fails
       }
     }
 
@@ -494,10 +653,10 @@ export const updateSubscription = async (req, res, next) => {
     subscription.amount = getAmount(planName, billingCycle)
     await subscription.updateFromStripe(updatedStripeSubscription)
 
-    // ADDED: Update User model's subscription field
+    // Update User model's subscription field
     await updateUserSubscriptionField(user._id, subscription)
 
-    // NEW: Send notification for plan change
+    // Send notification for plan change
     try {
       const notificationData = {
         oldPlan: oldPlanName,
@@ -531,7 +690,6 @@ export const updateSubscription = async (req, res, next) => {
         'Error sending subscription update notification:',
         notificationError
       )
-      // Don't fail the subscription update if notification fails
     }
 
     await subscription.populate('user', 'name email')
@@ -587,9 +745,8 @@ export const cancelSubscription = async (req, res, next) => {
     // Update subscription in database
     await subscription.updateFromStripe(stripeSubscription)
 
-    // ADDED: Update User model's subscription field
+    // Update User model's subscription field
     if (immediate) {
-      // Set to free plan if canceled immediately
       const freeSubscriptionData = {
         plan: 'free',
         status: 'inactive',
@@ -602,7 +759,7 @@ export const cancelSubscription = async (req, res, next) => {
       await updateUserSubscriptionField(user._id, subscription)
     }
 
-    // NEW: Send cancellation notification
+    // Send cancellation notification
     try {
       await NotificationService.notifySubscriptionCancelled(user._id, {
         planName: planDisplayName,
@@ -618,7 +775,6 @@ export const cancelSubscription = async (req, res, next) => {
         'Error sending cancellation notification:',
         notificationError
       )
-      // Don't fail the cancellation if notification fails
     }
 
     await subscription.populate('user', 'name email')
@@ -667,10 +823,10 @@ export const reactivateSubscription = async (req, res, next) => {
     // Update subscription in database
     await subscription.updateFromStripe(stripeSubscription)
 
-    // ADDED: Update User model's subscription field
+    // Update User model's subscription field
     await updateUserSubscriptionField(user._id, subscription)
 
-    // NEW: Send reactivation notification (using subscription_activated type)
+    // Send reactivation notification
     try {
       const planDisplayName = getPlanDetails(subscription.plan).name
       await NotificationService.notifySubscriptionActivated(user._id, {
@@ -688,7 +844,6 @@ export const reactivateSubscription = async (req, res, next) => {
         'Error sending reactivation notification:',
         notificationError
       )
-      // Don't fail the reactivation if notification fails
     }
 
     await subscription.populate('user', 'name email')
@@ -794,7 +949,7 @@ export const syncWithStripe = async (req, res, next) => {
     // Update local subscription
     await subscription.updateFromStripe(stripeSubscription)
 
-    // ADDED: Update User model's subscription field
+    // Update User model's subscription field
     await updateUserSubscriptionField(user._id, subscription)
 
     await subscription.populate('user', 'name email')

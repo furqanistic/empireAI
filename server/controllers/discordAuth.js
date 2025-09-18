@@ -108,9 +108,7 @@ export const startDiscordAuth = async (req, res, next) => {
       })
     ).toString('base64')
 
-    const redirectUri = `${
-      process.env.BACKEND_URL || 'http://localhost:8800'
-    }/api/auth/discord/callback`
+    const redirectUri = `${process.env.BACKEND_URL}/api/auth/discord/callback`
 
     const authUrl = discordService.getOAuthURL(redirectUri, state)
 

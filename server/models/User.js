@@ -1,128 +1,197 @@
-// File: models/User.js - UPDATED WITH EMAIL VERIFICATION STATUS
+// File: models/User.js - COMPLETE VERSION WITH ALL MISSING METHODS
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import mongoose from 'mongoose'
 
 const UserSchema = new mongoose.Schema(
   {
+    // Basic user information
     name: {
       type: String,
-      required: true,
+      required: [true, 'Name is required'],
       trim: true,
+      maxlength: [50, 'Name cannot exceed 50 characters'],
     },
     email: {
       type: String,
-      required: true,
+      required: [true, 'Email is required'],
       unique: true,
       lowercase: true,
       trim: true,
+      match: [
+        /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
+        'Please enter a valid email',
+      ],
     },
     password: {
       type: String,
-      required: true,
-      select: false, // Don't return password by default in queries
-    },
-    role: {
-      type: String,
-      enum: ['admin', 'user'],
-      default: 'user',
-    },
-    lastLogin: {
-      type: Date,
-    },
-    passwordChangedAt: {
-      type: Date,
+      required: [true, 'Password is required'],
+      minlength: [6, 'Password must be at least 6 characters'],
+      select: false, // Don't include password in queries by default
     },
 
-    // EMAIL VERIFICATION FIELDS
+    // User profile
+    avatar: {
+      type: String,
+      default: null,
+    },
+    bio: {
+      type: String,
+      maxlength: [500, 'Bio cannot exceed 500 characters'],
+    },
+    location: {
+      type: String,
+      maxlength: [100, 'Location cannot exceed 100 characters'],
+    },
+    website: {
+      type: String,
+      maxlength: [200, 'Website URL cannot exceed 200 characters'],
+    },
+
+    // Account settings
+    role: {
+      type: String,
+      enum: ['user', 'admin', 'moderator'],
+      default: 'user',
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
     isEmailVerified: {
       type: Boolean,
       default: false,
-      required: true,
     },
-    emailVerifiedAt: {
-      type: Date,
-      default: null,
+    emailVerifiedAt: Date,
+
+    // Authentication
+    passwordChangedAt: Date,
+    passwordResetToken: String,
+    passwordResetExpires: Date,
+    emailVerificationToken: String,
+    emailVerificationExpires: Date,
+
+    // OTP for signup and password reset
+    otpCode: String,
+    otpExpires: Date,
+    otpVerified: {
+      type: Boolean,
+      default: false,
     },
 
-    // Password Reset Fields - OTP BASED
-    passwordResetOTP: {
-      type: String,
-      select: false, // Don't include in queries by default
-    },
-    passwordResetOTPExpires: {
-      type: Date,
-      select: false, // Don't include in queries by default
-    },
+    // Password reset OTP system
+    passwordResetOTP: String,
+    passwordResetOTPExpires: Date,
     passwordResetAttempts: {
       type: Number,
       default: 0,
-      select: false,
     },
-    passwordResetLastAttempt: {
-      type: Date,
-      select: false,
-    },
+    passwordResetLastAttempt: Date,
 
-    // Legacy token fields (keep for backward compatibility)
-    passwordResetToken: {
+    // Referral system
+    referralCode: {
       type: String,
-      select: false,
+      unique: true,
+      sparse: true, // Allows multiple null values
     },
-    passwordResetExpires: {
-      type: Date,
-      select: false,
+    referralCodeLastChanged: Date,
+    referredBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
     },
-
-    // Points System
-    points: {
+    referrals: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+          required: true,
+        },
+        joinedAt: {
+          type: Date,
+          default: Date.now,
+        },
+        status: {
+          type: String,
+          enum: ['active', 'inactive'],
+          default: 'active',
+        },
+      },
+    ],
+    referralCount: {
       type: Number,
       default: 0,
     },
-    lastDailyClaim: {
-      type: Date,
-      default: null,
+    hasUsedReferralDiscount: {
+      type: Boolean,
+      default: false,
+    },
+    referralDiscountUsedAt: Date,
+
+    // Referral statistics
+    referralStats: {
+      totalReferrals: {
+        type: Number,
+        default: 0,
+      },
+      activeReferrals: {
+        type: Number,
+        default: 0,
+      },
+      referralRewards: {
+        type: Number,
+        default: 0, // in cents
+      },
+      lastUpdated: {
+        type: Date,
+        default: Date.now,
+      },
+    },
+
+    // Points system
+    points: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
     totalPointsEarned: {
       type: Number,
       default: 0,
+      min: 0,
     },
     pointsSpent: {
       type: Number,
       default: 0,
+      min: 0,
     },
-
-    // Streak tracking for daily claims
+    pointsHistory: [
+      {
+        action: {
+          type: String,
+          required: true,
+        },
+        points: {
+          type: Number,
+          required: true,
+        },
+        description: String,
+        date: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+    lastDailyPointsClaim: Date,
     dailyClaimStreak: {
       type: Number,
       default: 0,
-    },
-    lastStreakClaim: {
-      type: Date,
-      default: null,
+      min: 0,
     },
 
-    // Discord Integration
-    discord: {
-      discordId: {
-        type: String,
-        unique: true,
-        sparse: true, // Allows multiple null values
-      },
-      username: String,
-      discriminator: String,
-      avatar: String,
-      email: String, // Discord email (might be different from main email)
-      isConnected: {
-        type: Boolean,
-        default: false,
-      },
-      connectedAt: Date,
-      lastRoleUpdate: Date,
-      currentRoles: [String], // Array of role IDs currently assigned
-    },
-
-    // Subscription plan
+    // Subscription information
     subscription: {
       plan: {
         type: String,
@@ -131,15 +200,7 @@ const UserSchema = new mongoose.Schema(
       },
       status: {
         type: String,
-        enum: [
-          'active',
-          'inactive',
-          'cancelled',
-          'trial',
-          'trialing',
-          'past_due',
-          'unpaid',
-        ],
+        enum: ['active', 'inactive', 'trial', 'cancelled', 'past_due'],
         default: 'inactive',
       },
       startDate: Date,
@@ -160,91 +221,167 @@ const UserSchema = new mongoose.Schema(
       },
     },
 
-    // Stripe Integration Fields
+    // Stripe customer information
     stripeCustomerId: {
-      type: String,
-      unique: true,
-      sparse: true, // Allows multiple null values but unique non-null values
-    },
-
-    // Enhanced Referral System Fields
-    referralCode: {
       type: String,
       unique: true,
       sparse: true,
     },
-    referredBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      default: null,
-    },
-    referrals: [
-      {
-        user: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: 'User',
-        },
-        joinedAt: {
-          type: Date,
-          default: Date.now,
-        },
-        status: {
-          type: String,
-          enum: ['active', 'inactive'],
-          default: 'active',
-        },
-        // Track if this referral has made a purchase
-        hasSubscribed: {
-          type: Boolean,
-          default: false,
-        },
-        subscriptionValue: {
-          type: Number,
-          default: 0,
-        },
-      },
-    ],
 
-    // Enhanced referral statistics
-    referralStats: {
-      totalReferrals: {
-        type: Number,
-        default: 0,
+    // Stripe Connect for payouts
+    stripeConnect: {
+      accountId: {
+        type: String,
+        unique: true,
+        sparse: true,
       },
-      activeReferrals: {
-        type: Number,
-        default: 0,
+      isVerified: {
+        type: Boolean,
+        default: false,
       },
-      paidReferrals: {
-        type: Number,
-        default: 0,
+      onboardingCompleted: {
+        type: Boolean,
+        default: false,
       },
-      totalEarnings: {
+      capabilities: {
+        type: Map,
+        of: String,
+        default: {},
+      },
+      requirementsNeeded: [String],
+      payoutSettings: {
+        schedule: {
+          type: String,
+          enum: ['manual', 'weekly', 'monthly'],
+          default: 'manual',
+        },
+        minimumAmount: {
+          type: Number,
+          default: 1000, // $10.00 in cents
+        },
+        currency: {
+          type: String,
+          default: 'USD',
+        },
+        debitNegativeBalances: Boolean,
+        statementDescriptor: String,
+      },
+      businessProfile: {
+        mcc: String,
+        url: String,
+        productDescription: String,
+      },
+      lastUpdated: Date,
+    },
+
+    // Earnings tracking
+    earningsInfo: {
+      totalEarned: {
         type: Number,
-        default: 0, // Total earnings in cents
+        default: 0, // in cents
+      },
+      availableForPayout: {
+        type: Number,
+        default: 0, // in cents
       },
       pendingEarnings: {
         type: Number,
-        default: 0,
+        default: 0, // in cents
       },
-      paidEarnings: {
+      totalPaidOut: {
         type: Number,
-        default: 0,
+        default: 0, // in cents
       },
-      conversionRate: {
-        type: Number,
-        default: 0, // Percentage of referrals that convert to paid
+      lastUpdated: {
+        type: Date,
+        default: Date.now,
       },
     },
 
-    // Account Status
-    isDeleted: {
-      type: Boolean,
-      default: false,
+    // Discord integration
+    discord: {
+      isConnected: {
+        type: Boolean,
+        default: false,
+      },
+      discordId: {
+        type: String,
+        unique: true,
+        sparse: true,
+      },
+      username: String,
+      discriminator: String,
+      avatar: String,
+      accessToken: String,
+      refreshToken: String,
+      tokenExpires: Date,
+      connectedAt: Date,
+      guilds: [
+        {
+          guildId: String,
+          guildName: String,
+          roles: [String],
+          joinedAt: Date,
+        },
+      ],
     },
-    isActive: {
-      type: Boolean,
-      default: true,
+
+    // Activity tracking
+    lastLogin: Date,
+    loginCount: {
+      type: Number,
+      default: 0,
+    },
+    ipAddress: String,
+    userAgent: String,
+
+    // Preferences
+    preferences: {
+      notifications: {
+        email: {
+          type: Boolean,
+          default: true,
+        },
+        push: {
+          type: Boolean,
+          default: true,
+        },
+        marketing: {
+          type: Boolean,
+          default: false,
+        },
+      },
+      theme: {
+        type: String,
+        enum: ['light', 'dark', 'auto'],
+        default: 'dark',
+      },
+      language: {
+        type: String,
+        default: 'en',
+      },
+    },
+
+    // Privacy settings
+    privacy: {
+      profileVisible: {
+        type: Boolean,
+        default: true,
+      },
+      showEarnings: {
+        type: Boolean,
+        default: false,
+      },
+      allowMessages: {
+        type: Boolean,
+        default: true,
+      },
+    },
+
+    // Metadata
+    metadata: {
+      type: Map,
+      of: mongoose.Schema.Types.Mixed,
     },
   },
   {
@@ -254,84 +391,504 @@ const UserSchema = new mongoose.Schema(
   }
 )
 
-// Indexes for better performance
+// ============================================================================
+// INDEXES FOR PERFORMANCE
+// ============================================================================
+
 UserSchema.index({ email: 1 })
 UserSchema.index({ referralCode: 1 })
 UserSchema.index({ referredBy: 1 })
+UserSchema.index({ 'stripeConnect.accountId': 1 })
 UserSchema.index({ stripeCustomerId: 1 })
+UserSchema.index({ role: 1 })
+UserSchema.index({ isActive: 1 })
+UserSchema.index({ createdAt: -1 })
 UserSchema.index({ 'discord.discordId': 1 })
-UserSchema.index({ isDeleted: 1, isActive: 1 })
-UserSchema.index({ isEmailVerified: 1 }) // New index for email verification
-UserSchema.index({ lastDailyClaim: 1 })
-UserSchema.index({ points: -1 })
-UserSchema.index({ passwordResetOTP: 1 }) // Index for OTP
-UserSchema.index({ passwordResetOTPExpires: 1 }) // Index for OTP expiry
-UserSchema.index({ passwordResetToken: 1 }) // Legacy index
-UserSchema.index({ passwordResetExpires: 1 }) // Legacy index
 
-// Pre-save middleware to hash password
-UserSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next()
+// ============================================================================
+// VIRTUALS
+// ============================================================================
 
-  try {
-    const salt = await bcrypt.genSalt(12)
-    this.password = await bcrypt.hash(this.password, salt)
+// Virtual to get formatted earnings
+UserSchema.virtual('formattedEarnings').get(function () {
+  const earnings = this.earningsInfo || {}
 
-    if (!this.isNew) {
-      this.passwordChangedAt = new Date(Date.now() - 1000)
-    }
-
-    // Clear password reset fields when password is changed
-    this.passwordResetToken = undefined
-    this.passwordResetExpires = undefined
-    this.passwordResetOTP = undefined
-    this.passwordResetOTPExpires = undefined
-    this.passwordResetAttempts = 0
-    this.passwordResetLastAttempt = undefined
-
-    next()
-  } catch (error) {
-    next(error)
+  return {
+    totalEarned: ((earnings.totalEarned || 0) / 100).toFixed(2),
+    availableForPayout: ((earnings.availableForPayout || 0) / 100).toFixed(2),
+    pendingEarnings: ((earnings.pendingEarnings || 0) / 100).toFixed(2),
+    totalPaidOut: ((earnings.totalPaidOut || 0) / 100).toFixed(2),
+    currency: 'USD',
   }
 })
 
-// Pre-save middleware to generate referral code
-UserSchema.pre('save', async function (next) {
-  if (!this.isNew || this.referralCode) return next()
+// Virtual to check if user is premium
+UserSchema.virtual('isPremium').get(function () {
+  return this.subscription?.isActive && this.subscription?.plan !== 'free'
+})
 
+// Virtual to get display name
+UserSchema.virtual('displayName').get(function () {
+  return this.name || this.email.split('@')[0]
+})
+
+// Virtual for referral URL
+UserSchema.virtual('referralUrl').get(function () {
+  if (!this.referralCode) return null
+  const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000'
+  return `${baseUrl}/auth?ref=${this.referralCode}`
+})
+
+// ============================================================================
+// POINTS SYSTEM METHODS
+// ============================================================================
+
+// Method to check if user can claim daily points
+UserSchema.methods.canClaimDailyPoints = function () {
+  const now = new Date()
+  const lastClaim = this.lastDailyPointsClaim
+
+  if (!lastClaim) {
+    return { canClaim: true, hoursUntilNext: 0 }
+  }
+
+  const hoursSinceLastClaim = (now - lastClaim) / (1000 * 60 * 60)
+  const hoursUntilNext = Math.max(0, 24 - hoursSinceLastClaim)
+
+  return {
+    canClaim: hoursSinceLastClaim >= 24,
+    hoursUntilNext: Math.ceil(hoursUntilNext),
+  }
+}
+
+// Method to claim daily points
+UserSchema.methods.claimDailyPoints = async function () {
+  const now = new Date()
+  const claimStatus = this.canClaimDailyPoints()
+
+  if (!claimStatus.canClaim) {
+    throw new Error(
+      `Cannot claim points yet. Wait ${claimStatus.hoursUntilNext} hours.`
+    )
+  }
+
+  // Check if this is consecutive day (within 48 hours of last claim)
+  let isConsecutive = false
+  if (this.lastDailyPointsClaim) {
+    const hoursSinceLastClaim =
+      (now - this.lastDailyPointsClaim) / (1000 * 60 * 60)
+    isConsecutive = hoursSinceLastClaim >= 24 && hoursSinceLastClaim <= 48
+  }
+
+  // Update streak
+  if (isConsecutive || !this.lastDailyPointsClaim) {
+    this.dailyClaimStreak = (this.dailyClaimStreak || 0) + 1
+  } else {
+    this.dailyClaimStreak = 1 // Reset streak
+  }
+
+  // Base daily points
+  let pointsToAward = 100 // Base daily points
+
+  // Discord connection bonus
+  let discordBonus = 0
+  if (this.discord?.isConnected) {
+    discordBonus = 25
+    pointsToAward += discordBonus
+  }
+
+  // Award the points
+  this.points += pointsToAward
+  this.totalPointsEarned += pointsToAward
+  this.lastDailyPointsClaim = now
+
+  // Add to points history with detailed description
+  const bonusDescription = []
+  if (discordBonus > 0)
+    bonusDescription.push(`Discord bonus (+${discordBonus})`)
+
+  const description =
+    bonusDescription.length > 0
+      ? `Daily points claim (${
+          this.dailyClaimStreak
+        } day streak) - ${bonusDescription.join(', ')}`
+      : `Daily points claim (${this.dailyClaimStreak} day streak)`
+
+  this.pointsHistory.push({
+    action: 'daily_claim',
+    points: pointsToAward,
+    description,
+    date: now,
+  })
+
+  await this.save()
+
+  return {
+    pointsAwarded: pointsToAward,
+    totalPoints: this.points,
+    streak: this.dailyClaimStreak,
+    discordBonus: discordBonus,
+    nextClaimIn: 24, // hours
+  }
+}
+
+// Static method to get top point earners
+UserSchema.statics.getTopPointEarners = async function (limit = 10) {
   try {
-    let referralCode
-    let isUnique = false
-    let attempts = 0
-    const maxAttempts = 10
+    return await this.find({
+      isDeleted: false,
+      isActive: true,
+    })
+      .select('name email totalPointsEarned createdAt')
+      .sort({ totalPointsEarned: -1 })
+      .limit(limit)
+  } catch (error) {
+    console.error('Error getting top point earners:', error)
+    return []
+  }
+}
 
-    while (!isUnique && attempts < maxAttempts) {
-      const namePrefix = this.name
-        .replace(/\s+/g, '')
-        .substring(0, 3)
-        .toUpperCase()
-      const randomSuffix = crypto.randomBytes(3).toString('hex').toUpperCase()
-      referralCode = `${namePrefix}${randomSuffix}`
+// Method to add points
+UserSchema.methods.addPoints = function (points, action, description) {
+  this.points += points
+  this.totalPointsEarned += points
+  this.pointsHistory.push({
+    action,
+    points,
+    description,
+    date: new Date(),
+  })
+}
 
-      const existingUser = await mongoose.models.User.findOne({ referralCode })
-      if (!existingUser) {
-        isUnique = true
-        this.referralCode = referralCode
+// Method to spend points
+UserSchema.methods.spendPoints = function (points, action, description) {
+  if (this.points < points) {
+    throw new Error('Insufficient points')
+  }
+  this.points -= points
+  this.pointsSpent += points
+  this.pointsHistory.push({
+    action,
+    points: -points,
+    description,
+    date: new Date(),
+  })
+}
+
+// ============================================================================
+// REFERRAL SYSTEM METHODS
+// ============================================================================
+
+// Static method to find user by referral code
+UserSchema.statics.findByReferralCode = async function (code) {
+  try {
+    return await this.findOne({
+      referralCode: code.toUpperCase(),
+      isDeleted: false,
+      isActive: true,
+    })
+  } catch (error) {
+    console.error('Error finding user by referral code:', error)
+    return null
+  }
+}
+
+// Method to add a referral
+UserSchema.methods.addReferral = async function (referredUserId) {
+  try {
+    // Check if referral already exists
+    const existingReferral = this.referrals.find(
+      (ref) => ref.user.toString() === referredUserId.toString()
+    )
+
+    if (existingReferral) {
+      return false // Already exists
+    }
+
+    // Add the referral
+    this.referrals.push({
+      user: referredUserId,
+      joinedAt: new Date(),
+      status: 'active',
+    })
+
+    // Update referral stats
+    if (!this.referralStats) {
+      this.referralStats = {
+        totalReferrals: 0,
+        activeReferrals: 0,
+        referralRewards: 0,
+        lastUpdated: new Date(),
       }
-      attempts++
     }
 
-    if (!isUnique) {
-      this.referralCode = `USER${Date.now().toString().slice(-6)}`
-    }
+    this.referralStats.totalReferrals =
+      (this.referralStats.totalReferrals || 0) + 1
+    this.referralStats.activeReferrals =
+      (this.referralStats.activeReferrals || 0) + 1
+    this.referralStats.lastUpdated = new Date()
+    this.referralCount = this.referrals.length
 
-    next()
+    await this.save()
+    return true
   } catch (error) {
-    next(error)
+    console.error('Error adding referral:', error)
+    throw error
   }
-})
+}
 
-// Method to check if password is correct
+// Method to update referral stats
+UserSchema.methods.updateReferralStats = async function () {
+  try {
+    const activeReferrals = this.referrals.filter(
+      (ref) => ref.status === 'active'
+    )
+
+    this.referralStats = {
+      ...this.referralStats,
+      totalReferrals: this.referrals.length,
+      activeReferrals: activeReferrals.length,
+      lastUpdated: new Date(),
+    }
+
+    this.referralCount = this.referrals.length
+    await this.save()
+  } catch (error) {
+    console.error('Error updating referral stats:', error)
+  }
+}
+
+// ============================================================================
+// PASSWORD RESET OTP METHODS
+// ============================================================================
+
+// Method to create password reset OTP
+UserSchema.methods.createPasswordResetOTP = function () {
+  const otp = Math.floor(100000 + Math.random() * 900000).toString()
+  const otpHash = crypto.createHash('sha256').update(otp).digest('hex')
+
+  this.passwordResetOTP = otpHash
+  this.passwordResetOTPExpires = Date.now() + 10 * 60 * 1000 // 10 minutes
+  this.passwordResetAttempts = 0
+  this.passwordResetLastAttempt = null
+
+  return otp // Return plain OTP for sending
+}
+
+// Method to validate password reset OTP
+UserSchema.methods.validatePasswordResetOTP = function (otp) {
+  const now = Date.now()
+
+  // Check if OTP exists and hasn't expired
+  if (!this.passwordResetOTP || !this.passwordResetOTPExpires) {
+    return {
+      isValid: false,
+      error: 'No OTP found. Please request a new password reset.',
+    }
+  }
+
+  if (this.passwordResetOTPExpires <= now) {
+    return {
+      isValid: false,
+      error: 'OTP has expired. Please request a new password reset.',
+    }
+  }
+
+  // Check rate limiting (max 5 attempts per OTP)
+  if (this.passwordResetAttempts >= 5) {
+    return {
+      isValid: false,
+      error: 'Too many attempts. Please request a new password reset.',
+    }
+  }
+
+  // Update attempt tracking
+  this.passwordResetAttempts = (this.passwordResetAttempts || 0) + 1
+  this.passwordResetLastAttempt = new Date()
+
+  // Validate OTP
+  const otpHash = crypto.createHash('sha256').update(otp).digest('hex')
+  if (this.passwordResetOTP !== otpHash) {
+    const attemptsLeft = 5 - this.passwordResetAttempts
+    return {
+      isValid: false,
+      error: `Invalid OTP. ${attemptsLeft} attempts remaining.`,
+    }
+  }
+
+  return { isValid: true }
+}
+
+// ============================================================================
+// EARNINGS METHODS
+// ============================================================================
+
+// Method to update earnings info
+UserSchema.methods.updateEarningsInfo = async function () {
+  try {
+    // Dynamically import Earnings model to avoid circular dependency
+    const { default: Earnings } = await import('./Earnings.js')
+
+    // Calculate earnings summary
+    const earningsData = await Earnings.aggregate([
+      {
+        $match: { user: this._id },
+      },
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 },
+          total: { $sum: '$commissionAmount' },
+        },
+      },
+    ])
+
+    // Initialize earnings info
+    const earningsInfo = {
+      totalEarned: 0,
+      availableForPayout: 0,
+      pendingEarnings: 0,
+      totalPaidOut: 0,
+      lastUpdated: new Date(),
+    }
+
+    // Process earnings data
+    earningsData.forEach((item) => {
+      switch (item._id) {
+        case 'pending':
+          earningsInfo.pendingEarnings = item.total
+          break
+        case 'approved':
+          earningsInfo.availableForPayout = item.total
+          break
+        case 'paid':
+          earningsInfo.totalPaidOut = item.total
+          break
+      }
+      // Add to total earned (all statuses except cancelled/disputed)
+      if (!['cancelled', 'disputed'].includes(item._id)) {
+        earningsInfo.totalEarned += item.total
+      }
+    })
+
+    // Update user document
+    this.earningsInfo = earningsInfo
+    await this.save()
+
+    return earningsInfo
+  } catch (error) {
+    console.error('Error updating earnings info:', error)
+    // Return default earnings info on error
+    return {
+      totalEarned: 0,
+      availableForPayout: 0,
+      pendingEarnings: 0,
+      totalPaidOut: 0,
+      lastUpdated: new Date(),
+    }
+  }
+}
+
+// Method to check if user can receive payouts
+UserSchema.methods.canReceivePayouts = function () {
+  return !!(
+    this.stripeConnect?.accountId &&
+    this.stripeConnect?.isVerified &&
+    this.stripeConnect?.onboardingCompleted
+  )
+}
+
+// Method to get minimum payout amount
+UserSchema.methods.getMinimumPayoutAmount = function () {
+  const defaultMinimum = 1000 // $10.00 in cents
+  return this.stripeConnect?.payoutSettings?.minimumAmount || defaultMinimum
+}
+
+// ============================================================================
+// STATIC METHODS
+// ============================================================================
+
+// Static method to get top earners
+UserSchema.statics.getTopEarners = async function (limit = 10, period = '30d') {
+  try {
+    // Calculate date range
+    const endDate = new Date()
+    let startDate = new Date()
+
+    switch (period) {
+      case '7d':
+        startDate.setDate(endDate.getDate() - 7)
+        break
+      case '30d':
+        startDate.setDate(endDate.getDate() - 30)
+        break
+      case '90d':
+        startDate.setDate(endDate.getDate() - 90)
+        break
+      case '1y':
+        startDate.setFullYear(endDate.getFullYear() - 1)
+        break
+      default:
+        startDate.setDate(endDate.getDate() - 30)
+    }
+
+    const { default: Earnings } = await import('./Earnings.js')
+
+    const topEarners = await Earnings.aggregate([
+      {
+        $match: {
+          status: { $in: ['approved', 'paid'] },
+          createdAt: { $gte: startDate, $lte: endDate },
+        },
+      },
+      {
+        $group: {
+          _id: '$user',
+          totalEarnings: { $sum: '$commissionAmount' },
+          totalCommissions: { $sum: 1 },
+        },
+      },
+      {
+        $sort: { totalEarnings: -1 },
+      },
+      {
+        $limit: limit,
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'user',
+        },
+      },
+      {
+        $unwind: '$user',
+      },
+      {
+        $project: {
+          _id: 1,
+          totalEarnings: 1,
+          totalCommissions: 1,
+          'user.name': 1,
+          'user.email': 1,
+          'user.createdAt': 1,
+        },
+      },
+    ])
+
+    return topEarners
+  } catch (error) {
+    console.error('Error getting top earners:', error)
+    return []
+  }
+}
+
+// ============================================================================
+// AUTHENTICATION METHODS
+// ============================================================================
+
+// Method to check password
 UserSchema.methods.correctPassword = async function (
   candidatePassword,
   userPassword
@@ -339,7 +896,7 @@ UserSchema.methods.correctPassword = async function (
   return await bcrypt.compare(candidatePassword, userPassword)
 }
 
-// Method to check if password was changed after JWT was issued
+// Method to check if password changed after JWT was issued
 UserSchema.methods.changedPasswordAfter = function (JWTTimestamp) {
   if (this.passwordChangedAt) {
     const changedTimestamp = parseInt(
@@ -351,378 +908,109 @@ UserSchema.methods.changedPasswordAfter = function (JWTTimestamp) {
   return false
 }
 
-// NEW: Method to mark email as verified
-UserSchema.methods.verifyEmail = function () {
-  this.isEmailVerified = true
-  this.emailVerifiedAt = new Date()
-}
-
-// NEW: Method to create password reset OTP
-UserSchema.methods.createPasswordResetOTP = function () {
-  // Generate 6-digit OTP
-  const otp = Math.floor(100000 + Math.random() * 900000).toString()
-
-  // Hash OTP and save to database
-  this.passwordResetOTP = crypto.createHash('sha256').update(otp).digest('hex')
-
-  // Set expiry time (10 minutes from now)
-  this.passwordResetOTPExpires = Date.now() + 10 * 60 * 1000
-
-  // Reset attempts counter
-  this.passwordResetAttempts = 0
-  this.passwordResetLastAttempt = new Date()
-
-  // Return unhashed OTP (this will be sent via email)
-  return otp
-}
-
-// NEW: Method to validate password reset OTP
-UserSchema.methods.validatePasswordResetOTP = function (otp) {
-  // Check if too many attempts
-  if (this.passwordResetAttempts >= 5) {
-    const timeSinceLastAttempt = Date.now() - this.passwordResetLastAttempt
-    const cooldownTime = 15 * 60 * 1000 // 15 minutes
-
-    if (timeSinceLastAttempt < cooldownTime) {
-      return {
-        isValid: false,
-        error: 'Too many attempts. Please wait 15 minutes before trying again.',
-        remainingTime: Math.ceil((cooldownTime - timeSinceLastAttempt) / 60000),
-      }
-    } else {
-      // Reset attempts after cooldown
-      this.passwordResetAttempts = 0
-    }
-  }
-
-  // Hash the incoming OTP
-  const hashedOTP = crypto.createHash('sha256').update(otp).digest('hex')
-
-  // Check if OTP matches and hasn't expired
-  const isValid =
-    this.passwordResetOTP === hashedOTP &&
-    this.passwordResetOTPExpires > Date.now()
-
-  // Increment attempts
-  this.passwordResetAttempts += 1
-  this.passwordResetLastAttempt = new Date()
-
-  if (!isValid) {
-    return {
-      isValid: false,
-      error:
-        this.passwordResetOTPExpires <= Date.now()
-          ? 'OTP has expired. Please request a new one.'
-          : 'Invalid OTP. Please check and try again.',
-      attemptsRemaining: Math.max(0, 5 - this.passwordResetAttempts),
-    }
-  }
-
-  return { isValid: true }
-}
-
-// NEW: Static method to find user by valid reset OTP
-UserSchema.statics.findByValidResetOTP = function (otp) {
-  const hashedOTP = crypto.createHash('sha256').update(otp).digest('hex')
-
-  return this.findOne({
-    passwordResetOTP: hashedOTP,
-    passwordResetOTPExpires: { $gt: Date.now() },
-    isActive: true,
-    isDeleted: false,
-  }).select(
-    '+passwordResetOTP +passwordResetOTPExpires +passwordResetAttempts +passwordResetLastAttempt'
-  )
-}
-
-// Legacy method to create password reset token (keep for backward compatibility)
+// Method to create password reset token
 UserSchema.methods.createPasswordResetToken = function () {
-  // Generate random token
   const resetToken = crypto.randomBytes(32).toString('hex')
 
-  // Hash token and save to database
   this.passwordResetToken = crypto
     .createHash('sha256')
     .update(resetToken)
     .digest('hex')
 
-  // Set expiry time (10 minutes from now)
-  this.passwordResetExpires = Date.now() + 10 * 60 * 1000
+  this.passwordResetExpires = Date.now() + 10 * 60 * 1000 // 10 minutes
 
-  // Return unhashed token (this will be sent via email)
   return resetToken
 }
 
-// Legacy method to validate password reset token
-UserSchema.methods.validatePasswordResetToken = function (token) {
-  // Hash the incoming token
-  const hashedToken = crypto.createHash('sha256').update(token).digest('hex')
+// Method to create email verification token
+UserSchema.methods.createEmailVerificationToken = function () {
+  const verificationToken = crypto.randomBytes(32).toString('hex')
 
-  // Check if token matches and hasn't expired
-  return (
-    this.passwordResetToken === hashedToken &&
-    this.passwordResetExpires > Date.now()
-  )
+  this.emailVerificationToken = crypto
+    .createHash('sha256')
+    .update(verificationToken)
+    .digest('hex')
+
+  this.emailVerificationExpires = Date.now() + 24 * 60 * 60 * 1000 // 24 hours
+
+  return verificationToken
 }
 
-// Legacy static method to find user by valid reset token
-UserSchema.statics.findByValidResetToken = function (token) {
-  const hashedToken = crypto.createHash('sha256').update(token).digest('hex')
-
-  return this.findOne({
-    passwordResetToken: hashedToken,
-    passwordResetExpires: { $gt: Date.now() },
-    isActive: true,
-    isDeleted: false,
-  }).select('+passwordResetToken +passwordResetExpires')
+// Method to generate referral code
+UserSchema.methods.generateReferralCode = function () {
+  const code = crypto.randomBytes(4).toString('hex').toUpperCase()
+  this.referralCode = code
+  return code
 }
 
-// Method to check if user can claim daily points
-UserSchema.methods.canClaimDailyPoints = function () {
-  if (!this.lastDailyClaim) {
-    return { canClaim: true, hoursUntilNext: 0 }
+// ============================================================================
+// PRE-SAVE MIDDLEWARE
+// ============================================================================
+
+// Hash password before saving
+UserSchema.pre('save', async function (next) {
+  // Only run this function if password was actually modified
+  if (!this.isModified('password')) return next()
+
+  // Hash the password with cost of 12
+  this.password = await bcrypt.hash(this.password, 12)
+
+  // Set passwordChangedAt
+  if (!this.isNew) {
+    this.passwordChangedAt = Date.now() - 1000
   }
 
-  const now = new Date()
-  const lastClaim = new Date(this.lastDailyClaim)
-  const hoursSinceLastClaim = (now - lastClaim) / (1000 * 60 * 60)
+  next()
+})
 
-  if (hoursSinceLastClaim >= 24) {
-    return { canClaim: true, hoursUntilNext: 0 }
-  }
-
-  const hoursUntilNext = Math.ceil(24 - hoursSinceLastClaim)
-  return { canClaim: false, hoursUntilNext }
-}
-
-// Method to claim daily points with Discord bonus
-UserSchema.methods.claimDailyPoints = async function () {
-  const claimCheck = this.canClaimDailyPoints()
-
-  if (!claimCheck.canClaim) {
-    throw new Error(`You can claim again in ${claimCheck.hoursUntilNext} hours`)
-  }
-
-  const now = new Date()
-  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-
-  // Check if this continues a streak (claimed yesterday)
-  let isConsecutive = false
-  if (this.lastStreakClaim) {
-    const lastStreakClaim = new Date(this.lastStreakClaim)
-    const hoursSinceLastStreak = (now - lastStreakClaim) / (1000 * 60 * 60)
-
-    // If claimed between 20-48 hours ago, it's consecutive
-    if (hoursSinceLastStreak >= 20 && hoursSinceLastStreak <= 48) {
-      isConsecutive = true
-    }
-  }
-
-  // Update streak
-  if (isConsecutive) {
-    this.dailyClaimStreak += 1
-  } else {
-    this.dailyClaimStreak = 1 // Reset to 1 for this claim
-  }
-
-  // Calculate bonus points based on streak
-  let pointsToAward = 100 // Base daily points
-
-  // Bonus points for streaks
-  if (this.dailyClaimStreak >= 7) {
-    pointsToAward += 50 // Weekly streak bonus
-  }
-  if (this.dailyClaimStreak >= 30) {
-    pointsToAward += 100 // Monthly streak bonus
-  }
-
-  // Discord connection bonus
-  if (this.discord?.isConnected) {
-    pointsToAward += 25 // Extra 25 points for Discord users
-  }
-
-  // Award points
-  this.points += pointsToAward
-  this.totalPointsEarned += pointsToAward
-  this.lastDailyClaim = now
-  this.lastStreakClaim = now
-
-  await this.save()
-
-  return {
-    pointsAwarded: pointsToAward,
-    totalPoints: this.points,
-    streak: this.dailyClaimStreak,
-    nextClaimIn: 24, // hours
-    discordBonus: this.discord?.isConnected ? 25 : 0,
-  }
-}
-
-// Method to spend points
-UserSchema.methods.spendPoints = async function (amount) {
-  if (this.points < amount) {
-    throw new Error('Insufficient points')
-  }
-
-  this.points -= amount
-  this.pointsSpent += amount
-
-  await this.save()
-
-  return {
-    pointsSpent: amount,
-    remainingPoints: this.points,
-    totalSpent: this.pointsSpent,
-  }
-}
-
-// Method to get Discord role based on subscription
-UserSchema.methods.getDiscordRole = function () {
-  const roleMapping = {
-    free: process.env.DISCORD_ROLE_FREE,
-    starter: process.env.DISCORD_ROLE_BASIC,
-    pro: process.env.DISCORD_ROLE_PREMIUM,
-    empire: process.env.DISCORD_ROLE_ENTERPRISE,
-  }
-
-  return roleMapping[this.subscription?.plan || 'free']
-}
-
-// Method to check if Discord roles need updating
-UserSchema.methods.needsRoleUpdate = function () {
-  if (!this.discord?.isConnected) return false
-
-  const expectedRole = this.getDiscordRole()
-  const hasExpectedRole = this.discord.currentRoles?.includes(expectedRole)
-
-  return !hasExpectedRole
-}
-
-// Enhanced method to add a referral
-UserSchema.methods.addReferral = async function (
-  referredUserId,
-  subscriptionValue = 0
-) {
-  try {
-    const existingReferral = this.referrals.find(
-      (ref) => ref.user.toString() === referredUserId.toString()
-    )
-
-    if (!existingReferral) {
-      this.referrals.push({
-        user: referredUserId,
-        joinedAt: new Date(),
-        status: 'active',
-        hasSubscribed: subscriptionValue > 0,
-        subscriptionValue: subscriptionValue,
-      })
-
-      this.referralStats.totalReferrals += 1
-      this.referralStats.activeReferrals += 1
-
-      if (subscriptionValue > 0) {
-        this.referralStats.paidReferrals += 1
+// Generate referral code before saving if needed
+UserSchema.pre('save', function (next) {
+  if (this.isNew && !this.referralCode) {
+    let attempts = 0
+    const generateCode = () => {
+      attempts++
+      if (attempts > 10) {
+        return next(new Error('Failed to generate unique referral code'))
       }
-
-      // Award referral bonus points
-      const referralPoints = 250 // Points for successful referral
-      this.points += referralPoints
-      this.totalPointsEarned += referralPoints
-
-      // Update conversion rate
-      this.referralStats.conversionRate =
-        (this.referralStats.paidReferrals / this.referralStats.totalReferrals) *
-        100
-
-      await this.save()
-      return true
+      this.referralCode = crypto.randomBytes(4).toString('hex').toUpperCase()
     }
-    return false
-  } catch (error) {
-    throw error
+    generateCode()
   }
-}
-
-// Virtual for referral URL
-UserSchema.virtual('referralUrl').get(function () {
-  return `${
-    process.env.FRONTEND_URL || 'http://localhost:5173'
-  }/auth?ref=${this.referralCode}`
+  next()
 })
 
-// Virtual for daily claim status
-UserSchema.virtual('dailyClaimStatus').get(function () {
-  const claimCheck = this.canClaimDailyPoints()
-  return {
-    canClaim: claimCheck.canClaim,
-    hoursUntilNext: claimCheck.hoursUntilNext,
-    streak: this.dailyClaimStreak,
-    lastClaim: this.lastDailyClaim,
-    discordBonus: this.discord?.isConnected ? 25 : 0,
-  }
-})
-
-// Virtual for points summary
-UserSchema.virtual('pointsSummary').get(function () {
-  return {
-    current: this.points,
-    totalEarned: this.totalPointsEarned,
-    totalSpent: this.pointsSpent,
-    dailyStreak: this.dailyClaimStreak,
-  }
-})
-
-// Virtual to get subscription status
-UserSchema.virtual('subscriptionStatus').get(function () {
-  if (this.subscription) {
-    return {
-      hasSubscription: true,
-      isActive: this.subscription.isActive,
-      plan: this.subscription.plan,
-      status: this.subscription.status,
-      trialActive: this.subscription.isTrialActive,
-      daysRemaining: this.subscription.daysRemaining,
+// Initialize referralStats if not exists
+UserSchema.pre('save', function (next) {
+  if (this.isNew && !this.referralStats) {
+    this.referralStats = {
+      totalReferrals: 0,
+      activeReferrals: 0,
+      referralRewards: 0,
+      lastUpdated: new Date(),
     }
   }
-  return {
-    hasSubscription: false,
-    isActive: false,
-    plan: null,
-    status: 'none',
-    trialActive: false,
-  }
+  next()
 })
 
-// Virtual for email verification status
-UserSchema.virtual('emailVerificationStatus').get(function () {
-  return {
-    isVerified: this.isEmailVerified,
-    verifiedAt: this.emailVerifiedAt,
-    canLogin: this.isEmailVerified && this.isActive && !this.isDeleted,
+// Clear OTP fields after password reset
+UserSchema.pre('save', function (next) {
+  if (this.isModified('password') && !this.isNew) {
+    // Clear password reset OTP fields when password is changed
+    this.passwordResetOTP = undefined
+    this.passwordResetOTPExpires = undefined
+    this.passwordResetAttempts = undefined
+    this.passwordResetLastAttempt = undefined
   }
+  next()
 })
 
-// Static method to find user by referral code
-UserSchema.statics.findByReferralCode = function (code) {
-  return this.findOne({
-    referralCode: code,
-    isActive: true,
-    isDeleted: false,
-  })
-}
+// ============================================================================
+// QUERY MIDDLEWARE
+// ============================================================================
 
-// Static method to get top earners by points
-UserSchema.statics.getTopPointEarners = function (limit = 10) {
-  return this.find({ totalPointsEarned: { $gt: 0 } })
-    .select(
-      'name email points totalPointsEarned dailyClaimStreak discord.isConnected'
-    )
-    .sort({ totalPointsEarned: -1 })
-    .limit(limit)
-}
-
-// Query middleware to exclude deleted users by default
+// Exclude deleted users from find queries
 UserSchema.pre(/^find/, function (next) {
+  // this points to the current query
   this.find({ isDeleted: { $ne: true } })
   next()
 })

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" 
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
+                           http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+
+  <!-- Homepage - Only public route that's always accessible -->
+  <url>
+    <loc>https://ascndlabs.com/</loc>
+    <lastmod>2025-09-19T12:00:00+00:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+
+  <!-- Auth page - Public for non-authenticated users -->
+  <url>
+    <loc>https://ascndlabs.com/auth</loc>
+    <lastmod>2025-09-19T12:00:00+00:00</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Product checkout - Public route (no auth required) -->
+  <!-- Note: This is a dynamic route (/product/checkout/:id) so we include the base -->
+  
+  <!-- Product success page - Public route -->
+  <url>
+    <loc>https://ascndlabs.com/product/success</loc>
+    <lastmod>2025-09-19T12:00:00+00:00</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.4</priority>
+  </url>
+
+  <!-- Purchases page - Public route -->
+  <url>
+    <loc>https://ascndlabs.com/purchases</loc>
+    <lastmod>2025-09-19T12:00:00+00:00</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+
+  <!-- Subscription success page - Public route -->
+  <url>
+    <loc>https://ascndlabs.com/pricing/success</loc>
+    <lastmod>2025-09-19T12:00:00+00:00</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.4</priority>
+  </url>
+
+</urlset>
