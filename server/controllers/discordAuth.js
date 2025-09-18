@@ -1,4 +1,4 @@
-// File: controllers/discordAuth.js - UPDATED WITH SUBSCRIPTION INTEGRATION
+// File: controllers/discordAuth.js - UPDATED getDiscordStatus with auto-sync
 import { createError } from '../error.js'
 import User from '../models/User.js'
 import discordService from '../services/discordService.js'
@@ -92,7 +92,6 @@ const updateUserDiscordRoles = async (user) => {
 
 // Start Discord OAuth process
 export const startDiscordAuth = async (req, res, next) => {
-  console.log('object')
   try {
     if (!req.user || !req.user.id) {
       return next(
@@ -215,11 +214,6 @@ export const handleDiscordCallback = async (req, res, next) => {
 
       // UPDATED: Assign Discord role based on current subscription using our helper
       const roleResult = await updateUserDiscordRoles(user)
-
-      console.log(
-        `Discord account linked for ${user.email}. Role update result:`,
-        roleResult
-      )
     } catch (roleError) {
       console.error('Error updating Discord roles after linking:', roleError)
       // Continue even if role assignment fails
@@ -234,7 +228,7 @@ export const handleDiscordCallback = async (req, res, next) => {
   }
 }
 
-// Get Discord connection status - UPDATED WITH SUBSCRIPTION INFO
+// UPDATED: Get Discord connection status with AUTO-SYNC
 export const getDiscordStatus = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id)
@@ -246,7 +240,7 @@ export const getDiscordStatus = async (req, res, next) => {
     const currentPlan = user.subscription?.plan || 'free'
     const expectedRole = getExpectedRole(currentPlan)
 
-    const discordStatus = {
+    let discordStatus = {
       isConnected: user.discord?.isConnected || false,
       username: user.discord?.username,
       discriminator: user.discord?.discriminator,
@@ -256,8 +250,7 @@ export const getDiscordStatus = async (req, res, next) => {
       lastRoleUpdate: user.discord?.lastRoleUpdate,
       expectedRole,
       currentPlan,
-      needsRoleUpdate:
-        expectedRole && !user.discord?.currentRoles?.includes(expectedRole),
+      needsRoleUpdate: false, // Will be updated below
     }
 
     // Check if user is actually in the Discord server
@@ -271,6 +264,38 @@ export const getDiscordStatus = async (req, res, next) => {
         if (!isInServer) {
           const inviteLink = await discordService.getInviteLink()
           discordStatus.inviteLink = inviteLink
+        } else {
+          // User is in server - check if roles need updating
+          const needsRoleUpdate =
+            expectedRole && !user.discord?.currentRoles?.includes(expectedRole)
+
+          discordStatus.needsRoleUpdate = needsRoleUpdate
+
+          // AUTOMATICALLY SYNC ROLES if there's a mismatch
+          if (needsRoleUpdate) {
+            try {
+              const syncResult = await updateUserDiscordRoles(user)
+
+              if (syncResult.success) {
+                // Update the status with new role information
+                const updatedUser = await User.findById(req.user.id)
+                discordStatus.currentRoles =
+                  updatedUser.discord?.currentRoles || []
+                discordStatus.lastRoleUpdate =
+                  updatedUser.discord?.lastRoleUpdate
+                discordStatus.needsRoleUpdate = false
+              } else {
+                console.error(
+                  `Failed to auto-sync roles for ${user.email}:`,
+                  syncResult.reason
+                )
+                // Keep needsRoleUpdate as true if sync failed
+              }
+            } catch (syncError) {
+              console.error('Error during auto-sync:', syncError)
+              // Keep needsRoleUpdate as true if sync failed
+            }
+          }
         }
       } catch (error) {
         console.error('Error checking server membership:', error)

@@ -1,4 +1,4 @@
-// File: src/components/DiscordConnection.jsx - TAILWIND ONLY VERSION
+// File: src/components/DiscordConnection.jsx - FIXED VERSION WITH ROLE STATUS
 import axiosInstance from '@/config/config'
 import React, { useEffect, useState } from 'react'
 
@@ -77,6 +77,26 @@ const DiscordConnection = () => {
     }
   }
 
+  // Manually sync Discord roles
+  const syncDiscordRoles = async () => {
+    try {
+      setProcessing(true)
+      setError(null)
+
+      const response = await axiosInstance.post('/auth/discord/sync-roles')
+
+      // Refresh status after sync
+      await fetchDiscordStatus()
+
+      alert('Discord roles synced successfully!')
+    } catch (error) {
+      console.error('Error syncing Discord roles:', error)
+      setError('Failed to sync Discord roles. Please try again.')
+    } finally {
+      setProcessing(false)
+    }
+  }
+
   useEffect(() => {
     fetchDiscordStatus()
 
@@ -135,7 +155,6 @@ const DiscordConnection = () => {
         {/* Header */}
         <div className='text-center mb-6'>
           <h3 className='text-2xl font-bold mb-2 flex items-center justify-center gap-2'>
-            <span className='text-2xl'>🎮</span>
             Discord Integration
           </h3>
           <p className='text-white/90'>
@@ -266,30 +285,92 @@ const DiscordConnection = () => {
               </div>
             </div>
 
-            {/* Role Status */}
+            {/* Role Status - UPDATED WITH BETTER INFO */}
             <div className='bg-white/10 backdrop-blur-sm rounded-xl p-4'>
               <h4 className='flex items-center gap-2 font-semibold mb-3'>
                 <span>🏷️</span>
                 Role Status
               </h4>
 
-              <div className='space-y-2'>
-                {discordStatus.lastRoleUpdate && (
+              <div className='space-y-3'>
+                {/* Current Plan */}
+                <div className='flex justify-between items-center'>
+                  <span className='text-white/80'>Current Plan:</span>
+                  <span className='font-semibold capitalize'>
+                    {discordStatus.currentPlan || 'Free'}
+                  </span>
+                </div>
+
+                {/* Role Status */}
+                <div className='flex justify-between items-center'>
+                  <span className='text-white/80'>Role Status:</span>
+                  <span
+                    className={`font-semibold ${
+                      discordStatus.needsRoleUpdate
+                        ? 'text-yellow-300'
+                        : 'text-green-300'
+                    }`}
+                  >
+                    {discordStatus.needsRoleUpdate ? 'Updating...' : 'Active'}
+                  </span>
+                </div>
+
+                {/* Last Updated - IMPROVED LOGIC */}
+                <div className='flex justify-between items-center'>
+                  <span className='text-white/80'>Last Updated:</span>
+                  <span className='font-semibold'>
+                    {discordStatus.lastRoleUpdate
+                      ? new Date(
+                          discordStatus.lastRoleUpdate
+                        ).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : discordStatus.connectedAt
+                      ? `${new Date(
+                          discordStatus.connectedAt
+                        ).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                        })} (Initial)`
+                      : 'Unknown'}
+                  </span>
+                </div>
+
+                {/* Server Membership Status */}
+                {discordStatus.isInServer !== undefined && (
                   <div className='flex justify-between items-center'>
-                    <span className='text-white/80'>Last Updated:</span>
-                    <span className='font-semibold'>
-                      {new Date(
-                        discordStatus.lastRoleUpdate
-                      ).toLocaleDateString()}
+                    <span className='text-white/80'>Server Status:</span>
+                    <span
+                      className={`font-semibold ${
+                        discordStatus.isInServer
+                          ? 'text-green-300'
+                          : 'text-yellow-300'
+                      }`}
+                    >
+                      {discordStatus.isInServer ? 'Member' : 'Not Joined'}
                     </span>
                   </div>
                 )}
               </div>
 
+              {/* Warning Messages */}
               {discordStatus.needsRoleUpdate && (
                 <div className='mt-3 bg-yellow-500/20 border border-yellow-500/40 rounded-lg p-2 text-sm'>
-                  ⚠️ Your Discord roles need updating. Contact support if this
-                  persists.
+                  <div className='flex items-center justify-between'>
+                    <span>⚠️ Roles are being updated automatically...</span>
+                    <button
+                      onClick={syncDiscordRoles}
+                      disabled={processing}
+                      className='text-yellow-200 hover:text-white underline text-xs'
+                    >
+                      {processing ? 'Syncing...' : 'Manual Sync'}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -348,33 +429,18 @@ const DiscordConnection = () => {
         {/* Footer */}
         <div className='text-center mt-6 text-white/80 text-sm'>
           <p>
-            Having issues? Check our{' '}
+            Having issues? Contact us at{' '}
             <a
-              href='/help'
-              target='_blank'
-              rel='noopener noreferrer'
+              href='mailto:hello@ascndlabs.com'
               className='text-white underline hover:text-white/80'
             >
-              help documentation
-            </a>{' '}
-            or contact support.
+              hello@ascndlabs.com
+            </a>
           </p>
         </div>
       </div>
     </div>
   )
-}
-
-// Helper function to get role display name
-const getRoleName = (roleId) => {
-  const roleNames = {
-    [import.meta.env.VITE_DISCORD_ROLE_FREE]: '🆓 Free Citizens',
-    [import.meta.env.VITE_DISCORD_ROLE_BASIC]: '⭐ Starter',
-    [import.meta.env.VITE_DISCORD_ROLE_PREMIUM]: '💎 Pro',
-    [import.meta.env.VITE_DISCORD_ROLE_ENTERPRISE]: '🏆 Empire',
-  }
-
-  return roleNames[roleId] || 'Unknown Role'
 }
 
 export default DiscordConnection

@@ -506,7 +506,7 @@ const DashboardPage = () => {
                     </div>
 
                     {/* Compact Warnings */}
-                    {/* {(discordStatus.needsRoleUpdate ||
+                    {(discordStatus.needsRoleUpdate ||
                       discordStatus.isInServer === false) && (
                       <div className='bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-2 mt-3 flex items-center gap-2'>
                         <span className='text-yellow-500 text-sm flex-shrink-0'>
@@ -518,7 +518,7 @@ const DashboardPage = () => {
                             : 'Role update needed'}
                         </span>
                       </div>
-                    )} */}
+                    )}
                   </div>
                 ) : (
                   <div className='bg-[#121214]/50 border border-[#1E1E21] rounded-xl p-4 text-center'>
