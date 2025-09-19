@@ -1,4 +1,4 @@
-// File: models/Notification.js
+// File: models/Notification.js - UPDATED WITHOUT timeAgo VIRTUAL
 import mongoose from 'mongoose'
 
 const NotificationSchema = new mongoose.Schema(
@@ -102,26 +102,7 @@ NotificationSchema.index({ recipient: 1, isRead: 1, createdAt: -1 })
 NotificationSchema.index({ recipient: 1, type: 1, createdAt: -1 })
 NotificationSchema.index({ recipient: 1, isDeleted: 1, createdAt: -1 })
 
-// Virtual for time ago
-NotificationSchema.virtual('timeAgo').get(function () {
-  const now = new Date()
-  const diffMs = now - this.createdAt
-  const diffMins = Math.floor(diffMs / (1000 * 60))
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-
-  if (diffMins < 1) return 'Just now'
-  if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`
-  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
-  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
-  if (diffDays < 30)
-    return `${Math.floor(diffDays / 7)} week${
-      Math.floor(diffDays / 7) > 1 ? 's' : ''
-    } ago`
-  return `${Math.floor(
-    diffDays / 30
-  )} month${Math.floor(diffDays / 30) > 1 ? 's' : ''} ago`
-})
+// REMOVED: timeAgo virtual - now handled on frontend for proper timezone support
 
 // Method to mark notification as read
 NotificationSchema.methods.markAsRead = async function () {

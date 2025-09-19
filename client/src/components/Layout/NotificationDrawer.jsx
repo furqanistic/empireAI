@@ -7,6 +7,7 @@ import {
   useNotifications,
   useUnreadCount,
 } from '@/hooks/useAuth'
+import { formatTimeAgo } from '@/utils/timeUtils'
 import {
   AlertTriangle,
   Bell,
@@ -30,7 +31,7 @@ import {
   XCircle,
   Zap,
 } from 'lucide-react'
-import React from 'react'
+import React, { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 
 const NotificationDrawer = ({ isOpen, onClose }) => {
@@ -47,6 +48,20 @@ const NotificationDrawer = ({ isOpen, onClose }) => {
 
   const notifications = notificationsData?.data?.notifications || []
   const unreadCount = unreadData?.data?.unreadCount || 0
+
+  // Auto mark all as read when drawer opens
+  useEffect(() => {
+    if (isOpen && unreadCount > 0 && !markAllAsReadMutation.isPending) {
+      // Small delay to ensure the drawer has opened
+      const timer = setTimeout(() => {
+        markAllAsReadMutation.mutateAsync().catch((error) => {
+          console.error('Error auto-marking notifications as read:', error)
+        })
+      }, 300)
+
+      return () => clearTimeout(timer)
+    }
+  }, [isOpen, unreadCount, markAllAsReadMutation])
 
   // Helper function to get notification icon with updated subscription types
   const getNotificationIcon = (type) => {
@@ -185,27 +200,13 @@ const NotificationDrawer = ({ isOpen, onClose }) => {
 
   // Handle notification click
   const handleNotificationClick = async (notification) => {
-    if (!notification.isRead) {
-      try {
-        await markAsReadMutation.mutateAsync(notification._id)
-      } catch (error) {
-        console.error('Error marking notification as read:', error)
-      }
-    }
+    // Since all notifications are auto-marked as read when drawer opens,
+    // we don't need to mark individual notifications as read on click
 
     // Navigate to action URL if provided
     if (notification.actionUrl) {
       onClose()
       // You can use React Router's navigate here if needed
-    }
-  }
-
-  // Handle mark all as read
-  const handleMarkAllAsRead = async () => {
-    try {
-      await markAllAsReadMutation.mutateAsync()
-    } catch (error) {
-      console.error('Error marking all as read:', error)
     }
   }
 
@@ -253,10 +254,9 @@ const NotificationDrawer = ({ isOpen, onClose }) => {
             <h2 className='text-lg font-semibold text-[#EDEDED]'>
               Notifications
             </h2>
-            {unreadCount > 0 && (
-              <span className='bg-[#D4AF37] text-black text-xs px-2 py-1 rounded-full font-semibold'>
-                {unreadCount}
-              </span>
+            {/* Show loading indicator when auto-marking as read */}
+            {markAllAsReadMutation.isPending && (
+              <div className='w-4 h-4 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin' />
             )}
           </div>
           <button
@@ -267,24 +267,19 @@ const NotificationDrawer = ({ isOpen, onClose }) => {
           </button>
         </div>
 
-        {/* Actions */}
+        {/* Actions - Simplified since auto-mark is enabled */}
         <div className='p-4 border-b border-[#1E1E21] flex justify-between items-center'>
-          <button
-            onClick={handleMarkAllAsRead}
-            disabled={markAllAsReadMutation.isPending || unreadCount === 0}
-            className='text-sm text-[#D4AF37] hover:text-[#D4AF37]/80 font-medium disabled:opacity-50 disabled:cursor-not-allowed'
-          >
-            {markAllAsReadMutation.isPending
-              ? 'Marking...'
-              : 'Mark all as read'}
-          </button>
+          <div className='flex items-center gap-2 text-sm text-gray-400'>
+            <Check size={14} className='text-[#D4AF37]' />
+            <span>Auto-marked as read</span>
+          </div>
 
           <button
             onClick={handleClearRead}
             disabled={clearReadMutation.isPending}
             className='text-sm text-gray-400 hover:text-gray-300 font-medium disabled:opacity-50 disabled:cursor-not-allowed'
           >
-            {clearReadMutation.isPending ? 'Clearing...' : 'Clear read'}
+            {clearReadMutation.isPending ? 'Clearing...' : 'Clear all'}
           </button>
         </div>
 
@@ -309,9 +304,9 @@ const NotificationDrawer = ({ isOpen, onClose }) => {
               <div
                 key={notification._id}
                 onClick={() => handleNotificationClick(notification)}
-                className={`group p-4 border-b border-[#1E1E21] hover:bg-[#1A1A1C] transition-colors cursor-pointer relative ${
-                  !notification.isRead ? 'bg-[#1A1A1C]/50' : ''
-                } ${getPriorityStyles(notification.priority)}`}
+                className={`group p-4 border-b border-[#1E1E21] hover:bg-[#1A1A1C] transition-colors cursor-pointer relative ${getPriorityStyles(
+                  notification.priority
+                )}`}
               >
                 <div className='flex items-start gap-3'>
                   <div className='mt-1 flex-shrink-0'>
@@ -322,9 +317,6 @@ const NotificationDrawer = ({ isOpen, onClose }) => {
                       <h4 className='text-sm font-medium text-[#EDEDED] truncate'>
                         {notification.title}
                       </h4>
-                      {!notification.isRead && (
-                        <div className='w-2 h-2 bg-[#D4AF37] rounded-full flex-shrink-0' />
-                      )}
                       {notification.priority === 'urgent' && (
                         <div className='text-xs bg-red-500 text-white px-2 py-0.5 rounded-full font-medium'>
                           URGENT
@@ -337,7 +329,7 @@ const NotificationDrawer = ({ isOpen, onClose }) => {
                     <div className='flex items-center justify-between'>
                       <div className='flex items-center gap-2 text-xs text-gray-500'>
                         <Clock size={12} />
-                        <span>{notification.timeAgo || 'Just now'}</span>
+                        <span>{formatTimeAgo(notification.createdAt)}</span>
                         {/* Show notification category tag */}
                         <span className='bg-gray-600 text-gray-300 px-1 py-0.5 rounded text-[10px] uppercase font-medium'>
                           {getNotificationCategory(notification.type)}
