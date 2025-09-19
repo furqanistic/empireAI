@@ -943,6 +943,84 @@ UserSchema.methods.generateReferralCode = function () {
   return code
 }
 
+// Method to update Connect account status from Stripe account object
+UserSchema.methods.updateConnectAccountStatus = async function (stripeAccount) {
+  try {
+    if (!stripeAccount) return
+
+    // Initialize stripeConnect if it doesn't exist
+    if (!this.stripeConnect) {
+      this.stripeConnect = {}
+    }
+
+    // Update account verification status
+    this.stripeConnect.isVerified =
+      stripeAccount.charges_enabled &&
+      stripeAccount.payouts_enabled &&
+      stripeAccount.details_submitted
+
+    // Update onboarding status
+    this.stripeConnect.onboardingCompleted =
+      stripeAccount.details_submitted || false
+
+    // Update capabilities
+    if (stripeAccount.capabilities) {
+      this.stripeConnect.capabilities = new Map()
+      for (const [key, value] of Object.entries(stripeAccount.capabilities)) {
+        this.stripeConnect.capabilities.set(key, value.status || 'inactive')
+      }
+    }
+
+    // Update requirements
+    this.stripeConnect.requirementsNeeded =
+      stripeAccount.requirements?.currently_due || []
+
+    // Update business profile if exists
+    if (stripeAccount.business_profile) {
+      this.stripeConnect.businessProfile = {
+        mcc: stripeAccount.business_profile.mcc,
+        url: stripeAccount.business_profile.url,
+        productDescription: stripeAccount.business_profile.product_description,
+      }
+    }
+
+    // Update last updated timestamp
+    this.stripeConnect.lastUpdated = new Date()
+
+    await this.save()
+
+    return this.stripeConnect
+  } catch (error) {
+    console.error('Error updating Connect account status:', error)
+    throw error
+  }
+}
+
+// Method to safely reset Connect account
+UserSchema.methods.safeResetConnectAccount = async function () {
+  try {
+    this.stripeConnect = {
+      accountId: null,
+      isVerified: false,
+      onboardingCompleted: false,
+      capabilities: new Map(),
+      requirementsNeeded: [],
+      payoutSettings: {
+        schedule: 'manual',
+        minimumAmount: 1000,
+        currency: 'USD',
+      },
+    }
+
+    await this.save()
+    console.log(`Reset Connect account for user ${this.email}`)
+    return true
+  } catch (error) {
+    console.error('Error resetting Connect account:', error)
+    throw error
+  }
+}
+
 // ============================================================================
 // PRE-SAVE MIDDLEWARE
 // ============================================================================

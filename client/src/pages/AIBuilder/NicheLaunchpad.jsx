@@ -61,10 +61,6 @@ const NicheLaunchpad = () => {
   const [currentPlanId, setCurrentPlanId] = useState(null) // NEW STATE
   const [error, setError] = useState(null)
 
-  // Redux selectors
-  const currentUser = useSelector(selectCurrentUser)
-  const isAuthenticated = useSelector(selectIsAuthenticated)
-
   // Business plan hooks
   const generateBusinessPlanMutation = useGenerateBusinessPlan()
   const { downloadPlan, isLoading: isDownloading } = useDownloadBusinessPlan()
@@ -206,16 +202,6 @@ const NicheLaunchpad = () => {
     },
   ]
 
-  // Chart colors
-  const chartColors = [
-    '#D4AF37',
-    '#8B7355',
-    '#A67C00',
-    '#FFD700',
-    '#B8860B',
-    '#DAA520',
-  ]
-
   // NEW: Handle loading previous business plan
   const handleLoadPlan = (historyItem) => {
     setGeneratedPlan(historyItem.plan)
@@ -225,44 +211,6 @@ const NicheLaunchpad = () => {
     setSelectedMarket(historyItem.metadata.targetMarket)
     setCustomContext(historyItem.metadata.customContext || '')
     setError(null)
-  }
-
-  // Process revenue data for charts - same as before
-  const getRevenueChartData = () => {
-    if (!generatedPlan?.revenueProjections) return []
-
-    return generatedPlan.revenueProjections.map((item) => ({
-      period: item.period,
-      revenue: parseInt(item.revenue.replace(/[$,]/g, '')),
-      growth: parseInt(item.growth.replace(/[+%]/g, '')),
-      revenueFormatted: item.revenue,
-    }))
-  }
-
-  // Process product data for charts - same as before
-  const getProductChartData = () => {
-    if (!generatedPlan?.productLineup) return []
-
-    return generatedPlan.productLineup.map((item, index) => ({
-      name: item.name,
-      price: parseInt(item.price.replace(/[$,-]/g, '').split('/')[0]),
-      priceFormatted: item.price,
-      color: chartColors[index % chartColors.length],
-    }))
-  }
-
-  // Process roadmap data for timeline - same as before
-  const getRoadmapChartData = () => {
-    if (!generatedPlan?.roadmap) return []
-
-    return generatedPlan.roadmap.slice(0, 6).map((item, index) => ({
-      month: `Month ${index + 1}`,
-      milestone:
-        item.milestone.length > 30
-          ? item.milestone.substring(0, 30) + '...'
-          : item.milestone,
-      progress: ((index + 1) / 6) * 100,
-    }))
   }
 
   const generateBusinessPlan = async () => {
@@ -617,10 +565,6 @@ const NicheLaunchpad = () => {
                 niche={selectedNiche}
                 businessModel={selectedBusinessModel}
               />
-
-              {/* All the chart sections remain the same... */}
-              {/* Market Analysis, Revenue Projections, Product Lineup, Roadmap sections */}
-              {/* ... (keeping all existing chart implementations) ... */}
             </div>
 
             {/* Action Buttons with PDF download */}

@@ -1,5 +1,6 @@
-// File: routes/payout.js - COMPLETE FIXED VERSION
+// File: routes/payout.js - FIXED WITH PROPER STRIPE IMPORT
 import express from 'express'
+import { stripe } from '../config/stripe.js' // ADD THIS IMPORT
 import {
   approveEarning,
   bulkApproveEarnings,
@@ -21,6 +22,7 @@ import {
   getEarningsSummary,
   getPayoutHistory,
   getPayoutStatistics,
+  handleOnboardingReturn,
   processPayout,
   refreshConnectAccountStatus,
   requestPayout,
@@ -28,6 +30,7 @@ import {
   updatePayoutSettings,
 } from '../controllers/payout.js'
 import { restrictTo, verifyToken } from '../middleware/authMiddleware.js'
+import User from '../models/User.js'
 
 const router = express.Router()
 
@@ -44,20 +47,67 @@ router.get('/connect/status', getConnectAccountStatus)
 // Get onboarding link
 router.get('/connect/onboarding-link', getConnectOnboardingLink)
 
-// NEW: Get management link for updating bank details
+// Get management link for updating bank details
 router.get('/connect/management-link', createAccountManagementLink)
 
-// NEW: Refresh account status
+// Refresh account status
 router.post('/connect/refresh-status', refreshConnectAccountStatus)
 
-// NEW: Reset Connect account (dev/testing)
+// Reset Connect account (dev/testing)
 router.delete('/connect/reset', resetConnectAccount)
 
 // Update payout settings
 router.put('/connect/settings', updatePayoutSettings)
 
-// NEW: Cleanup invalid accounts (admin/dev utility)
+// Cleanup invalid accounts (admin/dev utility)
 router.post('/connect/cleanup-invalid', cleanupInvalidConnectAccounts)
+
+// Handle onboarding return
+router.post('/connect/onboarding-return', handleOnboardingReturn)
+
+// FIXED DEBUG ROUTE with proper stripe import
+router.get('/connect/debug', async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id)
+
+    let accountStatus = null
+    if (user.stripeConnect?.accountId) {
+      try {
+        const account = await stripe.accounts.retrieve(
+          user.stripeConnect.accountId
+        )
+        accountStatus = {
+          charges_enabled: account.charges_enabled,
+          payouts_enabled: account.payouts_enabled,
+          details_submitted: account.details_submitted,
+          requirements: account.requirements?.currently_due || [],
+          external_accounts:
+            account.external_accounts?.data?.map((ea) => ({
+              id: ea.id,
+              object: ea.object,
+              last4: ea.last4,
+              bank_name: ea.bank_name,
+              currency: ea.currency,
+              status: ea.status,
+              default_for_currency: ea.default_for_currency,
+            })) || [],
+        }
+      } catch (error) {
+        accountStatus = { error: error.message }
+      }
+    }
+
+    res.json({
+      userConnect: user.stripeConnect,
+      stripeAccount: accountStatus,
+      webhookSecret: process.env.STRIPE_CONNECT_WEBHOOK_SECRET
+        ? 'Set'
+        : 'Missing',
+    })
+  } catch (error) {
+    next(error)
+  }
+})
 
 // EARNINGS ROUTES
 // Get user's earnings summary

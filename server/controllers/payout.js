@@ -1555,3 +1555,37 @@ export const getPayoutStatistics = async (req, res, next) => {
     next(createError(500, 'Failed to retrieve payout statistics'))
   }
 }
+
+// Handle return from Stripe onboarding
+export const handleOnboardingReturn = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id)
+    if (!user) return next(createError(404, 'User not found'))
+
+    if (!user.stripeConnect?.accountId) {
+      return next(createError(400, 'No Connect account found'))
+    }
+
+    // Retrieve the latest account status from Stripe
+    const account = await stripe.accounts.retrieve(user.stripeConnect.accountId)
+
+    // Update the user's Connect account status
+    await user.updateConnectAccountStatus(account)
+
+    // Refresh user data
+    const updatedUser = await User.findById(user._id)
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        connected: true,
+        isVerified: updatedUser.stripeConnect.isVerified,
+        onboardingCompleted: updatedUser.stripeConnect.onboardingCompleted,
+        message: 'Account status updated successfully',
+      },
+    })
+  } catch (error) {
+    console.error('Error handling onboarding return:', error)
+    next(createError(500, 'Failed to update account status'))
+  }
+}

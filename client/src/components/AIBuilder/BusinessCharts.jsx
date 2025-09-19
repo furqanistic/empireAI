@@ -149,6 +149,12 @@ const SimpleBusinessCharts = ({ generatedPlan }) => {
                       borderRadius: '8px',
                       color: '#EDEDED',
                     }}
+                    labelStyle={{
+                      color: '#EDEDED',
+                    }}
+                    itemStyle={{
+                      color: '#EDEDED',
+                    }}
                     formatter={(value) => [`${value}%`, 'Market Share']}
                   />
                 </PieChart>

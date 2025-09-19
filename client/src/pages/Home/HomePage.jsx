@@ -611,43 +611,18 @@ const HomePage = () => {
               exclusive insights from successful entrepreneurs.
             </p>
           </div>
-
           <div className='bg-gradient-to-r from-[#5865F2]/10 to-[#5865F2]/5 border border-[#5865F2]/20 rounded-2xl p-6 lg:p-12 text-center'>
             <div className='w-16 h-16 bg-[#5865F2] rounded-2xl flex items-center justify-center mx-auto mb-6'>
               <MessageCircle size={32} className='text-white' />
             </div>
-
             <h3 className='text-2xl md:text-3xl font-bold text-[#EDEDED] mb-4'>
               Discord Community
             </h3>
-
             <p className='text-gray-400 text-base lg:text-lg mb-8 max-w-2xl mx-auto'>
-              Join 2,847+ entrepreneurs sharing strategies, getting feedback,
-              and building together. Get access to exclusive resources and
-              weekly live sessions.
+              Join our growing community of entrepreneurs sharing strategies,
+              getting feedback, and building together. Get access to exclusive
+              resources and connect with like-minded builders.
             </p>
-
-            <div className='grid grid-cols-3 gap-4 lg:gap-6 max-w-md mx-auto mb-8'>
-              <div className='text-center'>
-                <div className='text-xl lg:text-2xl font-bold text-[#D4AF37]'>
-                  2.8K+
-                </div>
-                <div className='text-gray-400 text-xs lg:text-sm'>Members</div>
-              </div>
-              <div className='text-center'>
-                <div className='text-xl lg:text-2xl font-bold text-emerald-400'>
-                  24/7
-                </div>
-                <div className='text-gray-400 text-xs lg:text-sm'>Active</div>
-              </div>
-              <div className='text-center'>
-                <div className='text-xl lg:text-2xl font-bold text-blue-400'>
-                  150+
-                </div>
-                <div className='text-gray-400 text-xs lg:text-sm'>Daily</div>
-              </div>
-            </div>
-
             <a
               href='https://discord.gg/t7r94BZUXv'
               target='_blank'
