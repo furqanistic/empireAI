@@ -169,27 +169,47 @@ export const updateUserSubscription = async (req, res, next) => {
 
     // Handle free plan assignment
     if (planName === 'free') {
+      // Find any existing subscription
       const subscription = await Subscription.findOne({ user: userId })
 
-      if (subscription?.stripeSubscriptionId) {
-        try {
-          await stripe.subscriptions.cancel(subscription.stripeSubscriptionId)
-          subscription.status = 'canceled'
-          subscription.plan = 'free'
-          await subscription.save()
-        } catch (stripeError) {
-          console.error('Stripe cancellation error:', stripeError)
+      if (subscription) {
+        // Cancel existing subscription if it has a Stripe ID
+        if (subscription.stripeSubscriptionId) {
+          try {
+            await stripe.subscriptions.cancel(subscription.stripeSubscriptionId)
+          } catch (stripeError) {
+            console.error('Stripe cancellation error:', stripeError)
+          }
         }
+
+        // Update subscription to cancelled/free
+        subscription.status = 'canceled'
+        subscription.plan = 'free'
+        subscription.stripeSubscriptionId = null
+        subscription.stripePriceId = null
+        subscription.currentPeriodEnd = new Date()
+        subscription.canceledAt = new Date()
+        subscription.isActive = false
+        await subscription.save()
       }
 
       // Update user to free plan
-      await updateUserSubscriptionField(userId, { plan: 'free' })
+      await updateUserSubscriptionField(userId, {
+        plan: 'free',
+        status: 'inactive',
+        isActive: false,
+      })
 
       return res.status(200).json({
         status: 'success',
         data: {
           message: 'User subscription cancelled and set to free plan',
-          subscription: { plan: 'free', status: 'inactive', daysRemaining: 0 },
+          subscription: {
+            plan: 'free',
+            status: 'inactive',
+            isActive: false,
+            daysRemaining: 0,
+          },
         },
       })
     }
@@ -201,114 +221,142 @@ export const updateUserSubscription = async (req, res, next) => {
 
     validatePlanAndBilling(planName, billingCycle)
 
+    // Find existing subscription
     let subscription = await Subscription.findOne({ user: userId })
 
-    if (subscription?.stripeSubscriptionId) {
-      // Update existing subscription
-      const priceId = SUBSCRIPTION_PLANS[planName].pricing[billingCycle].priceId
-      const stripeSubscription = await stripe.subscriptions.retrieve(
-        subscription.stripeSubscriptionId
-      )
-      const itemId = stripeSubscription.items.data[0].id
+    // If subscription exists and has an active Stripe subscription
+    if (subscription && subscription.stripeSubscriptionId) {
+      try {
+        // Try to update existing Stripe subscription
+        const priceId =
+          SUBSCRIPTION_PLANS[planName].pricing[billingCycle].priceId
+        const stripeSubscription = await stripe.subscriptions.retrieve(
+          subscription.stripeSubscriptionId
+        )
 
-      const updated = await stripe.subscriptions.update(
-        subscription.stripeSubscriptionId,
-        {
-          items: [{ id: itemId, price: priceId }],
-          proration_behavior: 'create_prorations',
+        // Check if subscription is active
+        if (
+          ['active', 'trialing', 'past_due'].includes(stripeSubscription.status)
+        ) {
+          const itemId = stripeSubscription.items.data[0].id
+
+          const updated = await stripe.subscriptions.update(
+            subscription.stripeSubscriptionId,
+            {
+              items: [{ id: itemId, price: priceId }],
+              proration_behavior: 'create_prorations',
+            }
+          )
+
+          subscription.plan = planName
+          subscription.billingCycle = billingCycle
+          subscription.stripePriceId = priceId
+          subscription.amount =
+            SUBSCRIPTION_PLANS[planName].pricing[billingCycle].amount
+          await subscription.updateFromStripe(updated)
+          await updateUserSubscriptionField(userId, subscription)
+
+          return res.status(200).json({
+            status: 'success',
+            data: {
+              subscription,
+              message: 'Subscription updated successfully',
+            },
+          })
         }
-      )
-
-      subscription.plan = planName
-      subscription.billingCycle = billingCycle
-      subscription.stripePriceId = priceId
-      subscription.amount =
-        SUBSCRIPTION_PLANS[planName].pricing[billingCycle].amount
-      await subscription.updateFromStripe(updated)
-      await updateUserSubscriptionField(userId, subscription)
-
-      return res.status(200).json({
-        status: 'success',
-        data: {
-          subscription,
-          message: 'Subscription updated successfully',
-        },
-      })
-    } else {
-      // Create new subscription
-      const customer = await createOrRetrieveCustomer(user)
-      if (!user.stripeCustomerId) {
-        user.stripeCustomerId = customer.id
-        await user.save()
+      } catch (stripeError) {
+        console.log(
+          'Existing subscription is not active, creating new one:',
+          stripeError.message
+        )
+        // Continue to create new subscription
       }
-
-      const priceId = SUBSCRIPTION_PLANS[planName].pricing[billingCycle].priceId
-      const subscriptionOptions = {
-        customer: customer.id,
-        items: [{ price: priceId }],
-        metadata: {
-          userId: userId.toString(),
-          planName,
-          billingCycle,
-          createdBy: 'admin',
-        },
-      }
-
-      if (!skipTrial && trialDays > 0) {
-        subscriptionOptions.trial_period_days = trialDays
-      }
-
-      const stripeSubscription = await stripe.subscriptions.create(
-        subscriptionOptions
-      )
-
-      const subscriptionData = {
-        user: userId,
-        stripeCustomerId: customer.id,
-        stripeSubscriptionId: stripeSubscription.id,
-        stripePriceId: priceId,
-        plan: planName,
-        billingCycle,
-        status: stripeSubscription.status,
-        amount: SUBSCRIPTION_PLANS[planName].pricing[billingCycle].amount,
-        currentPeriodStart: stripeSubscription.current_period_start
-          ? new Date(stripeSubscription.current_period_start * 1000)
-          : null,
-        currentPeriodEnd: stripeSubscription.current_period_end
-          ? new Date(stripeSubscription.current_period_end * 1000)
-          : null,
-        trialStart: stripeSubscription.trial_start
-          ? new Date(stripeSubscription.trial_start * 1000)
-          : null,
-        trialEnd: stripeSubscription.trial_end
-          ? new Date(stripeSubscription.trial_end * 1000)
-          : null,
-      }
-
-      subscription = await Subscription.create(subscriptionData)
-      await updateUserSubscriptionField(userId, subscription)
-
-      const daysRemaining =
-        !skipTrial && trialDays > 0
-          ? trialDays
-          : subscription.currentPeriodEnd
-          ? Math.ceil(
-              (subscription.currentPeriodEnd - new Date()) /
-                (1000 * 60 * 60 * 24)
-            )
-          : 0
-
-      return res.status(200).json({
-        status: 'success',
-        data: {
-          subscription: { ...subscription.toObject(), daysRemaining },
-          message: `Created ${planName} subscription${
-            !skipTrial && trialDays > 0 ? ` with ${trialDays}-day trial` : ''
-          }`,
-          trialDays: !skipTrial && trialDays > 0 ? trialDays : 0,
-        },
-      })
     }
+
+    // Create new subscription (for free users or cancelled subscriptions)
+
+    // Ensure user has Stripe customer
+    const customer = await createOrRetrieveCustomer(user)
+    if (!user.stripeCustomerId) {
+      user.stripeCustomerId = customer.id
+      await user.save()
+    }
+
+    const priceId = SUBSCRIPTION_PLANS[planName].pricing[billingCycle].priceId
+    const subscriptionOptions = {
+      customer: customer.id,
+      items: [{ price: priceId }],
+      metadata: {
+        userId: userId.toString(),
+        planName,
+        billingCycle,
+        createdBy: 'admin',
+      },
+    }
+
+    if (!skipTrial && trialDays > 0) {
+      subscriptionOptions.trial_period_days = trialDays
+    }
+
+    const stripeSubscription = await stripe.subscriptions.create(
+      subscriptionOptions
+    )
+
+    // Create or update subscription in database
+    const subscriptionData = {
+      user: userId,
+      stripeCustomerId: customer.id,
+      stripeSubscriptionId: stripeSubscription.id,
+      stripePriceId: priceId,
+      plan: planName,
+      billingCycle,
+      status: stripeSubscription.status,
+      amount: SUBSCRIPTION_PLANS[planName].pricing[billingCycle].amount,
+      currentPeriodStart: stripeSubscription.current_period_start
+        ? new Date(stripeSubscription.current_period_start * 1000)
+        : null,
+      currentPeriodEnd: stripeSubscription.current_period_end
+        ? new Date(stripeSubscription.current_period_end * 1000)
+        : null,
+      trialStart: stripeSubscription.trial_start
+        ? new Date(stripeSubscription.trial_start * 1000)
+        : null,
+      trialEnd: stripeSubscription.trial_end
+        ? new Date(stripeSubscription.trial_end * 1000)
+        : null,
+    }
+
+    if (subscription) {
+      // Update existing subscription document
+      Object.assign(subscription, subscriptionData)
+      await subscription.save()
+    } else {
+      // Create new subscription document
+      subscription = await Subscription.create(subscriptionData)
+    }
+
+    await updateUserSubscriptionField(userId, subscription)
+
+    // Calculate days remaining
+    const daysRemaining =
+      !skipTrial && trialDays > 0
+        ? trialDays
+        : subscription.currentPeriodEnd
+        ? Math.ceil(
+            (subscription.currentPeriodEnd - new Date()) / (1000 * 60 * 60 * 24)
+          )
+        : 0
+
+    return res.status(200).json({
+      status: 'success',
+      data: {
+        subscription: { ...subscription.toObject(), daysRemaining },
+        message: `Created ${planName} subscription${
+          !skipTrial && trialDays > 0 ? ` with ${trialDays}-day trial` : ''
+        }`,
+        trialDays: !skipTrial && trialDays > 0 ? trialDays : 0,
+      },
+    })
   } catch (error) {
     console.error('Error updating subscription:', error)
     next(createError(500, `Failed to update subscription: ${error.message}`))
@@ -323,38 +371,74 @@ export const cancelUserSubscription = async (req, res, next) => {
 
     const subscription = await Subscription.findOne({
       user: userId,
-      status: { $in: ['active', 'trialing'] },
     })
 
-    if (!subscription?.stripeSubscriptionId) {
-      // If no active subscription, just update user to free
-      await updateUserSubscriptionField(userId, { plan: 'free' })
+    if (!subscription) {
+      // No subscription found, just update user to free
+      await updateUserSubscriptionField(userId, {
+        plan: 'free',
+        status: 'inactive',
+        isActive: false,
+      })
+
       return res.status(200).json({
         status: 'success',
         data: {
           message: 'User set to free plan',
-          subscription: { plan: 'free', status: 'inactive', daysRemaining: 0 },
+          subscription: {
+            plan: 'free',
+            status: 'inactive',
+            isActive: false,
+            daysRemaining: 0,
+          },
         },
       })
     }
 
-    let stripeSubscription
-    if (immediate) {
-      stripeSubscription = await stripe.subscriptions.cancel(
-        subscription.stripeSubscriptionId
-      )
-    } else {
-      stripeSubscription = await stripe.subscriptions.update(
-        subscription.stripeSubscriptionId,
-        { cancel_at_period_end: true }
-      )
+    // If subscription has Stripe ID and is active
+    if (subscription.stripeSubscriptionId) {
+      try {
+        const stripeSubscription = await stripe.subscriptions.retrieve(
+          subscription.stripeSubscriptionId
+        )
+
+        if (['active', 'trialing'].includes(stripeSubscription.status)) {
+          let canceledSubscription
+          if (immediate) {
+            canceledSubscription = await stripe.subscriptions.cancel(
+              subscription.stripeSubscriptionId
+            )
+          } else {
+            canceledSubscription = await stripe.subscriptions.update(
+              subscription.stripeSubscriptionId,
+              { cancel_at_period_end: true }
+            )
+          }
+
+          await subscription.updateFromStripe(canceledSubscription)
+        }
+      } catch (stripeError) {
+        console.error('Stripe cancellation error:', stripeError)
+        // Continue anyway, mark as cancelled locally
+      }
     }
 
-    await subscription.updateFromStripe(stripeSubscription)
-
+    // Update local subscription status
     if (immediate) {
-      await updateUserSubscriptionField(userId, { plan: 'free' })
+      subscription.status = 'canceled'
+      subscription.canceledAt = new Date()
+      subscription.isActive = false
+      await subscription.save()
+
+      await updateUserSubscriptionField(userId, {
+        plan: 'free',
+        status: 'inactive',
+        isActive: false,
+      })
     } else {
+      subscription.cancelAtPeriodEnd = true
+      await subscription.save()
+
       await updateUserSubscriptionField(userId, subscription)
     }
 
@@ -379,12 +463,26 @@ export const reactivateUserSubscription = async (req, res, next) => {
     const { userId } = req.params
     const subscription = await Subscription.findOne({ user: userId })
 
-    if (!subscription?.stripeSubscriptionId) {
+    if (!subscription) {
       return next(createError(404, 'No subscription found'))
     }
 
+    // Only allow reactivation if subscription is set to cancel at period end
     if (!subscription.cancelAtPeriodEnd) {
+      // If subscription is cancelled, they need to create a new one
+      if (subscription.status === 'canceled') {
+        return next(
+          createError(
+            400,
+            'Cancelled subscription cannot be reactivated. Please create a new subscription.'
+          )
+        )
+      }
       return next(createError(400, 'Subscription is not set to cancel'))
+    }
+
+    if (!subscription.stripeSubscriptionId) {
+      return next(createError(400, 'No Stripe subscription to reactivate'))
     }
 
     const stripeSubscription = await stripe.subscriptions.update(

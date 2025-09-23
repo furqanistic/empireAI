@@ -1,9 +1,11 @@
-// File: client/src/pages/Pricing/PricingPage.jsx - UPDATED WITH REFERRAL DISCOUNT DISPLAY
+// File: client/src/pages/Pricing/PricingPage.jsx - COMPLETE VERSION
 import {
+  useCancelSubscription,
   useCreateBillingPortalSession,
   useCreateCheckoutSession,
   useCurrentUser,
   useGetPlans,
+  useReactivateSubscription,
   useSubscriptionStatus,
   useUpdateSubscription,
   useValidateReferralCode,
@@ -12,6 +14,7 @@ import {
   AlertTriangle,
   Bot,
   Check,
+  Clock,
   Crown,
   DollarSign,
   Gift,
@@ -24,6 +27,7 @@ import {
   Target,
   TrendingUp,
   Users,
+  X,
   Zap,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
@@ -37,6 +41,8 @@ const PricingPage = () => {
   const [billingCycle, setBillingCycle] = useState('monthly')
   const [referralCode, setReferralCode] = useState('')
   const [showReferralInput, setShowReferralInput] = useState(false)
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [cancelType, setCancelType] = useState('end_of_period')
   const currentUser = useCurrentUser()
 
   // Stripe hooks
@@ -45,10 +51,15 @@ const PricingPage = () => {
     isLoading: plansLoading,
     error: plansError,
   } = useGetPlans()
-  const { subscriptionStatus, isLoading: subscriptionLoading } =
-    useSubscriptionStatus()
+  const {
+    subscription,
+    subscriptionStatus,
+    isLoading: subscriptionLoading,
+  } = useSubscriptionStatus()
   const createCheckoutSession = useCreateCheckoutSession()
   const updateSubscription = useUpdateSubscription()
+  const cancelSubscription = useCancelSubscription()
+  const reactivateSubscription = useReactivateSubscription()
   const createBillingPortal = useCreateBillingPortalSession()
 
   // Referral validation
@@ -68,14 +79,39 @@ const PricingPage = () => {
       currentUser?.referredBy &&
       !currentUser?.hasUsedReferralDiscount
     ) {
-      // User was referred but hasn't used discount yet
       setShowReferralInput(true)
     }
   }, [searchParams, currentUser])
 
+  // Calculate trial display
+  const getTrialDisplay = () => {
+    if (!subscriptionStatus.trialActive || !subscription?.trialInfo) return null
+
+    const { daysRemaining, hoursRemaining, displayText } =
+      subscription.trialInfo || {}
+
+    let color = 'text-green-400'
+    let urgent = false
+
+    if (daysRemaining <= 0 && hoursRemaining <= 24) {
+      color = 'text-orange-400'
+      urgent = true
+    } else if (daysRemaining === 1) {
+      color = 'text-yellow-400'
+      urgent = true
+    }
+
+    return {
+      text: displayText || `${daysRemaining} days left in trial`,
+      color,
+      urgent,
+    }
+  }
+
+  const trialDisplay = getTrialDisplay()
+
   // Check if user is eligible for discount
   const isEligibleForDiscount = () => {
-    // User must be logged in, referred by someone, and not have used discount yet
     return (
       currentUser &&
       currentUser.referredBy &&
@@ -98,7 +134,7 @@ const PricingPage = () => {
     }
   }
 
-  // Map your local plans to Stripe plans
+  // Map plan to Stripe
   const mapPlanToStripe = (localPlan) => {
     const stripeMapping = {
       Starter: 'starter',
@@ -110,7 +146,6 @@ const PricingPage = () => {
 
   const handleGetStarted = async (planName) => {
     if (!currentUser) {
-      // Store the intended plan in localStorage and redirect
       localStorage.setItem('intendedPlan', planName)
       localStorage.setItem('intendedBillingCycle', billingCycle)
       navigate(`/auth?redirect=pricing&ref=${referralCode || ''}`)
@@ -122,41 +157,54 @@ const PricingPage = () => {
     // If user has an active subscription
     if (subscriptionStatus.hasSubscription && subscriptionStatus.isActive) {
       // If clicking on the same plan they already have
-      if (subscriptionStatus.plan === stripePlanName) {
+      if (
+        subscriptionStatus.plan === stripePlanName &&
+        subscriptionStatus.billingCycle === billingCycle
+      ) {
         alert('You are already subscribed to this plan')
         return
       }
-
-      // HANDLE PLAN CHANGE
-      console.log(
-        'Changing plan from',
-        subscriptionStatus.plan,
-        'to',
-        stripePlanName
-      )
 
       // Check if it's an upgrade or downgrade
       const planHierarchy = { starter: 1, pro: 2, empire: 3 }
       const currentPlanLevel = planHierarchy[subscriptionStatus.plan] || 0
       const newPlanLevel = planHierarchy[stripePlanName] || 0
-
       const isUpgrade = newPlanLevel > currentPlanLevel
 
-      // Confirm plan change with user
       const confirmMessage = isUpgrade
         ? `Upgrade to ${planName} plan? You'll be charged the prorated difference immediately.`
-        : `Downgrade to ${planName} plan? The change will take effect at the end of your current billing period.`
+        : `Change to ${planName} plan? The change will take effect at the end of your current billing period.`
 
       if (!window.confirm(confirmMessage)) {
         return
       }
 
-      // Update the subscription
+      // Try to update the subscription
       try {
-        await updateSubscription.mutateAsync({
+        const result = await updateSubscription.mutateAsync({
           planName: stripePlanName,
           billingCycle: billingCycle,
         })
+
+        // Check if response indicates no subscription exists
+        if (
+          result.data?.requiresCheckout ||
+          result.response?.data?.requiresCheckout
+        ) {
+          // Redirect to checkout for new subscription
+          createCheckoutSession.mutate({
+            planName: stripePlanName,
+            billingCycle: billingCycle,
+          })
+          return
+        }
+
+        // Check if payment is required for upgrade
+        if (result.status === 'payment_required' || result.data?.paymentUrl) {
+          window.location.href = result.data.paymentUrl
+          return
+        }
+
         alert(
           `Successfully ${
             isUpgrade ? 'upgraded' : 'changed'
@@ -164,22 +212,72 @@ const PricingPage = () => {
         )
         window.location.reload()
       } catch (error) {
-        console.error('Failed to update subscription:', error)
-        alert('Failed to update subscription. Please try again.')
+        // If error indicates no subscription, create new checkout
+        if (error.response?.data?.requiresCheckout) {
+          createCheckoutSession.mutate({
+            planName: stripePlanName,
+            billingCycle: billingCycle,
+          })
+        } else {
+          console.error('Failed to update subscription:', error)
+          alert(
+            error.response?.data?.message || 'Failed to update subscription'
+          )
+        }
       }
-
       return
     }
 
-    // For new subscriptions
-    console.log(
-      'Creating checkout session for new subscription:',
-      stripePlanName
-    )
+    // For new subscriptions or reactivating from free/cancelled
     createCheckoutSession.mutate({
       planName: stripePlanName,
       billingCycle: billingCycle,
     })
+  }
+
+  const handleCancelSubscription = async () => {
+    const immediate = cancelType === 'immediate'
+
+    if (
+      !window.confirm(
+        immediate
+          ? 'Are you sure you want to cancel immediately? You will lose access right away and no refunds will be provided.'
+          : 'Are you sure you want to cancel at the end of your billing period? You will keep access until then.'
+      )
+    ) {
+      return
+    }
+
+    try {
+      await cancelSubscription.mutateAsync({ immediate })
+      setShowCancelModal(false)
+      alert(
+        immediate
+          ? 'Subscription cancelled immediately'
+          : 'Subscription will be cancelled at the end of the billing period'
+      )
+      window.location.reload()
+    } catch (error) {
+      console.error('Failed to cancel subscription:', error)
+      alert(error.response?.data?.message || 'Failed to cancel subscription')
+    }
+  }
+
+  const handleReactivateSubscription = async () => {
+    if (!window.confirm('Reactivate your subscription?')) {
+      return
+    }
+
+    try {
+      await reactivateSubscription.mutateAsync()
+      alert('Subscription reactivated successfully!')
+      window.location.reload()
+    } catch (error) {
+      console.error('Failed to reactivate subscription:', error)
+      alert(
+        error.response?.data?.message || 'Failed to reactivate subscription'
+      )
+    }
   }
 
   const getButtonText = (planName) => {
@@ -190,6 +288,9 @@ const PricingPage = () => {
 
     if (subscriptionStatus.hasSubscription && subscriptionStatus.isActive) {
       if (subscriptionStatus.plan === stripePlan) {
+        if (subscriptionStatus.billingCycle !== billingCycle) {
+          return `Switch to ${billingCycle}`
+        }
         return 'Current Plan'
       }
       const planHierarchy = { starter: 1, pro: 2, empire: 3 }
@@ -209,6 +310,110 @@ const PricingPage = () => {
   const isCurrentPlan = (planName) => {
     const stripePlan = mapPlanToStripe(planName)
     return subscriptionStatus.plan === stripePlan && subscriptionStatus.isActive
+  }
+
+  // Cancel Modal Component
+  const CancelModal = () => {
+    if (!showCancelModal) return null
+
+    return (
+      <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'>
+        <div className='bg-[#121214] border border-[#1E1E21] rounded-xl max-w-md w-full p-6'>
+          <div className='flex items-center justify-between mb-4'>
+            <h3 className='text-xl font-semibold text-[#EDEDED]'>
+              Cancel Subscription
+            </h3>
+            <button
+              onClick={() => setShowCancelModal(false)}
+              className='text-gray-400 hover:text-[#EDEDED] transition-colors'
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          <p className='text-gray-400 mb-6'>
+            Choose how you want to cancel your subscription:
+          </p>
+
+          <div className='space-y-3'>
+            <label className='block'>
+              <input
+                type='radio'
+                name='cancelType'
+                value='end_of_period'
+                checked={cancelType === 'end_of_period'}
+                onChange={(e) => setCancelType(e.target.value)}
+                className='sr-only'
+              />
+              <div
+                className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                  cancelType === 'end_of_period'
+                    ? 'bg-[#1A1A1C] border-[#D4AF37]/40'
+                    : 'bg-[#121214] border-[#1E1E21] hover:border-[#D4AF37]/20'
+                }`}
+                onClick={() => setCancelType('end_of_period')}
+              >
+                <div className='font-medium text-[#EDEDED] mb-1'>
+                  Cancel at Period End
+                </div>
+                <div className='text-sm text-gray-400'>
+                  Keep access until{' '}
+                  {subscriptionStatus.currentPeriodEnd
+                    ? new Date(
+                        subscriptionStatus.currentPeriodEnd
+                      ).toLocaleDateString()
+                    : 'end of period'}
+                </div>
+              </div>
+            </label>
+
+            <label className='block'>
+              <input
+                type='radio'
+                name='cancelType'
+                value='immediate'
+                checked={cancelType === 'immediate'}
+                onChange={(e) => setCancelType(e.target.value)}
+                className='sr-only'
+              />
+              <div
+                className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                  cancelType === 'immediate'
+                    ? 'bg-red-900/20 border-red-500/40'
+                    : 'bg-[#121214] border-[#1E1E21] hover:border-red-500/20'
+                }`}
+                onClick={() => setCancelType('immediate')}
+              >
+                <div className='font-medium text-red-400 mb-1'>
+                  Cancel Immediately
+                </div>
+                <div className='text-sm text-gray-400'>
+                  Lose access right away (no refunds)
+                </div>
+              </div>
+            </label>
+          </div>
+
+          <div className='flex gap-3 mt-6'>
+            <button
+              onClick={handleCancelSubscription}
+              disabled={cancelSubscription.isLoading}
+              className='flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed'
+            >
+              {cancelSubscription.isLoading
+                ? 'Cancelling...'
+                : 'Cancel Subscription'}
+            </button>
+            <button
+              onClick={() => setShowCancelModal(false)}
+              className='flex-1 px-4 py-2 border border-[#1E1E21] rounded-lg text-gray-400 hover:text-[#EDEDED] hover:border-[#D4AF37]/40 transition-all duration-300'
+            >
+              Keep Subscription
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   const PricingCard = ({
@@ -417,26 +622,6 @@ const PricingPage = () => {
     </div>
   )
 
-  const ReferralDiscountBanner = () => {
-    if (!isEligibleForDiscount() || billingCycle !== 'monthly') return null
-
-    return (
-      <div className='bg-gradient-to-r from-emerald-500/10 via-emerald-400/5 to-blue-500/10 border border-emerald-500/20 rounded-xl p-4 max-w-3xl mx-auto mb-6'>
-        <div className='flex items-center justify-center gap-3 text-emerald-400 mb-2'>
-          <Gift size={20} />
-          <span className='font-semibold text-sm'>
-            10% Off Your First Month!
-          </span>
-        </div>
-        <p className='text-emerald-300 text-sm text-center'>
-          {currentUser?.referredBy
-            ? `Thanks to your referral, you'll save 10% on your first month of any plan!`
-            : 'You have a valid referral code - save 10% on your first month!'}
-        </p>
-      </div>
-    )
-  }
-
   const pricingPlans = [
     {
       plan: 'Starter',
@@ -561,22 +746,57 @@ const PricingPage = () => {
                     </strong>
                   </span>
                 </div>
-                {subscriptionStatus.trialActive && (
-                  <span className='text-green-300 text-sm'>
-                    Trial: {subscriptionStatus.daysRemaining} days remaining
-                  </span>
+
+                {/* Trial Display */}
+                {trialDisplay && (
+                  <div
+                    className={`${
+                      trialDisplay.color
+                    } text-sm font-medium flex items-center gap-2 ${
+                      trialDisplay.urgent ? 'animate-pulse' : ''
+                    }`}
+                  >
+                    <Clock size={14} />
+                    {trialDisplay.text}
+                  </div>
                 )}
+
                 {subscriptionStatus.cancelAtPeriodEnd && (
-                  <span className='text-yellow-300 text-sm'>
+                  <div className='text-yellow-300 text-sm'>
                     Cancels at period end
-                  </span>
+                  </div>
                 )}
-                <button
-                  onClick={() => createBillingPortal.mutate()}
-                  className='text-blue-300 hover:text-blue-200 underline text-sm mt-2'
-                >
-                  Manage Billing & Invoices
-                </button>
+
+                <div className='flex gap-3 mt-2'>
+                  <button
+                    onClick={() => createBillingPortal.mutate()}
+                    className='text-blue-300 hover:text-blue-200 underline text-sm'
+                  >
+                    Manage Billing & Invoices
+                  </button>
+
+                  {subscriptionStatus.isActive &&
+                    !subscriptionStatus.cancelAtPeriodEnd && (
+                      <button
+                        onClick={() => setShowCancelModal(true)}
+                        className='text-red-300 hover:text-red-200 underline text-sm'
+                      >
+                        Cancel Subscription
+                      </button>
+                    )}
+
+                  {subscriptionStatus.cancelAtPeriodEnd && (
+                    <button
+                      onClick={handleReactivateSubscription}
+                      disabled={reactivateSubscription.isLoading}
+                      className='text-green-300 hover:text-green-200 underline text-sm disabled:opacity-50'
+                    >
+                      {reactivateSubscription.isLoading
+                        ? 'Reactivating...'
+                        : 'Reactivate Subscription'}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -595,7 +815,21 @@ const PricingPage = () => {
         </div>
 
         {/* Referral Discount Banner */}
-        <ReferralDiscountBanner />
+        {isEligibleForDiscount() && billingCycle === 'monthly' && (
+          <div className='bg-gradient-to-r from-emerald-500/10 via-emerald-400/5 to-blue-500/10 border border-emerald-500/20 rounded-xl p-4 max-w-3xl mx-auto'>
+            <div className='flex items-center justify-center gap-3 text-emerald-400 mb-2'>
+              <Gift size={20} />
+              <span className='font-semibold text-sm'>
+                10% Off Your First Month!
+              </span>
+            </div>
+            <p className='text-emerald-300 text-sm text-center'>
+              {currentUser?.referredBy
+                ? `Thanks to your referral, you'll save 10% on your first month of any plan!`
+                : 'You have a valid referral code - save 10% on your first month!'}
+            </p>
+          </div>
+        )}
 
         {/* Billing Toggle */}
         <div className='flex justify-center'>
@@ -632,39 +866,6 @@ const PricingPage = () => {
             <PricingCard key={index} {...plan} />
           ))}
         </div>
-
-        {/* Referral Discount Explanation */}
-        {isEligibleForDiscount() && billingCycle === 'monthly' && (
-          <div className='bg-gradient-to-r from-emerald-500/5 to-blue-500/5 border border-emerald-500/20 rounded-xl p-6 max-w-3xl mx-auto'>
-            <div className='text-center'>
-              <div className='flex items-center justify-center gap-2 text-emerald-400 mb-3'>
-                <Percent size={20} />
-                <h3 className='text-lg font-semibold'>
-                  Your Referral Discount
-                </h3>
-              </div>
-              <p className='text-emerald-300 text-sm mb-4'>
-                You'll automatically receive a 10% discount on your first month
-                when you subscribe. This discount applies to the monthly billing
-                option only.
-              </p>
-              <div className='grid grid-cols-3 gap-4 text-center'>
-                <div className='bg-emerald-500/10 rounded-lg p-3'>
-                  <div className='text-emerald-400 font-bold text-lg'>10%</div>
-                  <div className='text-emerald-300 text-xs'>First Month</div>
-                </div>
-                <div className='bg-emerald-500/10 rounded-lg p-3'>
-                  <div className='text-emerald-400 font-bold text-lg'>7</div>
-                  <div className='text-emerald-300 text-xs'>Day Free Trial</div>
-                </div>
-                <div className='bg-emerald-500/10 rounded-lg p-3'>
-                  <div className='text-emerald-400 font-bold text-lg'>∞</div>
-                  <div className='text-emerald-300 text-xs'>No Lock-in</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Affiliate Program Highlight */}
         <div className='bg-gradient-to-r from-[#121214] via-[#1A1A1C] to-[#121214] border border-[#1E1E21] rounded-xl p-6 sm:p-8'>
@@ -805,6 +1006,9 @@ const PricingPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Cancel Modal */}
+      <CancelModal />
     </Layout>
   )
 }

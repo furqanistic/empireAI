@@ -580,13 +580,39 @@ UserSchema.methods.spendPoints = function (points, action, description) {
 // ============================================================================
 
 // Static method to find user by referral code
-UserSchema.statics.findByReferralCode = async function (code) {
+UserSchema.statics.findByReferralCode = async function (
+  code,
+  selectFields = null
+) {
   try {
-    return await this.findOne({
-      referralCode: code.toUpperCase(),
+    console.log('Searching for user with referral code:', code)
+
+    let query = this.findOne({
+      referralCode: code.toUpperCase().trim(),
       isDeleted: false,
       isActive: true,
     })
+
+    // Apply field selection if provided
+    if (selectFields) {
+      query = query.select(selectFields)
+    }
+
+    const user = await query
+
+    console.log(
+      'Found user:',
+      user
+        ? {
+            id: user._id.toString(),
+            name: user.name,
+            email: user.email,
+            referralCode: user.referralCode,
+          }
+        : 'No user found'
+    )
+
+    return user
   } catch (error) {
     console.error('Error finding user by referral code:', error)
     return null

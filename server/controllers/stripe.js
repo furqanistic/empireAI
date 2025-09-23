@@ -547,6 +547,7 @@ export const getCurrentSubscription = async (req, res, next) => {
         data: {
           subscription: null,
           message: 'No subscription found',
+          trialInfo: null,
         },
       })
     }
@@ -566,10 +567,41 @@ export const getCurrentSubscription = async (req, res, next) => {
       }
     }
 
+    // Calculate trial info
+    let trialInfo = null
+    if (subscription.status === 'trialing' && subscription.trialEnd) {
+      const now = new Date()
+      const trialEnd = new Date(subscription.trialEnd)
+      const daysRemaining = Math.max(
+        0,
+        Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24))
+      )
+      const hoursRemaining = Math.max(
+        0,
+        Math.ceil((trialEnd - now) / (1000 * 60 * 60))
+      )
+
+      trialInfo = {
+        isTrialing: true,
+        trialEnd: subscription.trialEnd,
+        daysRemaining,
+        hoursRemaining,
+        displayText:
+          daysRemaining > 0
+            ? `${daysRemaining} day${
+                daysRemaining !== 1 ? 's' : ''
+              } left in trial`
+            : `${hoursRemaining} hour${
+                hoursRemaining !== 1 ? 's' : ''
+              } left in trial`,
+      }
+    }
+
     res.status(200).json({
       status: 'success',
       data: {
         subscription,
+        trialInfo,
       },
     })
   } catch (error) {
@@ -597,8 +629,19 @@ export const updateSubscription = async (req, res, next) => {
       status: { $in: ['active', 'trialing'] },
     })
 
+    // If no active subscription, redirect to checkout instead of trying to update
     if (!subscription || !subscription.stripeSubscriptionId) {
-      return next(createError(404, 'No active subscription found'))
+      // User needs to create a new subscription, not update
+      return res.status(400).json({
+        status: 'error',
+        message:
+          'No active subscription found. Please use checkout to start a new subscription.',
+        requiresCheckout: true,
+        data: {
+          planName,
+          billingCycle,
+        },
+      })
     }
 
     // Don't allow changing to the same plan
@@ -627,7 +670,7 @@ export const updateSubscription = async (req, res, next) => {
     )
     const currentItemId = stripeSubscription.items.data[0].id
 
-    // Update subscription in Stripe
+    // Update subscription in Stripe with proper proration
     const updatedStripeSubscription = await stripe.subscriptions.update(
       subscription.stripeSubscriptionId,
       {
@@ -637,7 +680,10 @@ export const updateSubscription = async (req, res, next) => {
             price: newPriceId,
           },
         ],
-        proration_behavior: 'create_prorations',
+        proration_behavior: isUpgrade ? 'always_invoice' : 'create_prorations',
+        payment_behavior: isUpgrade
+          ? 'pending_if_incomplete'
+          : 'allow_incomplete',
         metadata: {
           userId: user._id.toString(),
           planName: planName,
@@ -645,6 +691,22 @@ export const updateSubscription = async (req, res, next) => {
         },
       }
     )
+
+    // If upgrade requires payment, return payment required status
+    if (
+      updatedStripeSubscription.status === 'incomplete' ||
+      updatedStripeSubscription.status === 'past_due'
+    ) {
+      return res.status(402).json({
+        status: 'payment_required',
+        message: 'Payment required to complete upgrade',
+        data: {
+          subscription: updatedStripeSubscription,
+          paymentUrl:
+            updatedStripeSubscription.latest_invoice?.hosted_invoice_url,
+        },
+      })
+    }
 
     // Update subscription in database
     subscription.plan = planName
@@ -698,7 +760,9 @@ export const updateSubscription = async (req, res, next) => {
       status: 'success',
       data: {
         subscription,
-        message: 'Subscription updated successfully',
+        message: `Subscription ${
+          isUpgrade ? 'upgraded' : 'changed'
+        } successfully`,
       },
     })
   } catch (error) {

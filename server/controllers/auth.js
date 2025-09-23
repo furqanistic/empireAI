@@ -272,6 +272,14 @@ export const sendSignupOTP = async (req, res, next) => {
   try {
     const { name, email, password, referralCode } = req.body
 
+    console.log('=== SIGNUP OTP REQUEST ===')
+    console.log('Request body:', {
+      name,
+      email,
+      hasPassword: !!password,
+      referralCode,
+    })
+
     // Check if all required fields are provided
     if (!name || !email || !password) {
       return next(createError(400, 'Please provide name, email and password'))
@@ -309,31 +317,73 @@ export const sendSignupOTP = async (req, res, next) => {
 
     // Validate referral code if provided
     let referrerUser = null
+    let referredBy = null
+
     if (referralCode && referralCode.trim()) {
-      referrerUser = await User.findByReferralCode(
+      console.log(
+        'Processing referral code:',
         referralCode.trim().toUpperCase()
       )
 
-      if (!referrerUser) {
-        return next(createError(400, 'Invalid referral code'))
-      }
+      try {
+        referrerUser = await User.findByReferralCode(
+          referralCode.trim().toUpperCase()
+        )
 
-      // Check if referrer is trying to refer themselves
-      if (referrerUser.email === email.toLowerCase().trim()) {
-        return next(createError(400, 'You cannot refer yourself'))
+        console.log(
+          'Referrer lookup result:',
+          referrerUser
+            ? {
+                id: referrerUser._id.toString(),
+                name: referrerUser.name,
+                email: referrerUser.email,
+                referralCode: referrerUser.referralCode,
+              }
+            : 'No referrer found'
+        )
+
+        if (!referrerUser) {
+          return next(createError(400, 'Invalid referral code'))
+        }
+
+        // Check if referrer is trying to refer themselves
+        if (referrerUser.email === email.toLowerCase().trim()) {
+          return next(createError(400, 'You cannot refer yourself'))
+        }
+
+        // Set the referredBy field
+        referredBy = referrerUser._id
+        console.log(
+          'Valid referrer found. Setting referredBy to:',
+          referredBy.toString()
+        )
+      } catch (referralError) {
+        console.error('Error validating referral code:', referralError)
+        return next(createError(400, 'Error validating referral code'))
       }
+    } else {
+      console.log('No referral code provided')
     }
 
     // Create temporary user data (store in session/cache or database with pending status)
-    // For now, we'll use a simple in-memory store (in production, use Redis)
     const tempUserData = {
       name: name.trim(),
       email: email.toLowerCase().trim(),
       password, // Will be hashed when creating the actual user
-      referredBy: referrerUser ? referrerUser._id : null,
-      referralCode: referralCode?.trim().toUpperCase(),
+      referredBy: referredBy, // Store the ObjectId directly
+      referralCode: referralCode?.trim().toUpperCase() || null,
       timestamp: Date.now(),
     }
+
+    console.log('Storing temp user data:', {
+      name: tempUserData.name,
+      email: tempUserData.email,
+      referredBy: tempUserData.referredBy
+        ? tempUserData.referredBy.toString()
+        : null,
+      referralCode: tempUserData.referralCode,
+      timestamp: tempUserData.timestamp,
+    })
 
     // Generate OTP and store it temporarily
     const otp = Math.floor(100000 + Math.random() * 900000).toString()
@@ -347,6 +397,11 @@ export const sendSignupOTP = async (req, res, next) => {
       otpExpires: Date.now() + 10 * 60 * 1000, // 10 minutes
       attempts: 0,
     })
+
+    console.log(
+      'Stored in OTP store. Current store size:',
+      global.signupOTPStore.size
+    )
 
     try {
       // Send OTP email (RATE LIMITED - PREVENTS MULTIPLE EMAILS)
@@ -372,12 +427,15 @@ export const sendSignupOTP = async (req, res, next) => {
         data: {
           email: tempUserData.email,
           name: tempUserData.name,
+          hasReferral: !!referredBy,
+          referrerName: referrerUser?.name || null,
         },
         // Include additional info in development
         ...(process.env.NODE_ENV === 'development' && {
           dev: {
             otp,
             expiresIn: '10 minutes',
+            referredBy: referredBy ? referredBy.toString() : null,
           },
         }),
       })
@@ -401,13 +459,16 @@ export const sendSignupOTP = async (req, res, next) => {
   }
 }
 
-// NEW: Verify OTP and complete signup
 export const verifySignupOTP = async (req, res, next) => {
   const session = await mongoose.startSession()
   session.startTransaction()
 
   try {
     const { email, otp } = req.body
+
+    console.log('=== OTP VERIFICATION REQUEST ===')
+    console.log('Email:', email)
+    console.log('OTP:', otp)
 
     if (!email || !otp) {
       await session.abortTransaction()
@@ -426,6 +487,23 @@ export const verifySignupOTP = async (req, res, next) => {
 
     // Get temp data from store
     const tempData = global.signupOTPStore?.get(email.toLowerCase().trim())
+
+    console.log(
+      'Temp data found:',
+      tempData
+        ? {
+            email: tempData.email,
+            name: tempData.name,
+            referredBy: tempData.referredBy
+              ? tempData.referredBy.toString()
+              : null,
+            referralCode: tempData.referralCode,
+            otpExpires: new Date(tempData.otpExpires),
+            attempts: tempData.attempts,
+          }
+        : 'No temp data found'
+    )
+
     if (!tempData) {
       await session.abortTransaction()
       return next(
@@ -475,10 +553,29 @@ export const verifySignupOTP = async (req, res, next) => {
       )
     }
 
-    // OTP is valid, create the user
+    console.log('OTP verified successfully!')
+
+    // Get referrer info if there was one - FIXED: Don't query during transaction
     let referrerUser = null
     if (tempData.referredBy) {
-      referrerUser = await User.findById(tempData.referredBy).session(session)
+      try {
+        // Query referrer outside of transaction first for logging
+        referrerUser = await User.findById(tempData.referredBy)
+        console.log(
+          'Referrer found:',
+          referrerUser
+            ? {
+                id: referrerUser._id.toString(),
+                name: referrerUser.name,
+                email: referrerUser.email,
+                referralCode: referrerUser.referralCode,
+              }
+            : 'Referrer not found'
+        )
+      } catch (referrerError) {
+        console.error('Error fetching referrer:', referrerError)
+        // Continue with signup even if referrer fetch fails
+      }
     }
 
     // Create new user with EMAIL VERIFIED
@@ -487,39 +584,97 @@ export const verifySignupOTP = async (req, res, next) => {
       email: tempData.email,
       password: tempData.password, // Will be hashed by pre-save middleware
       role: 'user',
-      referredBy: referrerUser ? referrerUser._id : null,
+      referredBy: tempData.referredBy, // FIX: Use tempData.referredBy directly
       points: 100, // Give new users starting points
       totalPointsEarned: 100,
       isEmailVerified: true, // MARK EMAIL AS VERIFIED
       emailVerifiedAt: new Date(), // SET VERIFICATION DATE
     }
 
+    console.log('Creating user with data:', {
+      name: newUserData.name,
+      email: newUserData.email,
+      referredBy: newUserData.referredBy
+        ? newUserData.referredBy.toString()
+        : null,
+      points: newUserData.points,
+      isEmailVerified: newUserData.isEmailVerified,
+    })
+
     const [newUser] = await User.create([newUserData], { session })
 
-    // If there's a referrer, add this user to their referrals
-    if (referrerUser) {
-      await referrerUser.addReferral(newUser._id)
+    console.log('User created successfully:', {
+      id: newUser._id.toString(),
+      name: newUser.name,
+      email: newUser.email,
+      referredBy: newUser.referredBy ? newUser.referredBy.toString() : null,
+    })
 
-      // Create notification for the referrer
+    // If there's a referrer, add this user to their referrals
+    if (referrerUser && tempData.referredBy) {
       try {
-        await Notification.createReferralNotification(referrerUser._id, newUser)
-        console.log(`Created referral notification for ${referrerUser.name}`)
-      } catch (notificationError) {
-        console.error(
-          'Failed to create referral notification:',
-          notificationError
-        )
+        console.log('Processing referral relationship...')
+
+        // Get referrer with session for update
+        const referrerInSession = await User.findById(
+          tempData.referredBy
+        ).session(session)
+
+        if (referrerInSession) {
+          // Add the referral
+          await referrerInSession.addReferral(newUser._id)
+          console.log(
+            `Added referral: ${newUser.name} referred by ${referrerInSession.name}`
+          )
+
+          // Create notification for the referrer
+          await Notification.create(
+            [
+              {
+                recipient: referrerInSession._id,
+                title: 'New Referral!',
+                message: `${newUser.name} just joined using your referral code!`,
+                type: 'referral',
+                data: {
+                  referredUserId: newUser._id,
+                  referredUserName: newUser.name,
+                  referredUserEmail: newUser.email,
+                  referralCode: tempData.referralCode,
+                },
+                priority: 'medium',
+              },
+            ],
+            { session }
+          )
+
+          console.log(
+            `Created referral notification for ${referrerInSession.name}`
+          )
+        } else {
+          console.error('Referrer not found in session')
+        }
+      } catch (referralError) {
+        console.error('Error processing referral:', referralError)
+        // Don't fail the signup if referral processing fails, but log it
       }
+    } else {
+      console.log('No referrer to process')
     }
 
     // Clean up temp data
     global.signupOTPStore?.delete(email.toLowerCase().trim())
+    console.log(
+      'Cleaned up temp data. Store size now:',
+      global.signupOTPStore?.size || 0
+    )
 
     await session.commitTransaction()
+    console.log('Transaction committed successfully')
 
     // Send welcome email (don't fail if this fails)
     try {
       await sendWelcomeEmail(newUser)
+      console.log('Welcome email sent')
     } catch (emailError) {
       console.error('Failed to send welcome email:', emailError)
     }
@@ -528,6 +683,19 @@ export const verifySignupOTP = async (req, res, next) => {
     const populatedUser = await User.findById(newUser._id)
       .populate('referredBy', 'name email referralCode')
       .select('-password')
+
+    console.log('Populated user for response:', {
+      id: populatedUser._id.toString(),
+      name: populatedUser.name,
+      email: populatedUser.email,
+      referredBy: populatedUser.referredBy
+        ? {
+            id: populatedUser.referredBy._id.toString(),
+            name: populatedUser.referredBy.name,
+            referralCode: populatedUser.referredBy.referralCode,
+          }
+        : null,
+    })
 
     // Sign in the user automatically after successful verification
     createSendToken(populatedUser, 201, res)

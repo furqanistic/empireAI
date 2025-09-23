@@ -63,18 +63,33 @@ export const getReferralStats = async (req, res, next) => {
   }
 }
 
-// Validate a referral code
 export const validateReferralCode = async (req, res, next) => {
   try {
     const { code } = req.params
+
+    console.log('Validating referral code:', code)
 
     if (!code || code.trim().length < 3) {
       return next(createError(400, 'Please provide a valid referral code'))
     }
 
+    // Using the improved method with field selection
     const referrer = await User.findByReferralCode(
-      code.trim().toUpperCase()
-    ).select('name email referralCode createdAt')
+      code.trim().toUpperCase(),
+      'name email referralCode createdAt'
+    )
+
+    console.log(
+      'Referrer lookup result:',
+      referrer
+        ? {
+            id: referrer._id.toString(),
+            name: referrer.name,
+            email: referrer.email,
+            referralCode: referrer.referralCode,
+          }
+        : 'No referrer found'
+    )
 
     if (!referrer) {
       return res.status(200).json({
