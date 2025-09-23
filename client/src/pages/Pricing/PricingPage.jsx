@@ -733,69 +733,122 @@ const PricingPage = () => {
           </p>
 
           {/* Current Subscription Status */}
+          {/* Current Subscription Status - Redesigned */}
           {subscriptionStatus.hasSubscription && (
-            <div className='bg-blue-900/20 border border-blue-500/30 rounded-xl p-4 max-w-md mx-auto'>
-              <div className='flex flex-col items-center justify-center space-y-2'>
-                <div className='flex items-center space-x-2 text-blue-200'>
-                  <Star size={16} />
-                  <span>
-                    Current Plan:{' '}
-                    <strong className='text-[#D4AF37] capitalize'>
-                      {subscriptionStatus.plan} (
-                      {subscriptionStatus.billingCycle})
-                    </strong>
-                  </span>
+            <div className='bg-gradient-to-r from-[#1A1A1C] via-[#121214] to-[#1A1A1C] border border-[#D4AF37]/30 rounded-2xl p-6 max-w-2xl mx-auto shadow-lg'>
+              <div className='text-center space-y-4'>
+                {/* Plan Info */}
+                <div className='flex items-center justify-center gap-3 mb-4'>
+                  <div>
+                    <div className='text-[#EDEDED] text-lg font-semibold'>
+                      Current Plan:{' '}
+                      <span className='text-[#D4AF37] capitalize'>
+                        {subscriptionStatus.plan}
+                      </span>
+                    </div>
+                    <div className='text-gray-400 text-sm'>
+                      {subscriptionStatus.billingCycle} billing
+                    </div>
+                  </div>
                 </div>
 
                 {/* Trial Display */}
                 {trialDisplay && (
                   <div
-                    className={`${
-                      trialDisplay.color
-                    } text-sm font-medium flex items-center gap-2 ${
-                      trialDisplay.urgent ? 'animate-pulse' : ''
+                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
+                      trialDisplay.urgent
+                        ? 'bg-orange-500/20 border border-orange-500/40 text-orange-300 animate-pulse'
+                        : 'bg-green-500/20 border border-green-500/40 text-green-300'
                     }`}
                   >
-                    <Clock size={14} />
+                    <Clock size={16} />
                     {trialDisplay.text}
                   </div>
                 )}
 
+                {/* Cancellation Status */}
                 {subscriptionStatus.cancelAtPeriodEnd && (
-                  <div className='text-yellow-300 text-sm'>
-                    Cancels at period end
+                  <div className='bg-yellow-500/20 border border-yellow-500/40 rounded-lg px-4 py-2 inline-flex items-center gap-2'>
+                    <AlertTriangle size={16} className='text-yellow-400' />
+                    <span className='text-yellow-300 font-medium'>
+                      Subscription ends:{' '}
+                      {subscriptionStatus.currentPeriodEnd
+                        ? new Date(
+                            subscriptionStatus.currentPeriodEnd
+                          ).toLocaleDateString()
+                        : 'End of period'}
+                    </span>
                   </div>
                 )}
 
-                <div className='flex gap-3 mt-2'>
+                {/* Action Buttons */}
+                <div className='grid grid-cols-1 sm:grid-cols-2 gap-3 mt-6'>
+                  {/* Manage Billing Button */}
                   <button
                     onClick={() => createBillingPortal.mutate()}
-                    className='text-blue-300 hover:text-blue-200 underline text-sm'
+                    disabled={createBillingPortal.isLoading}
+                    className='flex items-center justify-center gap-2 bg-[#1E1E21] hover:bg-[#2A2A2D] border border-[#D4AF37]/40 text-[#EDEDED] px-6 py-3 rounded-xl font-medium transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed'
                   >
-                    Manage Billing & Invoices
+                    {createBillingPortal.isLoading ? (
+                      <>
+                        <Loader size={16} className='animate-spin' />
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <DollarSign size={16} className='text-[#D4AF37]' />
+                        Manage Billing & Invoices
+                      </>
+                    )}
                   </button>
 
+                  {/* Cancel/Reactivate Button */}
                   {subscriptionStatus.isActive &&
-                    !subscriptionStatus.cancelAtPeriodEnd && (
-                      <button
-                        onClick={() => setShowCancelModal(true)}
-                        className='text-red-300 hover:text-red-200 underline text-sm'
-                      >
-                        Cancel Subscription
-                      </button>
-                    )}
-
-                  {subscriptionStatus.cancelAtPeriodEnd && (
+                  !subscriptionStatus.cancelAtPeriodEnd ? (
+                    <button
+                      onClick={() => setShowCancelModal(true)}
+                      className='flex items-center justify-center gap-2 bg-red-900/30 hover:bg-red-900/50 border border-red-500/40 text-red-300 hover:text-red-200 px-6 py-3 rounded-xl font-medium transition-all duration-300 hover:scale-105'
+                    >
+                      <X size={16} />
+                      Cancel Subscription
+                    </button>
+                  ) : subscriptionStatus.cancelAtPeriodEnd ? (
                     <button
                       onClick={handleReactivateSubscription}
                       disabled={reactivateSubscription.isLoading}
-                      className='text-green-300 hover:text-green-200 underline text-sm disabled:opacity-50'
+                      className='flex items-center justify-center gap-2 bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-500/40 text-emerald-300 hover:text-emerald-200 px-6 py-3 rounded-xl font-medium transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed'
                     >
-                      {reactivateSubscription.isLoading
-                        ? 'Reactivating...'
-                        : 'Reactivate Subscription'}
+                      {reactivateSubscription.isLoading ? (
+                        <>
+                          <Loader size={16} className='animate-spin' />
+                          Reactivating...
+                        </>
+                      ) : (
+                        <>
+                          <Zap size={16} />
+                          Reactivate Subscription
+                        </>
+                      )}
                     </button>
-                  )}
+                  ) : null}
+                </div>
+
+                {/* Additional Info */}
+                <div className='border-t border-[#1E1E21] pt-4 mt-4'>
+                  <div className='flex items-center justify-center gap-6 text-sm text-gray-400'>
+                    <div className='flex items-center gap-2'>
+                      <Shield size={14} className='text-[#D4AF37]' />
+                      <span>Secure Billing</span>
+                    </div>
+                    <div className='flex items-center gap-2'>
+                      <MessageCircle size={14} className='text-[#D4AF37]' />
+                      <span>24/7 Support</span>
+                    </div>
+                    <div className='flex items-center gap-2'>
+                      <Check size={14} className='text-[#D4AF37]' />
+                      <span>Cancel Anytime</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

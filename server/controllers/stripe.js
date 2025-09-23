@@ -809,18 +809,43 @@ export const cancelSubscription = async (req, res, next) => {
     // Update subscription in database
     await subscription.updateFromStripe(stripeSubscription)
 
-    // Update User model's subscription field
+    // FIXED: Update User model's subscription field - FORCE FREE PLAN FOR IMMEDIATE CANCELLATION
     if (immediate) {
-      const freeSubscriptionData = {
-        plan: 'free',
-        status: 'inactive',
-        isActive: false,
-        isTrialActive: false,
-        daysRemaining: 0,
-      }
-      await updateUserSubscriptionField(user._id, freeSubscriptionData)
+      // For immediate cancellation, set to free plan
+      await User.findByIdAndUpdate(user._id, {
+        'subscription.plan': 'free',
+        'subscription.status': 'inactive',
+        'subscription.isActive': false,
+        'subscription.isTrialActive': false,
+        'subscription.daysRemaining': 0,
+        'subscription.startDate': null,
+        'subscription.endDate': null,
+        'subscription.trialStartDate': null,
+        'subscription.trialEndDate': null,
+      })
     } else {
-      await updateUserSubscriptionField(user._id, subscription)
+      // For cancel at period end, keep current plan until period ends
+      const daysRemaining = subscription.currentPeriodEnd
+        ? Math.max(
+            0,
+            Math.ceil(
+              (new Date(subscription.currentPeriodEnd) - new Date()) /
+                (1000 * 60 * 60 * 24)
+            )
+          )
+        : 0
+
+      await User.findByIdAndUpdate(user._id, {
+        'subscription.plan': subscription.plan, // Keep current plan until period end
+        'subscription.status': subscription.isActive ? 'active' : 'inactive',
+        'subscription.isActive': subscription.isActive,
+        'subscription.isTrialActive': subscription.isTrialActive,
+        'subscription.daysRemaining': daysRemaining,
+        'subscription.startDate': subscription.currentPeriodStart,
+        'subscription.endDate': subscription.currentPeriodEnd,
+        'subscription.trialStartDate': subscription.trialStart,
+        'subscription.trialEndDate': subscription.trialEnd,
+      })
     }
 
     // Send cancellation notification

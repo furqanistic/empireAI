@@ -237,7 +237,7 @@ NotificationSchema.statics.createSubscriptionNotification = async function (
       },
       subscription_cancelled: {
         title: 'Subscription Cancelled',
-        message: `Your ${subscriptionData.planName} subscription has been cancelled. You'll continue to have access until ${subscriptionData.periodEnd}.`,
+        message: `Your ${subscriptionData.planName} subscription has been cancelled.`,
         priority: 'medium',
         actionUrl: '/pricing',
         actionText: 'Reactivate',

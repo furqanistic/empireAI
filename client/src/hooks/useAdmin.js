@@ -1,4 +1,4 @@
-// File: client/src/hooks/useAdmin.js - FIXED WITH PROPER ERROR HANDLING
+// File: client/src/hooks/useAdmin.js - FIXED WITH AGGRESSIVE CACHE INVALIDATION
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { adminService } from '../services/adminService.js'
 
@@ -8,8 +8,8 @@ export const useGetAllUsers = (params = {}, enabled = true) => {
     queryKey: ['admin', 'users', params],
     queryFn: () => adminService.getAllUsers(params),
     enabled,
-    staleTime: 60 * 1000,
-    cacheTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000, // Reduced from 60s to 30s for faster updates
+    cacheTime: 2 * 60 * 1000, // Reduced from 5m to 2m
   })
 }
 
@@ -19,8 +19,8 @@ export const useGetAdminStats = (enabled = true) => {
     queryKey: ['admin', 'stats'],
     queryFn: adminService.getAdminStats,
     enabled,
-    staleTime: 2 * 60 * 1000,
-    cacheTime: 10 * 60 * 1000,
+    staleTime: 30 * 1000, // Reduced from 2m to 30s
+    cacheTime: 5 * 60 * 1000,
   })
 }
 
@@ -32,24 +32,33 @@ export const useUpdateUser = () => {
     mutationFn: ({ userId, userData }) =>
       adminService.updateUser(userId, userData),
     onSuccess: (data, variables) => {
-      // Invalidate and refetch relevant queries
+      console.log('User update successful, invalidating caches...')
+
+      // Invalidate and refetch relevant queries immediately
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] })
+      queryClient.invalidateQueries({ queryKey: ['user', variables.userId] })
 
-      // Update the specific user in cache
-      queryClient.setQueryData(['admin', 'user', variables.userId], data)
+      // Force immediate refetch of users to show updated data
+      queryClient.refetchQueries({ queryKey: ['admin', 'users'] })
+
+      // Update the specific user in cache if we have the data
+      if (data?.data?.user) {
+        queryClient.setQueryData(['admin', 'user', variables.userId], data)
+      }
+
+      console.log('✅ Cache invalidated and refetched after user update')
     },
     onError: (error) => {
       const errorMessage =
         error.response?.data?.message || 'Failed to update user'
       console.error('Update user error:', error)
-      // Return error for component to handle
       throw new Error(errorMessage)
     },
   })
 }
 
-// Update user subscription (admin only)
+// ENHANCED: Update user subscription with aggressive cache invalidation
 export const useUpdateUserSubscription = () => {
   const queryClient = useQueryClient()
 
@@ -57,13 +66,31 @@ export const useUpdateUserSubscription = () => {
     mutationFn: ({ userId, subscriptionData }) =>
       adminService.updateUserSubscription(userId, subscriptionData),
     onSuccess: (data, variables) => {
-      // Invalidate all relevant queries to ensure fresh data
+      console.log(
+        'Subscription update successful, aggressive cache invalidation...'
+      )
+
+      // Invalidate ALL related queries
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] })
       queryClient.invalidateQueries({ queryKey: ['user', variables.userId] })
+      queryClient.invalidateQueries({ queryKey: ['stripe', 'subscription'] })
 
-      // Force refetch to get updated data
-      queryClient.refetchQueries({ queryKey: ['admin', 'users'] })
+      // Force immediate refetch of users list to show updated subscription status
+      queryClient.refetchQueries({
+        queryKey: ['admin', 'users'],
+        type: 'active', // Only refetch active queries
+      })
+
+      // Also refetch stats to update counts
+      queryClient.refetchQueries({
+        queryKey: ['admin', 'stats'],
+        type: 'active',
+      })
+
+      console.log(
+        '✅ Aggressive cache invalidation completed for subscription update'
+      )
     },
     onError: (error) => {
       const errorMessage =
@@ -74,7 +101,7 @@ export const useUpdateUserSubscription = () => {
   })
 }
 
-// Cancel user subscription (admin only)
+// ENHANCED: Cancel user subscription with aggressive cache invalidation
 export const useCancelUserSubscription = () => {
   const queryClient = useQueryClient()
 
@@ -82,13 +109,31 @@ export const useCancelUserSubscription = () => {
     mutationFn: ({ userId, immediate }) =>
       adminService.cancelUserSubscription(userId, immediate),
     onSuccess: (data, variables) => {
-      // Invalidate queries to refresh data
+      console.log(
+        'Subscription cancellation successful, invalidating all caches...'
+      )
+
+      // Invalidate ALL subscription and user related queries
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] })
       queryClient.invalidateQueries({ queryKey: ['user', variables.userId] })
+      queryClient.invalidateQueries({ queryKey: ['stripe', 'subscription'] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'subscriptions'] })
 
-      // Force immediate refetch
-      queryClient.refetchQueries({ queryKey: ['admin', 'users'] })
+      // Force immediate refetch to show cancelled subscription
+      queryClient.refetchQueries({
+        queryKey: ['admin', 'users'],
+        type: 'active',
+      })
+
+      queryClient.refetchQueries({
+        queryKey: ['admin', 'stats'],
+        type: 'active',
+      })
+
+      console.log(
+        '✅ All caches invalidated and refetched after subscription cancellation'
+      )
     },
     onError: (error) => {
       const errorMessage =
@@ -99,19 +144,26 @@ export const useCancelUserSubscription = () => {
   })
 }
 
-// Reactivate user subscription (admin only)
+// ENHANCED: Reactivate user subscription with cache invalidation
 export const useReactivateUserSubscription = () => {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: (userId) => adminService.reactivateUserSubscription(userId),
     onSuccess: (data, userId) => {
+      console.log(
+        'Subscription reactivation successful, invalidating caches...'
+      )
+
       // Invalidate and refetch
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] })
       queryClient.invalidateQueries({ queryKey: ['user', userId] })
 
       queryClient.refetchQueries({ queryKey: ['admin', 'users'] })
+      queryClient.refetchQueries({ queryKey: ['admin', 'stats'] })
+
+      console.log('✅ Caches invalidated after subscription reactivation')
     },
     onError: (error) => {
       const errorMessage =
@@ -131,6 +183,7 @@ export const useDeleteUser = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] })
+      queryClient.refetchQueries({ queryKey: ['admin', 'users'] })
     },
     onError: (error) => {
       const errorMessage =
@@ -150,6 +203,7 @@ export const useCreateUser = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] })
+      queryClient.refetchQueries({ queryKey: ['admin', 'users'] })
     },
     onError: (error) => {
       const errorMessage =
@@ -166,8 +220,8 @@ export const useGetPayouts = (params = {}, enabled = true) => {
     queryKey: ['admin', 'payouts', params],
     queryFn: () => adminService.getPayouts(params),
     enabled,
-    staleTime: 60 * 1000,
-    cacheTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000, // Reduced for faster updates
+    cacheTime: 2 * 60 * 1000,
   })
 }
 
@@ -180,6 +234,7 @@ export const useApprovePayout = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'payouts'] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] })
+      queryClient.refetchQueries({ queryKey: ['admin', 'payouts'] })
     },
     onError: (error) => {
       const errorMessage =
@@ -200,6 +255,7 @@ export const useRejectPayout = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'payouts'] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] })
+      queryClient.refetchQueries({ queryKey: ['admin', 'payouts'] })
     },
     onError: (error) => {
       const errorMessage =
@@ -219,6 +275,7 @@ export const useCompletePayout = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'payouts'] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] })
+      queryClient.refetchQueries({ queryKey: ['admin', 'payouts'] })
     },
     onError: (error) => {
       const errorMessage =

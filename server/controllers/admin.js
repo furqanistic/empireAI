@@ -1,4 +1,4 @@
-// File: controllers/admin.js - FIXED CYCLIC OBJECT ERROR
+// File: controllers/admin.js - FIXED WITH PROPER USER MODEL SYNC
 import {
   createOrRetrieveCustomer,
   stripe,
@@ -55,23 +55,40 @@ export const getAdminStats = async (req, res, next) => {
   }
 }
 
-// Helper to update User model subscription field
+// IMPROVED: Helper to update User model subscription field
 const updateUserSubscriptionField = async (userId, subscriptionData) => {
   try {
+    console.log(`Updating user ${userId} subscription field:`, subscriptionData)
+
     // Handle free/cancelled subscriptions
-    if (!subscriptionData || subscriptionData.plan === 'free') {
-      await User.findByIdAndUpdate(userId, {
-        'subscription.plan': 'free',
-        'subscription.status': 'inactive',
-        'subscription.isActive': false,
-        'subscription.isTrialActive': false,
-        'subscription.daysRemaining': 0,
-        'subscription.startDate': null,
-        'subscription.endDate': null,
-        'subscription.trialStartDate': null,
-        'subscription.trialEndDate': null,
-      })
-      return
+    if (
+      !subscriptionData ||
+      subscriptionData.plan === 'free' ||
+      subscriptionData.status === 'canceled'
+    ) {
+      console.log(`Setting user ${userId} to free plan`)
+
+      const updateResult = await User.findByIdAndUpdate(
+        userId,
+        {
+          'subscription.plan': 'free',
+          'subscription.status': 'inactive',
+          'subscription.isActive': false,
+          'subscription.isTrialActive': false,
+          'subscription.daysRemaining': 0,
+          'subscription.startDate': null,
+          'subscription.endDate': null,
+          'subscription.trialStartDate': null,
+          'subscription.trialEndDate': null,
+        },
+        { new: true }
+      )
+
+      console.log(
+        `✅ User ${userId} updated to free plan:`,
+        updateResult?.subscription
+      )
+      return updateResult
     }
 
     // Calculate days remaining correctly
@@ -103,22 +120,33 @@ const updateUserSubscriptionField = async (userId, subscriptionData) => {
       incomplete_expired: 'inactive',
     }
 
-    await User.findByIdAndUpdate(userId, {
-      'subscription.plan': subscriptionData.plan,
-      'subscription.status':
-        statusMapping[subscriptionData.status] || 'inactive',
-      'subscription.startDate': subscriptionData.currentPeriodStart,
-      'subscription.endDate': subscriptionData.currentPeriodEnd,
-      'subscription.isActive': ['active', 'trialing'].includes(
-        subscriptionData.status
-      ),
-      'subscription.isTrialActive': subscriptionData.status === 'trialing',
-      'subscription.trialStartDate': subscriptionData.trialStart,
-      'subscription.trialEndDate': subscriptionData.trialEnd,
-      'subscription.daysRemaining': daysRemaining,
-    })
+    const updateResult = await User.findByIdAndUpdate(
+      userId,
+      {
+        'subscription.plan': subscriptionData.plan,
+        'subscription.status':
+          statusMapping[subscriptionData.status] || 'inactive',
+        'subscription.startDate': subscriptionData.currentPeriodStart,
+        'subscription.endDate': subscriptionData.currentPeriodEnd,
+        'subscription.isActive': ['active', 'trialing'].includes(
+          subscriptionData.status
+        ),
+        'subscription.isTrialActive': subscriptionData.status === 'trialing',
+        'subscription.trialStartDate': subscriptionData.trialStart,
+        'subscription.trialEndDate': subscriptionData.trialEnd,
+        'subscription.daysRemaining': daysRemaining,
+      },
+      { new: true }
+    )
+
+    console.log(
+      `✅ User ${userId} subscription updated:`,
+      updateResult?.subscription
+    )
+    return updateResult
   } catch (error) {
     console.error('Error updating user subscription field:', error)
+    throw error // Re-throw to handle in calling function
   }
 }
 
@@ -169,6 +197,8 @@ export const updateUserSubscription = async (req, res, next) => {
 
     // Handle free plan assignment
     if (planName === 'free') {
+      console.log(`Setting user ${userId} to free plan`)
+
       // Find any existing subscription
       const subscription = await Subscription.findOne({ user: userId })
 
@@ -177,6 +207,9 @@ export const updateUserSubscription = async (req, res, next) => {
         if (subscription.stripeSubscriptionId) {
           try {
             await stripe.subscriptions.cancel(subscription.stripeSubscriptionId)
+            console.log(
+              `Cancelled Stripe subscription: ${subscription.stripeSubscriptionId}`
+            )
           } catch (stripeError) {
             console.error('Stripe cancellation error:', stripeError)
           }
@@ -191,12 +224,14 @@ export const updateUserSubscription = async (req, res, next) => {
         subscription.canceledAt = new Date()
         subscription.isActive = false
         await subscription.save()
+
+        console.log(`Subscription updated to cancelled for user ${userId}`)
       }
 
       // Update user to free plan
-      await updateUserSubscriptionField(userId, {
+      const updatedUser = await updateUserSubscriptionField(userId, {
         plan: 'free',
-        status: 'inactive',
+        status: 'canceled',
         isActive: false,
       })
 
@@ -204,7 +239,7 @@ export const updateUserSubscription = async (req, res, next) => {
         status: 'success',
         data: {
           message: 'User subscription cancelled and set to free plan',
-          subscription: {
+          subscription: updatedUser?.subscription || {
             plan: 'free',
             status: 'inactive',
             isActive: false,
@@ -363,11 +398,15 @@ export const updateUserSubscription = async (req, res, next) => {
   }
 }
 
-// Cancel user subscription
+// FIXED: Cancel user subscription with proper sync
 export const cancelUserSubscription = async (req, res, next) => {
   try {
     const { userId } = req.params
     const { immediate = false } = req.body
+
+    console.log(
+      `Cancelling subscription for user ${userId}, immediate: ${immediate}`
+    )
 
     const subscription = await Subscription.findOne({
       user: userId,
@@ -375,10 +414,18 @@ export const cancelUserSubscription = async (req, res, next) => {
 
     if (!subscription) {
       // No subscription found, just update user to free
-      await updateUserSubscriptionField(userId, {
-        plan: 'free',
-        status: 'inactive',
-        isActive: false,
+      console.log(`No subscription found for user ${userId}, setting to free`)
+
+      await User.findByIdAndUpdate(userId, {
+        'subscription.plan': 'free',
+        'subscription.status': 'inactive',
+        'subscription.isActive': false,
+        'subscription.isTrialActive': false,
+        'subscription.daysRemaining': 0,
+        'subscription.startDate': null,
+        'subscription.endDate': null,
+        'subscription.trialStartDate': null,
+        'subscription.trialEndDate': null,
       })
 
       return res.status(200).json({
@@ -405,10 +452,16 @@ export const cancelUserSubscription = async (req, res, next) => {
         if (['active', 'trialing'].includes(stripeSubscription.status)) {
           let canceledSubscription
           if (immediate) {
+            console.log(
+              `Cancelling Stripe subscription immediately: ${subscription.stripeSubscriptionId}`
+            )
             canceledSubscription = await stripe.subscriptions.cancel(
               subscription.stripeSubscriptionId
             )
           } else {
+            console.log(
+              `Setting Stripe subscription to cancel at period end: ${subscription.stripeSubscriptionId}`
+            )
             canceledSubscription = await stripe.subscriptions.update(
               subscription.stripeSubscriptionId,
               { cancel_at_period_end: true }
@@ -416,6 +469,9 @@ export const cancelUserSubscription = async (req, res, next) => {
           }
 
           await subscription.updateFromStripe(canceledSubscription)
+          console.log(
+            `Updated subscription from Stripe, status: ${subscription.status}`
+          )
         }
       } catch (stripeError) {
         console.error('Stripe cancellation error:', stripeError)
@@ -423,34 +479,81 @@ export const cancelUserSubscription = async (req, res, next) => {
       }
     }
 
-    // Update local subscription status
+    // Update local subscription status and User model
     if (immediate) {
+      console.log(
+        `Setting subscription to cancelled immediately for user ${userId}`
+      )
+
       subscription.status = 'canceled'
       subscription.canceledAt = new Date()
       subscription.isActive = false
       await subscription.save()
 
-      await updateUserSubscriptionField(userId, {
-        plan: 'free',
-        status: 'inactive',
-        isActive: false,
+      // FIXED: Force user to free plan when cancelled immediately
+      await User.findByIdAndUpdate(userId, {
+        'subscription.plan': 'free',
+        'subscription.status': 'inactive',
+        'subscription.isActive': false,
+        'subscription.isTrialActive': false,
+        'subscription.daysRemaining': 0,
+        'subscription.startDate': null,
+        'subscription.endDate': null,
+        'subscription.trialStartDate': null,
+        'subscription.trialEndDate': null,
+      })
+
+      res.status(200).json({
+        status: 'success',
+        data: {
+          subscription: {
+            plan: 'free',
+            status: 'inactive',
+            isActive: false,
+            daysRemaining: 0,
+          },
+          message: 'Subscription cancelled immediately',
+        },
       })
     } else {
+      console.log(
+        `Setting subscription to cancel at period end for user ${userId}`
+      )
+
       subscription.cancelAtPeriodEnd = true
       await subscription.save()
 
-      await updateUserSubscriptionField(userId, subscription)
-    }
+      // For cancel at period end, keep current plan until period ends
+      const daysRemaining = subscription.currentPeriodEnd
+        ? Math.max(
+            0,
+            Math.ceil(
+              (new Date(subscription.currentPeriodEnd) - new Date()) /
+                (1000 * 60 * 60 * 24)
+            )
+          )
+        : 0
 
-    res.status(200).json({
-      status: 'success',
-      data: {
-        subscription,
-        message: immediate
-          ? 'Subscription cancelled immediately'
-          : 'Subscription will cancel at period end',
-      },
-    })
+      await User.findByIdAndUpdate(userId, {
+        'subscription.plan': subscription.plan, // Keep current plan until period end
+        'subscription.status': subscription.isActive ? 'active' : 'inactive',
+        'subscription.isActive': subscription.isActive,
+        'subscription.isTrialActive': subscription.isTrialActive,
+        'subscription.daysRemaining': daysRemaining,
+        'subscription.startDate': subscription.currentPeriodStart,
+        'subscription.endDate': subscription.currentPeriodEnd,
+        'subscription.trialStartDate': subscription.trialStart,
+        'subscription.trialEndDate': subscription.trialEnd,
+      })
+
+      res.status(200).json({
+        status: 'success',
+        data: {
+          subscription: subscription,
+          message: 'Subscription will cancel at period end',
+        },
+      })
+    }
   } catch (error) {
     console.error('Error canceling subscription:', error)
     next(createError(500, 'Failed to cancel subscription'))
