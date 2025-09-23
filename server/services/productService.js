@@ -10,7 +10,7 @@ class ProductService {
     // Use different models based on detail level
     this.models = {
       standard: 'llama-3.3-70b-versatile',
-      detailed: 'llama-3.1-70b-versatile',
+      detailed: 'llama-3.3-70b-versatile', // ✅ FIXED: Updated from deprecated llama-3.1-70b-versatile
     }
 
     if (!this.apiKey) {
