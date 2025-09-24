@@ -20,7 +20,7 @@ import productRoute from './routes/product.js'
 import referralRoute from './routes/referral.js'
 import stripeRoute from './routes/stripe.js'
 import stripeConnectWebhooksRoute from './routes/stripeConnectWebhooks.js'
-
+import usageRoutes from './routes/usage.js'
 // CHAT ROUTE - SIMPLIFIED
 import chatRoute from './routes/chat.js'
 
@@ -74,7 +74,7 @@ app.use('/api/earnings', earningsRoutes)
 app.use('/api/auth/discord/', discordRoute)
 app.use('/api/admin', adminRoutes)
 app.use('/api/business-plans/', businessPlanRoute)
-
+app.use('/api/usage', usageRoutes)
 // SIMPLIFIED CHAT ROUTES
 app.use('/api/chat/', chatRoute)
 

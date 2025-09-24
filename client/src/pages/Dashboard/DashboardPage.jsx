@@ -23,6 +23,7 @@ import { FaDiscord } from 'react-icons/fa'
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import PlanStatusCard from '@/components/Dashboard/PlanStatusCard.jsx'
 import DiscordConnection from '@/components/Discord/DiscordConnection.jsx'
 import axiosInstance from '@/config/config'
 import { useClaimDailyPoints, usePointsStatus } from '../../hooks/useAuth.js'
@@ -293,6 +294,7 @@ const DashboardPage = () => {
             </div>
           </div>
         </div>
+        <PlanStatusCard />
 
         {/* Global Feedback Messages */}
         {feedbackMessage && (

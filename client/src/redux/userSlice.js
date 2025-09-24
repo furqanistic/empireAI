@@ -63,6 +63,25 @@ export const { loginStart, loginSuccess, loginFailure, updateProfile, logout } =
   userSlice.actions
 
 // Selectors for easy access to state
+export const selectUserPlan = (state) => {
+  const user = state.user.currentUser
+  return user?.subscription?.isActive ? user.subscription.plan : 'free'
+}
+
+export const selectSubscriptionStatus = (state) => {
+  const user = state.user.currentUser
+  return {
+    plan: user?.subscription?.plan || 'free',
+    isActive: user?.subscription?.isActive || false,
+    status: user?.subscription?.status || 'inactive',
+    trialActive: user?.subscription?.isTrialActive || false,
+    daysRemaining: user?.subscription?.daysRemaining || 0,
+  }
+}
+
+export const selectHasActiveSubscription = (state) => {
+  return state.user.currentUser?.subscription?.isActive || false
+}
 export const selectCurrentUser = (state) => state.user.currentUser
 export const selectIsAdmin = (state) => state.user.currentUser?.role === 'admin'
 export const selectIsAuthenticated = (state) => !!state.user.currentUser
