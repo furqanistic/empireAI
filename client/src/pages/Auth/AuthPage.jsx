@@ -1,4 +1,4 @@
-// File: client/src/pages/Auth/AuthPage.jsx - UPDATED WITH EMAIL VERIFICATION FLOW
+// File: client/src/pages/Auth/AuthPage.jsx - UPDATED WITH TERMS & POLICY AGREEMENT
 import {
   AlertTriangle,
   ArrowLeft,
@@ -190,6 +190,8 @@ export default function AuthPage() {
   })
   const [errors, setErrors] = useState({})
   const [referralValidation, setReferralValidation] = useState(null)
+  // NEW: Terms and policy agreement state
+  const [agreedToTerms, setAgreedToTerms] = useState(false)
 
   // Redux state
   const currentUser = useCurrentUser()
@@ -337,6 +339,15 @@ export default function AuthPage() {
   }
 
   const handleSubmit = async () => {
+    if (authFlow === 'signup' && !agreedToTerms) {
+      setErrors((prev) => ({
+        ...prev,
+        general:
+          'You must agree to the Terms of Service and Privacy Policy to continue',
+      }))
+      return
+    }
+
     if (!validateForm()) return
 
     setErrors({})
@@ -779,6 +790,40 @@ export default function AuthPage() {
                       </div>
                     )}
                 </div>
+
+                {/* NEW: Terms and Policy Agreement */}
+                <div className='flex items-start space-x-2 mt-4'>
+                  <input
+                    type='checkbox'
+                    id='terms-agreement'
+                    checked={agreedToTerms}
+                    onChange={(e) => setAgreedToTerms(e.target.checked)}
+                    className='mt-1 h-4 w-4 text-[#D4AF37] rounded focus:ring-[#D4AF37] bg-[#0B0B0C] border-[#1E1E21]'
+                  />
+                  <label
+                    htmlFor='terms-agreement'
+                    className='text-sm text-gray-400'
+                  >
+                    I agree to the{' '}
+                    <a
+                      href='/terms'
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      className='text-[#D4AF37] hover:underline'
+                    >
+                      Terms of Service
+                    </a>{' '}
+                    and{' '}
+                    <a
+                      href='/privacy'
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      className='text-[#D4AF37] hover:underline'
+                    >
+                      Privacy Policy
+                    </a>
+                  </label>
+                </div>
               </>
             )}
 
@@ -915,8 +960,9 @@ export default function AuthPage() {
               disabled={
                 isLoading ||
                 (authFlow === 'signup' &&
-                  formData.referralCode.trim().length >= 3 &&
-                  isValidatingReferral)
+                  ((formData.referralCode.trim().length >= 3 &&
+                    isValidatingReferral) ||
+                    !agreedToTerms))
               }
             >
               {authFlow === 'signin' && 'Sign In'}
@@ -952,9 +998,29 @@ export default function AuthPage() {
           )}
         </div>
 
-        <div className='text-center mt-6 text-xs text-gray-500'>
-          By continuing, you agree to our Terms of Service and Privacy Policy
-        </div>
+        {/* Updated footer with links */}
+        {authFlow === 'signup' && (
+          <div className='text-center mt-6 text-xs text-gray-500'>
+            By continuing, you agree to our{' '}
+            <a
+              href='/terms'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='text-[#D4AF37] hover:underline'
+            >
+              Terms of Service
+            </a>{' '}
+            and{' '}
+            <a
+              href='/privacy'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='text-[#D4AF37] hover:underline'
+            >
+              Privacy Policy
+            </a>
+          </div>
+        )}
       </div>
     </div>
   )
