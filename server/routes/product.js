@@ -1,6 +1,5 @@
-// File: server/routes/product.js - Complete with all missing routes
+// File: server/routes/products.js
 import express from 'express'
-
 import {
   addFeedback,
   deleteProductGeneration,
@@ -17,176 +16,168 @@ import {
   testGroqConnection,
   trackExport,
 } from '../controllers/productController.js'
+import { restrictTo, verifyToken } from '../middleware/authMiddleware.js'
 import {
-  checkActiveUser,
-  restrictTo,
-  verifyToken,
-} from '../middleware/authMiddleware.js'
-import {
-  addRateInfoHeaders,
-  enhancedProductLogging,
-  enrichUserContext,
-  logProductActivity,
-  trackProductAnalytics,
-  validateContentAppropriateNess,
-  validateEnhancedProductRequest,
-  validateProductRequest,
-} from '../middleware/productMiddleware.js'
+  checkUsageLimit,
+  logUsageAfterGeneration,
+} from '../middleware/usageMiddleware.js'
 
 const router = express.Router()
 
-// Public test route (no authentication required)
+// =============================================================================
+// PUBLIC ROUTES (No authentication required)
+// =============================================================================
+
+// Test AI service connection (for debugging)
+router.get('/test-connection', testAIConnection)
+
+// Test GROQ connection specifically (for debugging)
 router.get('/test-groq', testGroqConnection)
 
-// Test route for AI connection (admin only)
-router.get(
-  '/test-connection',
-  verifyToken,
-  restrictTo('admin'),
-  testAIConnection
-)
+// =============================================================================
+// AUTHENTICATED USER ROUTES
+// =============================================================================
 
-// Protected routes (require authentication)
-router.use(verifyToken)
-router.use(checkActiveUser)
-
-// Add unlimited access context and headers
-router.use(enrichUserContext)
-router.use(addRateInfoHeaders)
-
-// Enhanced logging for all product operations
-router.use(logProductActivity)
-
-// Main product generation endpoint
+// Generate complete digital product with usage limit enforcement
 router.post(
   '/generate',
-  validateEnhancedProductRequest,
-  validateContentAppropriateNess,
-  trackProductAnalytics,
-  enhancedProductLogging,
-  generateProduct
+  verifyToken, // Authenticate user
+  checkUsageLimit('product-generator'), // Check plan access and usage limits
+  logUsageAfterGeneration('product-generator'), // Track usage after successful generation
+  generateProduct // Generate product controller
 )
 
-// Alternative generation endpoint with basic validation (for backwards compatibility)
-router.post('/generate-basic', validateProductRequest, generateProduct)
+// Export product to various formats (PDF, DOCX, XLSX, PPTX)
+router.post(
+  '/export',
+  verifyToken,
+  trackExport, // Track export analytics
+  exportProduct
+)
 
-// FIXED: Export product - removed wrong validation middleware
-router.post('/export', trackExport, exportProduct)
-
-// ADDED: Get user's product generation history - This was missing!
-router.get('/history', getProductHistory)
-
-// ADDED: Get user's product generation statistics - This was missing!
+// Get user's product generation history
+router.get('/history', verifyToken, getProductHistory)
 
 // Get specific product generation by ID
-router.get('/:id', getProductGeneration)
+router.get('/:id', verifyToken, getProductGeneration)
 
-// Mark content as copied (for analytics)
-router.post('/:id/copy', markContentCopied)
+// Mark content section as copied (for analytics)
+router.post('/:id/copy', verifyToken, markContentCopied)
 
 // Mark product as downloaded (for analytics)
-router.post('/:id/download', markProductDownloaded)
+router.post('/:id/download', verifyToken, markProductDownloaded)
 
 // Add feedback to a product generation
-router.post('/:id/feedback', addFeedback)
+router.post('/:id/feedback', verifyToken, addFeedback)
+
+// Get user's product generation statistics
+router.get('/stats/user', verifyToken, getUserStats)
 
 // Delete a product generation
-router.delete('/:id', deleteProductGeneration)
+router.delete('/:id', verifyToken, deleteProductGeneration)
 
-// Bulk generation endpoint (for power users)
-router.post(
-  '/generate-bulk',
-  validateEnhancedProductRequest,
-  trackProductAnalytics,
-  async (req, res, next) => {
-    // Handle bulk generation (generate multiple products at once)
-    const { bulkConfig } = req.body
+// =============================================================================
+// ADMIN ROUTES
+// =============================================================================
 
-    if (!bulkConfig || !Array.isArray(bulkConfig)) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Bulk config must be an array of product configurations',
-      })
-    }
-
-    if (bulkConfig.length > 10) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Maximum 10 products per bulk request',
-      })
-    }
-
-    try {
-      const results = []
-
-      for (const config of bulkConfig) {
-        req.body = { ...config }
-        const result = await generateProduct(req, res, next)
-        results.push(result)
-      }
-
-      res.status(200).json({
-        status: 'success',
-        message: `Generated ${results.length} products successfully`,
-        data: { products: results },
-      })
-    } catch (error) {
-      next(error)
-    }
-  }
+// Get platform-wide product analytics (Admin only)
+router.get(
+  '/admin/analytics',
+  verifyToken,
+  restrictTo('admin'),
+  getProductAnalytics
 )
 
-// Admin only routes
-router.use(restrictTo('admin'))
+// Get all product generations (Admin only)
+router.get(
+  '/admin/all',
+  verifyToken,
+  restrictTo('admin'),
+  getAllProductGenerations
+)
 
-// Get product analytics (admin only)
-router.get('/admin/analytics', getProductAnalytics)
+// =============================================================================
+// ERROR HANDLING MIDDLEWARE
+// =============================================================================
 
-// Get all product generations (admin only)
-router.get('/admin/all', getAllProductGenerations)
+// Handle route-specific errors
+router.use((error, req, res, next) => {
+  console.error('Products Route Error:', {
+    error: error.message,
+    stack: error.stack,
+    url: req.url,
+    method: req.method,
+    user: req.user?.id || 'Anonymous',
+    body: req.method === 'POST' ? JSON.stringify(req.body, null, 2) : undefined,
+    timestamp: new Date().toISOString(),
+  })
 
-// Admin bulk operations
-router.post('/admin/bulk-operations', async (req, res, next) => {
-  const { operation, filters } = req.body
-
-  try {
-    switch (operation) {
-      case 'cleanup-failed':
-        // Clean up failed generations
-        const deleted = await ProductGeneration.deleteMany({
-          status: 'failed',
-          createdAt: { $lt: new Date(Date.now() - 24 * 60 * 60 * 1000) }, // Older than 24 hours
-        })
-
-        res.json({
-          status: 'success',
-          message: `Cleaned up ${deleted.deletedCount} failed generations`,
-        })
-        break
-
-      case 'export-data':
-        // Export generation data
-        const generations = await ProductGeneration.find(filters || {})
-          .populate('user', 'email')
-          .lean()
-
-        res.json({
-          status: 'success',
-          data: { generations },
-          count: generations.length,
-        })
-        break
-
-      default:
-        res.status(400).json({
-          status: 'error',
-          message: 'Invalid bulk operation',
-        })
-    }
-  } catch (error) {
-    console.error('Admin bulk operation error:', error)
-    next(error)
+  // Handle specific error types
+  if (error.name === 'ValidationError') {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid product generation parameters',
+      details: error.message,
+      validationErrors: error.errors
+        ? Object.keys(error.errors).map((key) => ({
+            field: key,
+            message: error.errors[key].message,
+          }))
+        : undefined,
+    })
   }
+
+  if (error.name === 'CastError') {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid product generation ID format',
+    })
+  }
+
+  if (error.code === 11000) {
+    return res.status(409).json({
+      success: false,
+      error: 'Duplicate product generation request detected',
+    })
+  }
+
+  // Handle AI service errors
+  if (
+    error.message?.includes('AI service') ||
+    error.message?.includes('GROQ')
+  ) {
+    return res.status(503).json({
+      success: false,
+      error: 'AI service temporarily unavailable',
+      message: 'Please try again in a few moments',
+    })
+  }
+
+  // Handle export errors
+  if (
+    error.message?.includes('export') ||
+    error.message?.includes('PDF') ||
+    error.message?.includes('Excel')
+  ) {
+    return res.status(500).json({
+      success: false,
+      error: 'Export generation failed',
+      message: 'Please try downloading again or contact support',
+    })
+  }
+
+  if (error.statusCode) {
+    return res.status(error.statusCode).json({
+      success: false,
+      error: error.message,
+    })
+  }
+
+  // Generic error response
+  res.status(500).json({
+    success: false,
+    error: 'An error occurred while processing product generation request',
+  })
 })
 
 export default router

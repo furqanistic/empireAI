@@ -1,6 +1,7 @@
 // File: client/src/hooks/usePlanAccess.js
 import { selectCurrentUser } from '@/redux/userSlice'
 import { useSelector } from 'react-redux'
+import { useUsageStats } from './useUsageStats'
 
 export const PLAN_FEATURES = {
   free: {
@@ -37,31 +38,69 @@ export const PLAN_FEATURES = {
 
 export const useCheckPlanAccess = (requiredFeature) => {
   const currentUser = useSelector(selectCurrentUser)
-
-  // DEBUG: Log the entire user object
-  console.log('👤 Current User:', currentUser)
-  console.log('📦 Subscription Object:', currentUser?.subscription)
+  const {
+    data: usageData,
+    isLoading: usageLoading,
+    error: usageError,
+  } = useUsageStats()
 
   const userPlan = currentUser?.subscription?.isActive
     ? currentUser.subscription.plan
     : 'free'
 
-  const hasAccess =
-    PLAN_FEATURES[userPlan]?.aiBuilders?.includes(requiredFeature) || false
+  const planConfig = PLAN_FEATURES[userPlan] || PLAN_FEATURES.free
+  const isActive = currentUser?.subscription?.isActive || false
 
-  console.log('✅ Plan Access Check:', {
-    requiredFeature,
-    userPlan,
-    isActive: currentUser?.subscription?.isActive,
-    hasAccess,
-    availableBuilders: PLAN_FEATURES[userPlan]?.aiBuilders,
-  })
+  // Feature access check
+  const hasFeatureAccess =
+    planConfig.aiBuilders?.includes(requiredFeature) || false
+
+  // Usage calculations
+  const totalUsed = usageData?.data?.usage?.total || 0
+  const maxGenerations = planConfig.maxGenerations
+  const unlimited = maxGenerations === -1
+
+  // Usage availability check
+  const hasUsageAvailable = unlimited || totalUsed < maxGenerations
+
+  // Remaining calculations
+  const remaining = unlimited ? -1 : Math.max(0, maxGenerations - totalUsed)
+
+  // Overall access
+  const hasAccess = hasFeatureAccess && (unlimited || hasUsageAvailable)
+
+  // Create usage stats object
+  const usageStats = {
+    used: totalUsed,
+    limit: maxGenerations,
+    remaining,
+    unlimited,
+    loading: usageLoading,
+    error: usageError,
+  }
 
   return {
+    // Main access control
     hasAccess,
+    hasFeatureAccess,
+    hasUsageAvailable,
+
+    // User info
     userPlan,
-    isActive: currentUser?.subscription?.isActive || false,
-    maxGenerations: PLAN_FEATURES[userPlan]?.maxGenerations || 0,
+    isActive,
+
+    // Limits info
+    maxGenerations,
+    unlimited,
+
+    // Usage stats
+    usageStats,
+
+    // Loading states
+    isLoading: usageLoading,
+
+    // Legacy support (keeping for backwards compatibility)
+    usageData: usageData?.data,
   }
 }
 
@@ -80,4 +119,23 @@ export const getPlanFeatures = (plan) => {
 
 export const hasUnlimitedGenerations = (plan) => {
   return PLAN_FEATURES[plan]?.maxGenerations === -1
+}
+
+// Additional utility functions
+export const getPlanConfig = (plan) => {
+  return PLAN_FEATURES[plan] || PLAN_FEATURES.free
+}
+
+export const canAccessFeature = (userPlan, feature) => {
+  const config = getPlanConfig(userPlan)
+  return config.aiBuilders.includes(feature)
+}
+
+export const getGenerationLimit = (plan) => {
+  const config = getPlanConfig(plan)
+  return config.maxGenerations
+}
+
+export const isFeatureUnlocked = (userPlan, feature) => {
+  return canAccessFeature(userPlan, feature)
 }

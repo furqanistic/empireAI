@@ -39,8 +39,6 @@ export const createProductCheckoutSession = async (req, res, next) => {
       )
     }
 
-    console.log('Creating checkout session for identifier:', identifier)
-
     // Try to get product by both MongoDB ID and slug
     let product
 
@@ -68,15 +66,6 @@ export const createProductCheckoutSession = async (req, res, next) => {
     // FIXED: URL validation and construction
     const frontendUrl = process.env.FRONTEND_URL
 
-    // Debug environment variables
-    console.log('=== URL DEBUG INFO ===')
-    console.log('FRONTEND_URL from env:', frontendUrl)
-    console.log('FRONTEND_URL type:', typeof frontendUrl)
-    console.log(
-      'FRONTEND_URL length:',
-      frontendUrl ? frontendUrl.length : 'undefined'
-    )
-
     // Validate and clean the frontend URL
     if (!frontendUrl) {
       console.error('FRONTEND_URL environment variable is not set')
@@ -92,14 +81,10 @@ export const createProductCheckoutSession = async (req, res, next) => {
     const successUrl = `${cleanFrontendUrl}/product/success?session_id={CHECKOUT_SESSION_ID}&product=${product._id}`
     const cancelUrl = `${cleanFrontendUrl}/product/checkout/${product._id}?canceled=true`
 
-    console.log('Constructed success_url:', successUrl)
-    console.log('Constructed cancel_url:', cancelUrl)
-
     // Validate URLs before sending to Stripe
     try {
       new URL(successUrl.replace('{CHECKOUT_SESSION_ID}', 'test_session_id'))
       new URL(cancelUrl)
-      console.log('URL validation passed')
     } catch (urlError) {
       console.error('URL validation failed:', urlError)
       return next(
@@ -142,8 +127,6 @@ export const createProductCheckoutSession = async (req, res, next) => {
       console.error('Stripe customer error:', stripeError)
       return next(createError(500, 'Failed to process customer information'))
     }
-
-    console.log('Creating Stripe checkout session...')
 
     // Create checkout session with validated URLs
     const sessionConfig = {
@@ -196,14 +179,7 @@ export const createProductCheckoutSession = async (req, res, next) => {
       },
     }
 
-    console.log('Session config URLs:', {
-      success_url: sessionConfig.success_url,
-      cancel_url: sessionConfig.cancel_url,
-    })
-
     const session = await stripe.checkout.sessions.create(sessionConfig)
-
-    console.log('Stripe checkout session created:', session.id)
 
     res.status(200).json({
       status: 'success',

@@ -431,27 +431,13 @@ export const downloadProductFile = async (req, res, next) => {
 
 export const getPublicProduct = async (req, res, next) => {
   try {
-    // DEBUG: Log all request information
-    console.log('=== getPublicProduct DEBUG ===')
-    console.log('req.params:', req.params)
-    console.log('req.url:', req.url)
-    console.log('req.originalUrl:', req.originalUrl)
-    console.log('req.path:', req.path)
-
     // Try multiple ways to get the identifier
     const { slug } = req.params
     const { identifier } = req.params
     const { id } = req.params
 
-    console.log('slug from params:', slug)
-    console.log('identifier from params:', identifier)
-    console.log('id from params:', id)
-
     // Get identifier from any available source
     const productIdentifier = slug || identifier || id
-
-    console.log('Final productIdentifier:', productIdentifier)
-    console.log('productIdentifier type:', typeof productIdentifier)
 
     // FIXED: Add safety check for undefined identifier
     if (!productIdentifier) {
@@ -459,8 +445,6 @@ export const getPublicProduct = async (req, res, next) => {
       console.error('Available params:', Object.keys(req.params))
       return next(createError(400, 'Product identifier is required'))
     }
-
-    console.log('Getting public product with identifier:', productIdentifier)
 
     let product
 
@@ -471,7 +455,6 @@ export const getPublicProduct = async (req, res, next) => {
       productIdentifier.match(/^[0-9a-fA-F]{24}$/)
     ) {
       // It's a valid MongoDB ObjectId
-      console.log('Searching by MongoDB ID:', productIdentifier)
       product = await DigitalProduct.findOne({
         _id: productIdentifier,
         published: true,
@@ -479,16 +462,12 @@ export const getPublicProduct = async (req, res, next) => {
       }).populate('creator', 'name email')
     } else if (productIdentifier && typeof productIdentifier === 'string') {
       // It's a slug
-      console.log('Searching by slug:', productIdentifier)
       product = await DigitalProduct.getPublicProduct(productIdentifier)
     }
 
     if (!product) {
-      console.log('Product not found for identifier:', productIdentifier)
       return next(createError(404, 'Product not found or not available'))
     }
-
-    console.log('Product found:', product.name)
 
     // Increment view count
     product.views += 1
@@ -514,8 +493,6 @@ export const getPublicProduct = async (req, res, next) => {
         // Don't expose email in public view
       }
     }
-
-    console.log('Returning product successfully')
 
     res.status(200).json({
       status: 'success',

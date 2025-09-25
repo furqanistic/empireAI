@@ -1,53 +1,72 @@
-// File: client/src/components/PlanGate.jsx
+// File: client/src/components/Layout/PlanGate.jsx
 import {
   getPlanFeatures,
   getRequiredPlan,
   useCheckPlanAccess,
 } from '@/hooks/usePlanAccess'
-import { Crown, Lock, Rocket, Star, Zap } from 'lucide-react'
+import { AlertTriangle, Crown, Lock, Rocket, Star, Zap } from 'lucide-react'
 import React, { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 const PlanGate = ({ children, requiredFeature }) => {
   const navigate = useNavigate()
-  const { hasAccess, userPlan, isActive } = useCheckPlanAccess(requiredFeature)
-  const requiredPlan = getRequiredPlan(requiredFeature)
+  const {
+    hasAccess,
+    hasFeatureAccess,
+    hasUsageAvailable,
+    userPlan,
+    isActive,
+    usageStats,
+    unlimited,
+  } = useCheckPlanAccess(requiredFeature)
 
-  // DEBUG: Log everything
-  useEffect(() => {
-    console.log('🔒 PlanGate Debug:', {
-      requiredFeature,
-      userPlan,
-      isActive,
-      hasAccess,
-      requiredPlan,
-    })
-  }, [requiredFeature, userPlan, isActive, hasAccess, requiredPlan])
+  const requiredPlan = getRequiredPlan(requiredFeature)
 
   if (hasAccess) {
     return <>{children}</>
   }
 
-  // Rest of your component...
+  // Determine the blocking reason
+  const isFeatureBlocked = !hasFeatureAccess
+  const isUsageBlocked = hasFeatureAccess && !hasUsageAvailable
+
   return (
     <div className='min-h-[60vh] flex items-center justify-center p-6'>
       <div className='max-w-md w-full'>
         <div className='bg-gradient-to-br from-[#121214] to-[#0A0A0C] border border-[#1E1E21] rounded-2xl p-8 text-center'>
           <div className='bg-[#D4AF37]/10 rounded-full p-4 w-fit mx-auto mb-6'>
-            <Lock size={32} className='text-[#D4AF37]' />
+            {isUsageBlocked ? (
+              <AlertTriangle size={32} className='text-orange-400' />
+            ) : (
+              <Lock size={32} className='text-[#D4AF37]' />
+            )}
           </div>
 
-          <h2 className='text-2xl font-bold text-[#EDEDED] mb-3'>
-            Upgrade to Access This Feature
-          </h2>
-
-          <p className='text-gray-400 mb-6'>
-            This AI Builder requires the{' '}
-            <span className='text-[#D4AF37] font-semibold capitalize'>
-              {requiredPlan}
-            </span>{' '}
-            plan or higher.
-          </p>
+          {isUsageBlocked ? (
+            <>
+              <h2 className='text-2xl font-bold text-[#EDEDED] mb-3'>
+                Generation Limit Reached
+              </h2>
+              <p className='text-gray-400 mb-6'>
+                You've used {usageStats.used} of {usageStats.limit} generations
+                this month. Upgrade for more generations or wait until next
+                month.
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 className='text-2xl font-bold text-[#EDEDED] mb-3'>
+                Upgrade to Access This Feature
+              </h2>
+              <p className='text-gray-400 mb-6'>
+                This AI Builder requires the{' '}
+                <span className='text-[#D4AF37] font-semibold capitalize'>
+                  {requiredPlan}
+                </span>{' '}
+                plan or higher.
+              </p>
+            </>
+          )}
 
           <div className='bg-[#1E1E21] rounded-lg p-4 mb-6'>
             <div className='text-xs text-gray-400 mb-2'>Your Current Plan</div>
@@ -55,6 +74,46 @@ const PlanGate = ({ children, requiredFeature }) => {
               {getPlanIcon(userPlan)}
               <span className='text-[#EDEDED]'>{userPlan}</span>
             </div>
+
+            {/* Usage Display */}
+            {!unlimited && isActive && (
+              <div className='mt-3 pt-3 border-t border-gray-700'>
+                <div className='text-xs text-gray-400 mb-1'>Monthly Usage</div>
+                <div className='flex justify-between text-sm'>
+                  <span className='text-gray-300'>
+                    {usageStats.used} / {usageStats.limit}
+                  </span>
+                  <span
+                    className={`${
+                      usageStats.remaining > 5
+                        ? 'text-green-400'
+                        : usageStats.remaining > 0
+                        ? 'text-orange-400'
+                        : 'text-red-400'
+                    }`}
+                  >
+                    {usageStats.remaining} left
+                  </span>
+                </div>
+                <div className='w-full bg-gray-700 rounded-full h-2 mt-2'>
+                  <div
+                    className={`h-2 rounded-full ${
+                      usageStats.remaining > 5
+                        ? 'bg-green-400'
+                        : usageStats.remaining > 0
+                        ? 'bg-orange-400'
+                        : 'bg-red-400'
+                    }`}
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        (usageStats.used / usageStats.limit) * 100
+                      )}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           <button
@@ -62,21 +121,28 @@ const PlanGate = ({ children, requiredFeature }) => {
             className='w-full bg-[#D4AF37] text-black h-12 rounded-xl font-semibold hover:bg-[#D4AF37]/90 transition-all duration-200 flex items-center justify-center gap-2'
           >
             <Crown size={18} />
-            Upgrade to{' '}
-            {requiredPlan.charAt(0).toUpperCase() + requiredPlan.slice(1)}
+            {isUsageBlocked
+              ? 'Upgrade for More Generations'
+              : `Upgrade to ${
+                  requiredPlan.charAt(0).toUpperCase() + requiredPlan.slice(1)
+                }`}
           </button>
 
           <div className='mt-6 pt-6 border-t border-[#1E1E21]'>
             <div className='text-xs text-gray-400 mb-3'>
-              Unlock with {requiredPlan}:
+              {isUsageBlocked
+                ? 'Get unlimited with Empire:'
+                : `Unlock with ${requiredPlan}:`}
             </div>
             <div className='space-y-2 text-sm text-gray-300 text-left'>
-              {getPlanFeatures(requiredPlan).map((feature, index) => (
-                <div key={index} className='flex items-center gap-2'>
-                  <div className='w-1.5 h-1.5 bg-[#D4AF37] rounded-full flex-shrink-0'></div>
-                  {feature}
-                </div>
-              ))}
+              {getPlanFeatures(isUsageBlocked ? 'empire' : requiredPlan).map(
+                (feature, index) => (
+                  <div key={index} className='flex items-center gap-2'>
+                    <div className='w-1.5 h-1.5 bg-[#D4AF37] rounded-full flex-shrink-0'></div>
+                    {feature}
+                  </div>
+                )
+              )}
             </div>
           </div>
         </div>

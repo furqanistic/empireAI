@@ -1,4 +1,4 @@
-// File: client/src/services/productServices.js - FIXED with export functionality
+// File: client/src/services/productServices.js - FIXED with correct endpoints
 import axiosInstance from '../config/config.js'
 
 export const productService = {
@@ -14,9 +14,9 @@ export const productService = {
     return response.data
   },
 
-  // Get user's product generation statistics
+  // Get user's product generation statistics - FIXED: endpoint
   getUserStats: async () => {
-    const response = await axiosInstance.get('/products/stats')
+    const response = await axiosInstance.get('/products/stats/user')
     return response.data
   },
 
@@ -61,6 +61,12 @@ export const productService = {
     return response.data
   },
 
+  // FIXED: Test GROQ connection (admin only) - matches your backend routes
+  testGroqConnection: async () => {
+    const response = await axiosInstance.get('/products/test-groq')
+    return response.data
+  },
+
   // Get product analytics (admin only)
   getProductAnalytics: async () => {
     const response = await axiosInstance.get('/products/admin/analytics')
@@ -73,9 +79,11 @@ export const productService = {
     return response.data
   },
 
-  // ADDED: Export product in various formats
+  // Export product in various formats
   exportProduct: async (generationId, format) => {
     try {
+      ;`Starting export: ${format} for generation: ${generationId}`
+
       const response = await axiosInstance.post(
         '/products/export',
         {

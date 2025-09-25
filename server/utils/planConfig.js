@@ -31,3 +31,21 @@ export const PLAN_FEATURES = {
     ],
   },
 }
+
+export const getPlanFeatures = (plan) => {
+  return PLAN_FEATURES[plan] || PLAN_FEATURES.free
+}
+
+export const hasFeatureAccess = (plan, feature) => {
+  const planConfig = getPlanFeatures(plan)
+  return planConfig.aiBuilders.includes(feature)
+}
+
+export const getGenerationLimit = (plan) => {
+  const planConfig = getPlanFeatures(plan)
+  return planConfig.maxGenerations
+}
+
+export const isUnlimitedPlan = (plan) => {
+  return getGenerationLimit(plan) === -1
+}

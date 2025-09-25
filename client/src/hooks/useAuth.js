@@ -402,7 +402,6 @@ export const useClaimDailyPoints = () => {
   return useMutation({
     mutationFn: pointsService.claimDailyPoints,
     onSuccess: (data) => {
-      console.log('Daily points claimed successfully!', data)
       // Invalidate points and user queries
       queryClient.invalidateQueries({ queryKey: ['points'] })
       queryClient.invalidateQueries({ queryKey: ['user'] })
@@ -512,7 +511,6 @@ export const useVerifyCheckoutSession = () => {
   return useMutation({
     mutationFn: stripeService.verifyCheckoutSession,
     onSuccess: (data) => {
-      console.log('Subscription activated successfully!', data)
       // Invalidate subscription and user queries
       queryClient.invalidateQueries({ queryKey: ['stripe', 'subscription'] })
       queryClient.invalidateQueries({ queryKey: ['user'] })
@@ -619,7 +617,6 @@ export const useSyncWithStripe = () => {
   return useMutation({
     mutationFn: stripeService.syncWithStripe,
     onSuccess: () => {
-      console.log('Subscription synced with Stripe')
       // Invalidate subscription queries
       queryClient.invalidateQueries({ queryKey: ['stripe', 'subscription'] })
     },
