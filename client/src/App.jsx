@@ -13,6 +13,8 @@ import ChatPage from './pages/Chat/ChatPage'
 import DashboardPage from './pages/Dashboard/DashboardPage'
 import EarningsPage from './pages/Earnings/EarningsPage'
 import HomePage from './pages/Home/HomePage'
+import PrivacyPolicyPage from './pages/Layout/PrivacyPolicyPage'
+import TermsOfServicePage from './pages/Layout/TermsOfServicePage'
 import PricingPage from './pages/Pricing/PricingPage'
 import SubscriptionSuccess from './pages/Pricing/SubscriptionSuccess'
 import ProductCheckoutPage from './pages/Product/ProductCheckoutPage'
@@ -190,6 +192,8 @@ const App = () => {
         />
 
         <Route path='/pricing/success' element={<SubscriptionSuccess />} />
+        <Route path='/privacy' element={<PrivacyPolicyPage />} />
+        <Route path='/terms' element={<TermsOfServicePage />} />
 
         {/* Catch all route - redirect to homepage */}
         <Route path='*' element={<Navigate to='/' replace />} />

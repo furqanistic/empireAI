@@ -57,18 +57,6 @@ const updateUserSubscriptionField = async (userId, subscription) => {
       try {
         const { updateUserDiscordRoles } = await import('./discordAuth.js')
         const discordResult = await updateUserDiscordRoles(user)
-
-        if (discordResult.success) {
-          console.log(
-            `Auto-updated Discord roles for ${user.name}: ${JSON.stringify(
-              discordResult.actions
-            )}`
-          )
-        } else {
-          console.log(
-            `Failed to auto-update Discord roles for ${user.name}: ${discordResult.reason}`
-          )
-        }
       } catch (discordError) {
         console.error('Error auto-updating Discord roles:', discordError)
       }

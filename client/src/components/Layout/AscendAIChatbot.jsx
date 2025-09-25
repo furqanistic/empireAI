@@ -143,15 +143,11 @@ const AscendAIChatbot = () => {
   }
 
   const handleExpandToFullscreen = () => {
-    console.log('Expanding to fullscreen with chatId:', currentChatId) // Debug log
-
     // Navigate to chat page with current chat state
     if (currentChatId) {
       const url = `/chat?chatId=${currentChatId}`
-      console.log('Navigating to:', url) // Debug log
       navigate(url)
     } else {
-      console.log('No current chat, navigating to empty chat page') // Debug log
       navigate('/chat')
     }
     setIsOpen(false)

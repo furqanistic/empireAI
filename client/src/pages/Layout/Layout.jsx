@@ -561,12 +561,29 @@ const Layout = ({ children }) => {
 
         {/* Minimal Footer with Copyright & Trademark */}
         <footer className='mt-auto border-t border-[#1E1E21] bg-[#0B0B0C] py-3 px-4'>
-          <div className='text-center'>
+          <div className='text-center space-y-2'>
             <div className='text-[10px] text-gray-600 space-y-1'>
               <div>
                 © {new Date().getFullYear()} Ascend AI. All rights reserved.
               </div>
               <div>Ascend AI™ is a trademark of Ascend AI Empire.</div>
+            </div>
+
+            {/* Legal Links */}
+            <div className='flex items-center justify-center gap-4 pt-1'>
+              <Link
+                to='/privacy'
+                className='text-[9px] text-gray-500 hover:text-[#D4AF37] transition-colors duration-300 uppercase tracking-wider font-medium'
+              >
+                Privacy Policy
+              </Link>
+              <div className='w-px h-2 bg-gray-600'></div>
+              <Link
+                to='/terms'
+                className='text-[9px] text-gray-500 hover:text-[#D4AF37] transition-colors duration-300 uppercase tracking-wider font-medium'
+              >
+                Terms of Service
+              </Link>
             </div>
           </div>
         </footer>
