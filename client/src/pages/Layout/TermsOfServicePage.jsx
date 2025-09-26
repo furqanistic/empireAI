@@ -1,3 +1,4 @@
+import { selectIsAuthenticated } from '@/redux/userSlice'
 import {
   AlertTriangle,
   Calendar,
@@ -15,8 +16,24 @@ import {
   Users,
 } from 'lucide-react'
 import React from 'react'
+import { useSelector } from 'react-redux'
+import { useNavigate } from 'react-router-dom'
 
 const TermsOfServicePage = () => {
+  const navigate = useNavigate()
+  const isAuthenticated = useSelector(selectIsAuthenticated)
+
+  // Conditional navigation based on authentication status
+  const handleGoBack = () => {
+    if (isAuthenticated) {
+      // User is logged in - go one step back
+      navigate(-1)
+    } else {
+      // User is not logged in - go to auth page
+      navigate('/auth')
+    }
+  }
+
   const currentDate = new Date().toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
@@ -30,7 +47,7 @@ const TermsOfServicePage = () => {
         <div className='max-w-4xl mx-auto p-4 sm:p-6'>
           <div className='flex items-center gap-4 mb-4'>
             <button
-              onClick={() => window.history.back()}
+              onClick={handleGoBack}
               className='flex items-center gap-2 text-gray-400 hover:text-[#D4AF37] transition-colors duration-300'
             >
               <ChevronLeft size={20} />
@@ -464,7 +481,7 @@ const TermsOfServicePage = () => {
                 hello@ascndlabs.com
               </a>
               <button
-                onClick={() => window.history.back()}
+                onClick={handleGoBack}
                 className='inline-flex items-center gap-2 bg-[#121214] border border-[#D4AF37]/30 text-[#D4AF37] px-6 py-3 rounded-xl font-semibold hover:bg-[#D4AF37]/5 transition-all duration-300'
               >
                 <Crown size={16} />

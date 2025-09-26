@@ -1,3 +1,4 @@
+import { selectIsAuthenticated } from '@/redux/userSlice'
 import {
   Calendar,
   ChevronLeft,
@@ -11,9 +12,25 @@ import {
   Users,
 } from 'lucide-react'
 import React from 'react'
+import { useSelector } from 'react-redux'
+import { useNavigate } from 'react-router-dom'
 import Layout from './Layout'
 
 const PrivacyPolicyPage = () => {
+  const navigate = useNavigate()
+  const isAuthenticated = useSelector(selectIsAuthenticated)
+
+  // Conditional navigation based on authentication status
+  const handleGoBack = () => {
+    if (isAuthenticated) {
+      // User is logged in - go one step back
+      navigate(-1)
+    } else {
+      // User is not logged in - go to auth page
+      navigate('/auth')
+    }
+  }
+
   return (
     <>
       <div className='min-h-screen bg-[#0A0A0B] text-[#EDEDED]'>
@@ -22,7 +39,7 @@ const PrivacyPolicyPage = () => {
           <div className='max-w-4xl mx-auto p-4 sm:p-6'>
             <div className='flex items-center gap-4 mb-4'>
               <button
-                onClick={() => window.history.back()}
+                onClick={handleGoBack}
                 className='flex items-center gap-2 text-gray-400 hover:text-[#D4AF37] transition-colors duration-300'
               >
                 <ChevronLeft size={20} />
@@ -405,7 +422,7 @@ const PrivacyPolicyPage = () => {
               AI-powered tools.
             </p>
             <button
-              onClick={() => window.history.back()}
+              onClick={handleGoBack}
               className='inline-flex items-center gap-2 bg-[#D4AF37] text-black px-6 py-3 rounded-xl font-semibold hover:bg-[#D4AF37]/90 transition-all duration-300'
             >
               <Crown size={16} />

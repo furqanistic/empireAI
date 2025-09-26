@@ -101,13 +101,8 @@ export const checkGenerationLimit = async (userId, userPlan) => {
   const planConfig = PLAN_FEATURES[userPlan] || PLAN_FEATURES.free
 
   try {
-    console.log(
-      `🔍 Checking generation limit for user ${userId}, plan ${userPlan}`
-    )
-
     // Unlimited for empire plan
     if (planConfig?.maxGenerations === -1) {
-      console.log(`♾️ Unlimited generations for ${userPlan} plan`)
       return {
         allowed: true,
         unlimited: true,
@@ -131,10 +126,6 @@ export const checkGenerationLimit = async (userId, userPlan) => {
     )
     const allowed = totalUsed < maxGenerations
     const remaining = Math.max(0, maxGenerations - totalUsed)
-
-    console.log(
-      `📊 Usage summary for user ${userId}: ${totalUsed}/${maxGenerations} used, remaining: ${remaining}, allowed: ${allowed}`
-    )
 
     return {
       allowed,
