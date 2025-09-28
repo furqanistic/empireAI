@@ -1,10 +1,12 @@
-// File: routes/stripe.js - UPDATED WITH DEBUG ROUTE
+// File: routes/stripe.js - UPDATED WITH ENHANCED DEBUGGING
 import express from 'express'
 import {
   cancelSubscription,
+  checkStripeConfig,
   createBillingPortalSession,
   createCheckoutSession,
-  debugSubscriptions, // ADD THIS
+  debugSubscriptions,
+  debugVerifyCheckoutSession,
   getAllSubscriptions,
   getCurrentSubscription,
   getPlans,
@@ -12,6 +14,7 @@ import {
   syncWithStripe,
   updateSubscription,
   verifyCheckoutSession,
+  verifyWebhookPayment,
 } from '../controllers/stripe.js'
 import { restrictTo, verifyToken } from '../middleware/authMiddleware.js'
 
@@ -20,15 +23,30 @@ const router = express.Router()
 // Public routes
 router.get('/plans', getPlans)
 
+// Webhook endpoint (must be before other middleware)
+router.post(
+  '/webhook',
+  express.raw({ type: 'application/json' }),
+  verifyWebhookPayment
+)
+
 // Protected routes (require authentication)
 router.use(verifyToken)
 
-// DEBUG ROUTE - Add this temporarily
+// DEBUG ROUTES - Enhanced debugging for live payments
 router.get('/debug/subscriptions', debugSubscriptions)
+router.get('/debug/config', checkStripeConfig)
 
 // Subscription management routes
 router.post('/create-checkout-session', createCheckoutSession)
-router.post('/verify-checkout-session', verifyCheckoutSession)
+
+// ENHANCED verification with debugging middleware
+router.post(
+  '/verify-checkout-session',
+  debugVerifyCheckoutSession,
+  verifyCheckoutSession
+)
+
 router.get('/subscription', getCurrentSubscription)
 router.put('/subscription', updateSubscription)
 router.post('/cancel-subscription', cancelSubscription)
