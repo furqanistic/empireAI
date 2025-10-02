@@ -1,8 +1,7 @@
-// File: client/src/components/Admin/EditUserModal.jsx
-import { Loader2, X } from 'lucide-react'
+// File: client/src/components/Admin/EditUserModal.jsx - COMPLETE WITH GIFTED FEATURES
+import { Gift, Loader2, X } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 
-// Enhanced Edit User Modal Component with Loading States
 const EditUserModal = ({
   show,
   user,
@@ -22,6 +21,8 @@ const EditUserModal = ({
   const [subscriptionData, setSubscriptionData] = useState({
     planName: 'free',
     billingCycle: 'monthly',
+    trialDays: 30,
+    skipTrial: false,
   })
 
   const [isUpdating, setIsUpdating] = useState(false)
@@ -37,7 +38,9 @@ const EditUserModal = ({
       })
       setSubscriptionData({
         planName: user.subscription?.plan || 'free',
-        billingCycle: 'monthly',
+        billingCycle: user.subscription?.billingCycle || 'monthly',
+        trialDays: 30,
+        skipTrial: false,
       })
       setUpdateMessage('')
     }
@@ -65,7 +68,7 @@ const EditUserModal = ({
         userId: user._id,
         userData: formData,
       })
-      setTimeout(() => onClose(), 500) // Close after brief success message
+      setTimeout(() => onClose(), 500)
     } catch (error) {
       console.error('Update failed:', error)
     } finally {
@@ -91,20 +94,23 @@ const EditUserModal = ({
         setUpdateMessage('Failed to cancel subscription')
       }
     } else {
-      setUpdateMessage(`Updating to ${subscriptionData.planName} plan...`)
+      setUpdateMessage(`Gifting ${subscriptionData.planName} plan...`)
       try {
         await updateUserSubscriptionMutation.mutateAsync({
           userId: user._id,
           subscriptionData: {
             planName: subscriptionData.planName,
             billingCycle: subscriptionData.billingCycle,
+            trialDays: subscriptionData.trialDays,
+            skipTrial: subscriptionData.skipTrial,
+            isGifted: true, // ← ADD THIS LINE - all admin-assigned subscriptions are gifted
           },
         })
-        setUpdateMessage('Subscription updated successfully!')
+        setUpdateMessage('Subscription gifted successfully!')
         setTimeout(() => onClose(), 1000)
       } catch (error) {
         console.error('Update failed:', error)
-        setUpdateMessage('Failed to update subscription')
+        setUpdateMessage('Failed to gift subscription')
       }
     }
 
@@ -159,6 +165,7 @@ const EditUserModal = ({
   const currentSubscription = user.subscription
   const hasActiveSubscription = currentSubscription?.isActive
   const daysRemaining = currentSubscription?.daysRemaining || 0
+  const isGifted = currentSubscription?.isGifted || false
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A'
@@ -283,15 +290,23 @@ const EditUserModal = ({
           </h4>
 
           <div className='space-y-4'>
-            {/* Current Subscription Info */}
+            {/* Current Subscription Info with Gifted Status */}
             <div className='bg-gray-800 rounded-lg p-3 border border-gray-700'>
               <div className='text-xs text-gray-400 mb-1'>Current Status</div>
               <div className='space-y-2'>
-                <div className='flex justify-between text-sm'>
+                <div className='flex justify-between text-sm items-center'>
                   <span className='text-gray-400'>Plan:</span>
-                  <span className='text-white capitalize'>
-                    {currentSubscription?.plan || 'Free'}
-                  </span>
+                  <div className='flex items-center gap-2'>
+                    <span className='text-white capitalize'>
+                      {currentSubscription?.plan || 'Free'}
+                    </span>
+                    {isGifted && (
+                      <span className='px-2 py-0.5 rounded text-xs font-medium bg-pink-500/20 text-pink-400 flex items-center gap-1'>
+                        <Gift size={10} />
+                        Gifted
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className='flex justify-between text-sm'>
                   <span className='text-gray-400'>Status:</span>
@@ -315,6 +330,24 @@ const EditUserModal = ({
                     <span className='text-white text-xs'>
                       {formatDate(currentSubscription.endDate)}
                     </span>
+                  </div>
+                )}
+                {isGifted && currentSubscription?.giftedAt && (
+                  <div className='flex justify-between text-sm'>
+                    <span className='text-gray-400'>Gifted On:</span>
+                    <span className='text-pink-400 text-xs'>
+                      {formatDate(currentSubscription.giftedAt)}
+                    </span>
+                  </div>
+                )}
+
+                {/* Gifted Subscription Info Box */}
+                {isGifted && (
+                  <div className='mt-2 p-2 bg-pink-500/10 border border-pink-500/30 rounded'>
+                    <div className='text-xs text-pink-400'>
+                      This is an admin-gifted subscription (not counted in
+                      revenue)
+                    </div>
                   </div>
                 )}
               </div>
@@ -345,7 +378,7 @@ const EditUserModal = ({
                       : plan.value !== 'free' &&
                         (!currentSubscription ||
                           currentSubscription.plan === 'free')
-                      ? ' (30-day trial)'
+                      ? ' (Gift with trial)'
                       : ''}
                   </option>
                 ))}
@@ -353,28 +386,96 @@ const EditUserModal = ({
             </div>
 
             {subscriptionData.planName !== 'free' && (
-              <div>
-                <label className='block text-sm font-medium text-gray-400 mb-1'>
-                  Billing Cycle
-                </label>
-                <select
-                  value={subscriptionData.billingCycle}
-                  onChange={(e) =>
-                    setSubscriptionData({
-                      ...subscriptionData,
-                      billingCycle: e.target.value,
-                    })
-                  }
-                  disabled={isUpdating}
-                  className='w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white disabled:opacity-50'
-                >
-                  {billingCycles.map((cycle) => (
-                    <option key={cycle.value} value={cycle.value}>
-                      {cycle.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <>
+                <div>
+                  <label className='block text-sm font-medium text-gray-400 mb-1'>
+                    Billing Cycle
+                  </label>
+                  <select
+                    value={subscriptionData.billingCycle}
+                    onChange={(e) =>
+                      setSubscriptionData({
+                        ...subscriptionData,
+                        billingCycle: e.target.value,
+                      })
+                    }
+                    disabled={isUpdating}
+                    className='w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white disabled:opacity-50'
+                  >
+                    {billingCycles.map((cycle) => (
+                      <option key={cycle.value} value={cycle.value}>
+                        {cycle.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className='block text-sm font-medium text-gray-400 mb-1'>
+                    Trial Days
+                  </label>
+                  <input
+                    type='number'
+                    min='0'
+                    max='90'
+                    value={subscriptionData.trialDays}
+                    onChange={(e) =>
+                      setSubscriptionData({
+                        ...subscriptionData,
+                        trialDays: parseInt(e.target.value) || 0,
+                      })
+                    }
+                    disabled={isUpdating}
+                    className='w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white disabled:opacity-50'
+                  />
+                </div>
+
+                <div className='flex items-center gap-2'>
+                  <input
+                    type='checkbox'
+                    id='skipTrial'
+                    checked={subscriptionData.skipTrial}
+                    onChange={(e) =>
+                      setSubscriptionData({
+                        ...subscriptionData,
+                        skipTrial: e.target.checked,
+                      })
+                    }
+                    disabled={isUpdating}
+                    className='w-4 h-4'
+                  />
+                  <label htmlFor='skipTrial' className='text-sm text-gray-400'>
+                    Skip trial period (start immediately)
+                  </label>
+                </div>
+
+                {/* Admin Gift Warning */}
+                <div className='bg-pink-500/10 border border-pink-500/30 rounded-lg p-3'>
+                  <div className='flex items-start gap-2'>
+                    <Gift
+                      size={16}
+                      className='text-pink-400 flex-shrink-0 mt-0.5'
+                    />
+                    <div className='space-y-1'>
+                      <div className='text-xs font-medium text-pink-400'>
+                        Admin-Gifted Subscription
+                      </div>
+                      <div className='text-xs text-pink-300'>
+                        This subscription will be marked as "admin-gifted" and
+                        will NOT:
+                      </div>
+                      <ul className='text-xs text-pink-300 space-y-0.5 ml-3 list-disc'>
+                        <li>Create earnings/commissions for referrers</li>
+                        <li>Count towards revenue statistics</li>
+                        <li>Appear in financial reports</li>
+                      </ul>
+                      <div className='text-xs text-pink-300 mt-1'>
+                        The user will receive full access to plan features.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
             )}
 
             {/* Action Buttons */}

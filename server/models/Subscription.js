@@ -11,17 +11,21 @@ const SubscriptionSchema = new mongoose.Schema(
     },
     stripeCustomerId: {
       type: String,
-      required: true,
-      unique: true,
+      required: function () {
+        return !this.isGifted // Only required if not gifted
+      },
+      sparse: true,
     },
     stripeSubscriptionId: {
       type: String,
-      unique: true,
-      sparse: true, // Allows null values but unique non-null values
+      sparse: true, // Already correct
     },
     stripePriceId: {
       type: String,
-      required: true,
+      required: function () {
+        return !this.isGifted
+      },
+      sparse: true,
     },
     plan: {
       type: String,
@@ -74,6 +78,20 @@ const SubscriptionSchema = new mongoose.Schema(
       type: String,
       default: 'usd',
     },
+    stripePriceId: {
+      type: String,
+      sparse: true,
+      validate: {
+        validator: function (value) {
+          // Only require stripePriceId if the subscription is not gifted
+          if (this.isGifted) {
+            return true // Allow null for gifted subscriptions
+          }
+          return value != null // Require value for non-gifted subscriptions
+        },
+        message: 'stripePriceId is required for non-gifted subscriptions',
+      },
+    },
     // Payment history
     paymentHistory: [
       {
@@ -85,6 +103,19 @@ const SubscriptionSchema = new mongoose.Schema(
         failureReason: String,
       },
     ],
+    isGifted: {
+      type: Boolean,
+      default: false,
+    },
+    giftedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    giftedAt: {
+      type: Date,
+      default: null,
+    },
     // Subscription metadata
     metadata: {
       type: Map,

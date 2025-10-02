@@ -1,4 +1,4 @@
-// File: models/Notification.js - UPDATED WITHOUT timeAgo VIRTUAL
+// File: models/Notification.js - WITH AUTO-EXPIRATION (2 MONTHS)
 import mongoose from 'mongoose'
 
 const NotificationSchema = new mongoose.Schema(
@@ -21,7 +21,7 @@ const NotificationSchema = new mongoose.Schema(
         'achievement',
         'security_alert',
         'points',
-        // NEW: Subscription & Payment related notifications
+        // Subscription & Payment related notifications
         'trial_started',
         'trial_ending_soon',
         'trial_ended',
@@ -53,7 +53,6 @@ const NotificationSchema = new mongoose.Schema(
       maxLength: 500,
     },
     data: {
-      // Flexible field for storing notification-specific data
       type: mongoose.Schema.Types.Mixed,
       default: {},
     },
@@ -102,7 +101,16 @@ NotificationSchema.index({ recipient: 1, isRead: 1, createdAt: -1 })
 NotificationSchema.index({ recipient: 1, type: 1, createdAt: -1 })
 NotificationSchema.index({ recipient: 1, isDeleted: 1, createdAt: -1 })
 
-// REMOVED: timeAgo virtual - now handled on frontend for proper timezone support
+// Pre-save middleware to automatically set expiration date (2 months from creation)
+NotificationSchema.pre('save', function (next) {
+  // Only set expiresAt if it's a new document and expiresAt is not already set
+  if (this.isNew && !this.expiresAt) {
+    const twoMonthsFromNow = new Date()
+    twoMonthsFromNow.setMonth(twoMonthsFromNow.getMonth() + 2)
+    this.expiresAt = twoMonthsFromNow
+  }
+  next()
+})
 
 // Method to mark notification as read
 NotificationSchema.methods.markAsRead = async function () {
@@ -132,7 +140,7 @@ NotificationSchema.statics.createReferralNotification = async function (
           email: newUser.email,
           joinedAt: newUser.createdAt,
         },
-        rewardAmount: 10, // This should match the reward amount in User model
+        rewardAmount: 10,
       },
       priority: 'high',
       actionUrl: '/invite',
@@ -146,7 +154,7 @@ NotificationSchema.statics.createReferralNotification = async function (
   }
 }
 
-// NEW: Static method to create trial notification
+// Static method to create trial notification
 NotificationSchema.statics.createTrialNotification = async function (
   userId,
   trialType,
@@ -206,7 +214,7 @@ NotificationSchema.statics.createTrialNotification = async function (
   }
 }
 
-// NEW: Static method to create subscription notification
+// Static method to create subscription notification
 NotificationSchema.statics.createSubscriptionNotification = async function (
   userId,
   subscriptionType,
@@ -292,14 +300,14 @@ NotificationSchema.statics.createSubscriptionNotification = async function (
   }
 }
 
-// NEW: Static method to create payment notification
+// Static method to create payment notification
 NotificationSchema.statics.createPaymentNotification = async function (
   userId,
   paymentType,
   paymentData = {}
 ) {
   try {
-    const amount = (paymentData.amount / 100).toFixed(2) // Convert from cents
+    const amount = (paymentData.amount / 100).toFixed(2)
     const currency = (paymentData.currency || 'USD').toUpperCase()
 
     const notifications = {

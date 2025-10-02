@@ -65,7 +65,6 @@ export const useMarkContentCopied = () => {
     mutationFn: ({ id, section }) =>
       productService.markContentCopied(id, section),
     onSuccess: (data, variables) => {
-      console.log('Content marked as copied')
       // Invalidate the specific generation and stats
       queryClient.invalidateQueries({
         queryKey: ['products', 'generation', variables.id],
@@ -85,7 +84,6 @@ export const useMarkProductDownloaded = () => {
   return useMutation({
     mutationFn: productService.markProductDownloaded,
     onSuccess: (data, generationId) => {
-      console.log('Product marked as downloaded')
       // Invalidate the specific generation and stats
       queryClient.invalidateQueries({
         queryKey: ['products', 'generation', generationId],
@@ -106,7 +104,6 @@ export const useAddProductFeedback = () => {
     mutationFn: ({ id, rating, feedback }) =>
       productService.addFeedback(id, { rating, feedback }),
     onSuccess: (data, variables) => {
-      console.log('Feedback added successfully')
       // Invalidate the specific generation and history
       queryClient.invalidateQueries({
         queryKey: ['products', 'generation', variables.id],
@@ -126,7 +123,6 @@ export const useDeleteProductGeneration = () => {
   return useMutation({
     mutationFn: productService.deleteProductGeneration,
     onSuccess: (data, deletedId) => {
-      console.log('Product generation deleted')
       // Remove from cache and invalidate related queries
       queryClient.removeQueries({
         queryKey: ['products', 'generation', deletedId],
@@ -227,17 +223,12 @@ export const useDownloadProduct = () => {
 
   return useMutation({
     mutationFn: async ({ generationId, format }) => {
-      console.log(`Starting export: ${format} for generation: ${generationId}`)
-
       // Call the backend export service
       const result = await productService.exportProduct(generationId, format)
 
-      console.log(`Export completed: ${result.filename}`)
       return result
     },
     onSuccess: (result, variables) => {
-      console.log('Export successful:', result)
-
       // Optionally mark as downloaded in backend for analytics
       if (variables.generationId) {
         // Fire and forget - don't wait for this

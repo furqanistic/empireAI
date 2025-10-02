@@ -2,11 +2,8 @@
 import express from 'express'
 import {
   cancelSubscription,
-  checkStripeConfig,
   createBillingPortalSession,
   createCheckoutSession,
-  debugSubscriptions,
-  debugVerifyCheckoutSession,
   getAllSubscriptions,
   getCurrentSubscription,
   getPlans,
@@ -34,18 +31,12 @@ router.post(
 router.use(verifyToken)
 
 // DEBUG ROUTES - Enhanced debugging for live payments
-router.get('/debug/subscriptions', debugSubscriptions)
-router.get('/debug/config', checkStripeConfig)
 
 // Subscription management routes
 router.post('/create-checkout-session', createCheckoutSession)
 
 // ENHANCED verification with debugging middleware
-router.post(
-  '/verify-checkout-session',
-  debugVerifyCheckoutSession,
-  verifyCheckoutSession
-)
+router.post('/verify-checkout-session', verifyCheckoutSession)
 
 router.get('/subscription', getCurrentSubscription)
 router.put('/subscription', updateSubscription)

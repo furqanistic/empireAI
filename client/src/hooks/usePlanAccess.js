@@ -5,27 +5,22 @@ import { useUsageStats } from './useUsageStats'
 
 export const PLAN_FEATURES = {
   free: {
-    aiBuilders: [],
-    maxGenerations: 0,
-    features: ['Basic access', 'Community support'],
+    aiBuilders: ['viral-hooks', 'product-generator', 'niche-launchpad'], // All builders
+    maxGenerations: 3,
+    features: ['All AI Builders', '3 free generations', 'Community support'],
   },
   starter: {
-    aiBuilders: ['viral-hooks'],
+    aiBuilders: ['viral-hooks', 'product-generator', 'niche-launchpad'], // All builders
     maxGenerations: 10,
-    features: ['Viral Hook Factory', '10 generations/month', 'Email support'],
+    features: ['All AI Builders', '10 generations/month', 'Email support'],
   },
   pro: {
-    aiBuilders: ['viral-hooks', 'product-generator'],
+    aiBuilders: ['viral-hooks', 'product-generator', 'niche-launchpad'], // All builders
     maxGenerations: 50,
-    features: [
-      'Viral Hook Factory',
-      'Product Generator',
-      '50 generations/month',
-      'Priority support',
-    ],
+    features: ['All AI Builders', '50 generations/month', 'Priority support'],
   },
   empire: {
-    aiBuilders: ['viral-hooks', 'product-generator', 'niche-launchpad'],
+    aiBuilders: ['viral-hooks', 'product-generator', 'niche-launchpad'], // All builders
     maxGenerations: -1,
     features: [
       'All AI Builders',
@@ -51,9 +46,8 @@ export const useCheckPlanAccess = (requiredFeature) => {
   const planConfig = PLAN_FEATURES[userPlan] || PLAN_FEATURES.free
   const isActive = currentUser?.subscription?.isActive || false
 
-  // Feature access check
-  const hasFeatureAccess =
-    planConfig.aiBuilders?.includes(requiredFeature) || false
+  // Feature access - everyone has access to all features now
+  const hasFeatureAccess = true // Changed: all users have feature access
 
   // Usage calculations
   const totalUsed = usageData?.data?.usage?.total || 0
@@ -66,8 +60,8 @@ export const useCheckPlanAccess = (requiredFeature) => {
   // Remaining calculations
   const remaining = unlimited ? -1 : Math.max(0, maxGenerations - totalUsed)
 
-  // Overall access
-  const hasAccess = hasFeatureAccess && (unlimited || hasUsageAvailable)
+  // Overall access - only depends on usage now
+  const hasAccess = unlimited || hasUsageAvailable
 
   // Create usage stats object
   const usageStats = {
@@ -82,7 +76,7 @@ export const useCheckPlanAccess = (requiredFeature) => {
   return {
     // Main access control
     hasAccess,
-    hasFeatureAccess,
+    hasFeatureAccess, // Always true now
     hasUsageAvailable,
 
     // User info
@@ -99,18 +93,14 @@ export const useCheckPlanAccess = (requiredFeature) => {
     // Loading states
     isLoading: usageLoading,
 
-    // Legacy support (keeping for backwards compatibility)
+    // Legacy support
     usageData: usageData?.data,
   }
 }
 
 export const getRequiredPlan = (feature) => {
-  for (const [plan, config] of Object.entries(PLAN_FEATURES)) {
-    if (config.aiBuilders.includes(feature)) {
-      return plan
-    }
-  }
-  return 'empire'
+  // Since all features are available to all plans, return free
+  return 'free'
 }
 
 export const getPlanFeatures = (plan) => {
@@ -121,14 +111,13 @@ export const hasUnlimitedGenerations = (plan) => {
   return PLAN_FEATURES[plan]?.maxGenerations === -1
 }
 
-// Additional utility functions
 export const getPlanConfig = (plan) => {
   return PLAN_FEATURES[plan] || PLAN_FEATURES.free
 }
 
 export const canAccessFeature = (userPlan, feature) => {
-  const config = getPlanConfig(userPlan)
-  return config.aiBuilders.includes(feature)
+  // Everyone can access all features now
+  return true
 }
 
 export const getGenerationLimit = (plan) => {
@@ -137,5 +126,6 @@ export const getGenerationLimit = (plan) => {
 }
 
 export const isFeatureUnlocked = (userPlan, feature) => {
-  return canAccessFeature(userPlan, feature)
+  // All features unlocked for everyone
+  return true
 }

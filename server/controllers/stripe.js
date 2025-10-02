@@ -69,125 +69,6 @@ const updateUserSubscriptionField = async (userId, subscription) => {
   }
 }
 
-export const debugVerifyCheckoutSession = async (req, res, next) => {
-  try {
-    const { sessionId } = req.body
-    const user = req.user
-
-    console.log('=== PAYMENT VERIFICATION DEBUG ===')
-    console.log('Environment:', process.env.NODE_ENV)
-    console.log(
-      'Stripe Mode:',
-      process.env.STRIPE_SECRET_KEY.includes('test') ? 'TEST' : 'LIVE'
-    )
-    console.log('Session ID:', sessionId)
-    console.log('User ID:', user._id.toString())
-    console.log('User Email:', user.email)
-    console.log('Timestamp:', new Date().toISOString())
-
-    if (!sessionId) {
-      console.error('❌ No session ID provided')
-      return next(createError(400, 'Session ID is required'))
-    }
-
-    // Retrieve the checkout session with expanded data
-    console.log('🔍 Retrieving session from Stripe...')
-    const session = await stripe.checkout.sessions.retrieve(sessionId, {
-      expand: ['subscription', 'customer', 'payment_intent'],
-    })
-
-    console.log('✅ Session retrieved successfully')
-    console.log('Session Status:', session.status)
-    console.log('Payment Status:', session.payment_status)
-    console.log('Session Mode:', session.mode)
-    console.log('Customer ID:', session.customer?.id || session.customer)
-    console.log('Subscription ID:', session.subscription?.id)
-    console.log('Amount Total:', session.amount_total)
-    console.log('Currency:', session.currency)
-    console.log('Session Metadata:', session.metadata)
-
-    // Validate user match
-    if (session.metadata.userId !== user._id.toString()) {
-      console.error('❌ User mismatch')
-      console.error('Session User ID:', session.metadata.userId)
-      console.error('Current User ID:', user._id.toString())
-      return next(createError(403, 'Unauthorized access to this session'))
-    }
-
-    // Check session completion
-    if (session.status !== 'complete') {
-      console.error('❌ Session not complete')
-      console.error('Session Status:', session.status)
-      console.error('Payment Status:', session.payment_status)
-      return next(
-        createError(
-          400,
-          `Checkout session not completed. Status: ${session.status}`
-        )
-      )
-    }
-
-    // Check subscription creation
-    if (!session.subscription) {
-      console.error('❌ No subscription created in session')
-      return next(createError(400, 'No subscription created'))
-    }
-
-    console.log('✅ Session validation passed')
-
-    // Check for existing subscription
-    console.log('🔍 Checking for existing subscription...')
-    let existingSubscription = await Subscription.findOne({
-      $or: [
-        { user: user._id },
-        { stripeSubscriptionId: session.subscription.id },
-      ],
-    })
-
-    if (existingSubscription) {
-      console.log(
-        '📋 Found existing subscription:',
-        existingSubscription._id.toString()
-      )
-      console.log('Existing Status:', existingSubscription.status)
-    } else {
-      console.log('📋 No existing subscription found')
-    }
-
-    // Validate price ID
-    const sessionPriceId = session.subscription.items.data[0].price.id
-    console.log('💰 Session Price ID:', sessionPriceId)
-
-    // Check if price ID exists in our configuration
-    const planName = session.metadata.planName
-    const billingCycle = session.metadata.billingCycle
-    const expectedPriceId = getPriceId(planName, billingCycle)
-
-    console.log('💰 Expected Price ID:', expectedPriceId)
-    console.log('💰 Plan Name:', planName)
-    console.log('💰 Billing Cycle:', billingCycle)
-
-    if (sessionPriceId !== expectedPriceId) {
-      console.warn('⚠️ Price ID mismatch - this might be normal for discounts')
-    }
-
-    // Continue with original verification logic...
-    req.debugSession = session
-    next()
-  } catch (error) {
-    console.error('❌ Debug verification error:', error)
-    console.error('Error Code:', error.code)
-    console.error('Error Type:', error.type)
-    console.error('Error Message:', error.message)
-
-    if (error.type === 'StripeInvalidRequestError') {
-      return next(createError(400, `Invalid Stripe request: ${error.message}`))
-    }
-
-    next(createError(500, `Payment verification failed: ${error.message}`))
-  }
-}
-
 // DEBUG ROUTE - Add this temporarily to check subscriptions
 export const debugSubscriptions = async (req, res, next) => {
   try {
@@ -407,24 +288,46 @@ export const createCheckoutSession = async (req, res, next) => {
 // Verify checkout session and create subscription - UPDATED WITH NOTIFICATIONS
 export const verifyCheckoutSession = async (req, res, next) => {
   try {
-    const session =
-      req.debugSession ||
-      (await stripe.checkout.sessions.retrieve(req.body.sessionId, {
-        expand: ['subscription', 'customer'],
-      }))
+    const { sessionId } = req.body
     const user = req.user
 
-    console.log('💾 Starting database operations...')
+    if (!sessionId) {
+      console.error('No session ID provided')
+      return next(createError(400, 'Session ID is required'))
+    }
+
+    // Retrieve the checkout session
+    const session = await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ['subscription', 'customer'],
+    })
+
+    if (session.metadata.userId !== user._id.toString()) {
+      console.error('User mismatch:', {
+        sessionUserId: session.metadata.userId,
+        currentUserId: user._id.toString(),
+      })
+      return next(createError(403, 'Unauthorized access to this session'))
+    }
+
+    if (session.status !== 'complete') {
+      console.error('Session not complete:', {
+        status: session.status,
+        payment_status: session.payment_status,
+      })
+      return next(createError(400, 'Checkout session not completed'))
+    }
+
+    if (!session.subscription) {
+      console.error('No subscription created in session')
+      return next(createError(400, 'No subscription created'))
+    }
 
     // Get subscription details from Stripe
     const stripeSubscription = session.subscription
 
     // Check if subscription already exists
     let subscription = await Subscription.findOne({
-      $or: [
-        { user: user._id },
-        { stripeSubscriptionId: stripeSubscription.id },
-      ],
+      user: user._id,
     })
 
     const subscriptionData = {
@@ -439,6 +342,7 @@ export const verifyCheckoutSession = async (req, res, next) => {
         session.metadata.planName,
         session.metadata.billingCycle
       ),
+      // Handle undefined dates during trial period
       currentPeriodStart: stripeSubscription.current_period_start
         ? new Date(stripeSubscription.current_period_start * 1000)
         : null,
@@ -451,6 +355,7 @@ export const verifyCheckoutSession = async (req, res, next) => {
       trialEnd: stripeSubscription.trial_end
         ? new Date(stripeSubscription.trial_end * 1000)
         : null,
+      // NEW: Track referral discount usage
       metadata: {
         hasReferralDiscount: session.metadata.hasReferralDiscount === 'true',
         referredBy: session.metadata.referredBy || null,
@@ -461,47 +366,34 @@ export const verifyCheckoutSession = async (req, res, next) => {
       },
     }
 
-    console.log('💾 Subscription data to save:', {
-      user: subscriptionData.user.toString(),
-      plan: subscriptionData.plan,
-      status: subscriptionData.status,
-      amount: subscriptionData.amount,
-      stripeSubscriptionId: subscriptionData.stripeSubscriptionId,
-    })
-
     try {
       if (subscription) {
-        console.log('📝 Updating existing subscription...')
         Object.assign(subscription, subscriptionData)
         await subscription.save()
-        console.log('✅ Subscription updated successfully')
       } else {
-        console.log('📝 Creating new subscription...')
         subscription = new Subscription(subscriptionData)
         await subscription.save()
-        console.log('✅ New subscription created successfully')
       }
 
       // Update User model's subscription field
-      console.log('👤 Updating user subscription field...')
       await updateUserSubscriptionField(user._id, subscription)
-      console.log('✅ User subscription field updated')
 
-      // Send notifications
-      console.log('📧 Sending notifications...')
+      // Send notifications for subscription events
       try {
         const planDisplayName = getPlanDetails(session.metadata.planName).name
 
+        // If subscription has a trial, send trial started notification
         if (subscription.trialEnd && subscription.status === 'trialing') {
           await NotificationService.notifyTrialStarted(
             user._id,
             planDisplayName,
             subscription.trialEnd
           )
-          console.log('✅ Trial notification sent')
+          console.log(`✅ Trial started notification sent to ${user.email}`)
         }
 
-        await NotificationService.notifySubscriptionActivated(user._id, {
+        // Send subscription activated notification with discount info
+        const notificationData = {
           planName: planDisplayName,
           amount: subscription.amount,
           currency: subscription.currency,
@@ -514,30 +406,78 @@ export const verifyCheckoutSession = async (req, res, next) => {
                 description: 'First month 10% referral discount applied',
               }
             : null,
-        })
-        console.log('✅ Activation notification sent')
+        }
+
+        await NotificationService.notifySubscriptionActivated(
+          user._id,
+          notificationData
+        )
+        console.log(
+          `✅ Subscription activated notification sent to ${user.email}`
+        )
+
+        // If referral discount was applied, send special notification
+        if (
+          subscription.metadata?.hasReferralDiscount &&
+          subscription.metadata?.referredBy
+        ) {
+          try {
+            const referrer = await User.findById(
+              subscription.metadata.referredBy
+            )
+            if (referrer) {
+              // Notify the new subscriber about their discount
+              await NotificationService.createNotification(user._id, {
+                title: '🎉 Referral Discount Applied!',
+                message: `You saved ${REFERRAL_DISCOUNT.percentage}% on your first month thanks to ${referrer.name}'s referral. Enjoy your discount!`,
+                type: 'referral_bonus',
+                priority: 'medium',
+                data: {
+                  discountPercentage: REFERRAL_DISCOUNT.percentage,
+                  referrerName: referrer.name,
+                  planName: planDisplayName,
+                },
+              })
+
+              // Notify the referrer that their referral got a discount
+              await NotificationService.createNotification(referrer._id, {
+                title: '🎁 Your Referral Got a Discount!',
+                message: `${user.name} just subscribed to the ${planDisplayName} plan and received a 10% discount thanks to your referral!`,
+                type: 'referral_success',
+                priority: 'medium',
+                data: {
+                  referredUserName: user.name,
+                  planName: planDisplayName,
+                  discountPercentage: REFERRAL_DISCOUNT.percentage,
+                },
+              })
+
+              console.log(
+                `✅ Referral discount notifications sent for ${user.email} -> ${referrer.email}`
+              )
+            }
+          } catch (referralNotificationError) {
+            console.error(
+              'Error sending referral discount notifications:',
+              referralNotificationError
+            )
+          }
+        }
       } catch (notificationError) {
         console.error(
-          '⚠️ Notification error (non-critical):',
+          'Error sending subscription notifications:',
           notificationError
         )
       }
 
       // Create earning for referral commission
-      console.log('💰 Creating referral earnings...')
       try {
         await createEarningForSubscription(subscription, user._id)
-        console.log('✅ Referral earnings created')
       } catch (earningError) {
-        console.error('⚠️ Earning creation error (non-critical):', earningError)
+        console.error('Error creating earning:', earningError)
       }
     } catch (saveError) {
-      console.error('❌ Database save error:', saveError)
-      console.error('Error details:', {
-        name: saveError.name,
-        message: saveError.message,
-        code: saveError.code,
-      })
+      console.error('Error saving subscription to database:', saveError)
       return next(
         createError(500, `Failed to save subscription: ${saveError.message}`)
       )
@@ -545,9 +485,6 @@ export const verifyCheckoutSession = async (req, res, next) => {
 
     // Populate the subscription for response
     await subscription.populate('user', 'name email')
-
-    console.log('🎉 Payment verification completed successfully!')
-    console.log('=== END VERIFICATION DEBUG ===')
 
     res.status(200).json({
       status: 'success',
@@ -564,137 +501,10 @@ export const verifyCheckoutSession = async (req, res, next) => {
       },
     })
   } catch (error) {
-    console.error('❌ Final verification error:', error)
+    console.error('Error verifying checkout session:', error)
     next(
       createError(500, `Failed to verify checkout session: ${error.message}`)
     )
-  }
-}
-
-// Add a webhook verification endpoint for live payments
-export const verifyWebhookPayment = async (req, res, next) => {
-  try {
-    const sig = req.headers['stripe-signature']
-    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET // You'll need this
-
-    if (!endpointSecret) {
-      console.warn('⚠️ No webhook secret configured')
-      return res.status(400).send('Webhook secret not configured')
-    }
-
-    let event
-    try {
-      event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret)
-    } catch (err) {
-      console.error('❌ Webhook signature verification failed:', err.message)
-      return res.status(400).send(`Webhook Error: ${err.message}`)
-    }
-
-    console.log('🎣 Webhook received:', event.type)
-
-    // Handle the checkout.session.completed event
-    if (event.type === 'checkout.session.completed') {
-      const session = event.data.object
-
-      console.log('💳 Processing completed checkout session:', session.id)
-
-      // Find user by customer ID or session metadata
-      const userId = session.metadata?.userId
-      if (!userId) {
-        console.error('❌ No user ID in session metadata')
-        return res.status(400).send('No user ID found')
-      }
-
-      const user = await User.findById(userId)
-      if (!user) {
-        console.error('❌ User not found:', userId)
-        return res.status(400).send('User not found')
-      }
-
-      // Process the subscription creation via webhook
-      // This is a backup in case the frontend verification fails
-      console.log('🔄 Processing subscription via webhook...')
-
-      // You can call the same subscription creation logic here
-      // or mark the payment as webhook-verified
-    }
-
-    res.json({ received: true })
-  } catch (error) {
-    console.error('❌ Webhook processing error:', error)
-    res.status(500).send('Webhook processing failed')
-  }
-}
-
-// Add route to check live Stripe configuration
-export const checkStripeConfig = async (req, res, next) => {
-  try {
-    console.log('🔧 Checking Stripe configuration...')
-
-    const isLive = !process.env.STRIPE_SECRET_KEY.includes('test')
-    console.log('Stripe Mode:', isLive ? 'LIVE' : 'TEST')
-
-    // Test Stripe connection
-    const account = await stripe.accounts.retrieve()
-    console.log('Stripe Account:', account.id)
-    console.log('Country:', account.country)
-    console.log('Currency:', account.default_currency)
-
-    // Check price IDs
-    const plans = getAllPlans()
-    const priceChecks = []
-
-    for (const plan of plans) {
-      try {
-        const monthlyPrice = await stripe.prices.retrieve(
-          plan.pricing.monthly.priceId
-        )
-        const yearlyPrice = await stripe.prices.retrieve(
-          plan.pricing.yearly.priceId
-        )
-
-        priceChecks.push({
-          plan: plan.key,
-          monthly: {
-            id: monthlyPrice.id,
-            active: monthlyPrice.active,
-            amount: monthlyPrice.unit_amount,
-            currency: monthlyPrice.currency,
-          },
-          yearly: {
-            id: yearlyPrice.id,
-            active: yearlyPrice.active,
-            amount: yearlyPrice.unit_amount,
-            currency: yearlyPrice.currency,
-          },
-        })
-      } catch (priceError) {
-        priceChecks.push({
-          plan: plan.key,
-          error: priceError.message,
-        })
-      }
-    }
-
-    res.status(200).json({
-      status: 'success',
-      data: {
-        stripeMode: isLive ? 'LIVE' : 'TEST',
-        account: {
-          id: account.id,
-          country: account.country,
-          currency: account.default_currency,
-        },
-        priceIds: priceChecks,
-        timestamp: new Date().toISOString(),
-      },
-    })
-  } catch (error) {
-    console.error('❌ Stripe config check error:', error)
-    res.status(500).json({
-      status: 'error',
-      message: error.message,
-    })
   }
 }
 
@@ -1231,5 +1041,189 @@ export const syncWithStripe = async (req, res, next) => {
   } catch (error) {
     console.error('Error syncing with Stripe:', error)
     next(createError(500, 'Failed to sync with Stripe'))
+  }
+}
+
+export const verifyWebhookPayment = async (req, res) => {
+  const sig = req.headers['stripe-signature']
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
+
+  let event
+
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret)
+  } catch (err) {
+    console.error('❌ Webhook signature verification failed:', err.message)
+    return res.status(400).send(`Webhook Error: ${err.message}`)
+  }
+
+  console.log(`✅ Webhook received: ${event.type}`)
+
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object
+        console.log('Checkout session completed:', session.id)
+
+        // Find subscription
+        const subscription = await Subscription.findOne({
+          stripeSubscriptionId: session.subscription,
+        })
+
+        if (subscription && !subscription.isGifted) {
+          // Create initial earnings (will be approved after first payment)
+          try {
+            await createEarningForSubscription(subscription, subscription.user)
+            console.log('✅ Initial earnings created for new subscription')
+          } catch (earningError) {
+            console.error('Error creating initial earnings:', earningError)
+          }
+        }
+        break
+      }
+
+      case 'invoice.payment_succeeded': {
+        const invoice = event.data.object
+        console.log('Invoice payment succeeded:', invoice.id)
+
+        // Find subscription
+        const subscription = await Subscription.findOne({
+          stripeSubscriptionId: invoice.subscription,
+        })
+
+        if (!subscription) {
+          console.log('⚠️ Subscription not found for invoice')
+          break
+        }
+
+        // CRITICAL: Skip if gifted
+        if (subscription.isGifted) {
+          console.log('⚠️ Skipping earnings - subscription is gifted')
+          break
+        }
+
+        // Add payment to history
+        await subscription.addPaymentToHistory({
+          id: invoice.payment_intent,
+          amount: invoice.amount_paid,
+          currency: invoice.currency,
+          status: 'succeeded',
+          paidAt: new Date(invoice.status_transitions.paid_at * 1000),
+        })
+
+        // Determine if this is renewal or first payment
+        const isRenewal = invoice.billing_reason === 'subscription_cycle'
+
+        if (isRenewal) {
+          // Create renewal earning
+          console.log('Processing renewal payment')
+          await createRenewalEarning(subscription, invoice.payment_intent)
+        } else {
+          // Approve pending earnings for first payment
+          console.log('Processing first payment - approving pending earnings')
+          await approveEarningAfterPayment(
+            subscription._id,
+            invoice.payment_intent
+          )
+        }
+
+        console.log(
+          `✅ Processed payment for subscription: ${subscription._id}`
+        )
+        break
+      }
+
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object
+        console.log('Invoice payment failed:', invoice.id)
+
+        // You might want to add logic here to handle failed payments
+        // For example, pause earnings until payment succeeds
+        break
+      }
+
+      case 'customer.subscription.updated': {
+        const stripeSubscription = event.data.object
+        console.log('Subscription updated:', stripeSubscription.id)
+
+        const subscription = await Subscription.findOne({
+          stripeSubscriptionId: stripeSubscription.id,
+        })
+
+        if (subscription) {
+          await subscription.updateFromStripe(stripeSubscription)
+
+          // Update User model
+          const user = await User.findById(subscription.user)
+          if (user) {
+            await updateUserSubscriptionField(user._id, subscription)
+          }
+
+          console.log(`✅ Updated subscription: ${subscription._id}`)
+        }
+        break
+      }
+
+      case 'customer.subscription.deleted': {
+        const stripeSubscription = event.data.object
+        console.log('Subscription deleted:', stripeSubscription.id)
+
+        const subscription = await Subscription.findOne({
+          stripeSubscriptionId: stripeSubscription.id,
+        })
+
+        if (subscription) {
+          subscription.status = 'canceled'
+          subscription.canceledAt = new Date()
+          await subscription.save()
+
+          // Cancel any pending/approved earnings
+          await cancelEarningsForSubscription(
+            subscription._id,
+            'Subscription cancelled'
+          )
+
+          // Update User model to free plan
+          await User.findByIdAndUpdate(subscription.user, {
+            'subscription.plan': 'free',
+            'subscription.status': 'inactive',
+            'subscription.isActive': false,
+            'subscription.isTrialActive': false,
+            'subscription.daysRemaining': 0,
+          })
+
+          console.log(`✅ Cancelled subscription: ${subscription._id}`)
+        }
+        break
+      }
+
+      case 'charge.refunded': {
+        const charge = event.data.object
+        console.log('Charge refunded:', charge.id)
+
+        // Find subscription by payment intent
+        const subscription = await Subscription.findOne({
+          'paymentHistory.stripePaymentIntentId': charge.payment_intent,
+        })
+
+        if (subscription) {
+          // Cancel earnings for refunded payment
+          await cancelEarningsForSubscription(
+            subscription._id,
+            'Payment refunded'
+          )
+          console.log('✅ Cancelled earnings due to refund')
+        }
+        break
+      }
+
+      default:
+        console.log(`Unhandled event type: ${event.type}`)
+    }
+
+    res.status(200).json({ received: true })
+  } catch (error) {
+    console.error('❌ Error processing webhook:', error)
+    res.status(500).json({ error: 'Webhook processing failed' })
   }
 }

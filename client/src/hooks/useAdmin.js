@@ -62,21 +62,20 @@ export const useUpdateUserSubscription = () => {
     mutationFn: ({ userId, subscriptionData }) =>
       adminService.updateUserSubscription(userId, subscriptionData),
     onSuccess: (data, variables) => {
-      // Invalidate ALL related queries
+      // AGGRESSIVE invalidation
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] })
       queryClient.invalidateQueries({ queryKey: ['user', variables.userId] })
       queryClient.invalidateQueries({ queryKey: ['stripe', 'subscription'] })
 
-      // Force immediate refetch of users list to show updated subscription status
+      // FORCE immediate refetch
       queryClient.refetchQueries({
         queryKey: ['admin', 'users'],
-        type: 'active', // Only refetch active queries
+        type: 'active',
       })
 
-      // Also refetch stats to update counts
       queryClient.refetchQueries({
-        queryKey: ['admin', 'stats'],
+        queryKey: ['stripe', 'subscription'],
         type: 'active',
       })
     },

@@ -281,13 +281,12 @@ const AffiliatePage = () => {
               <ChevronDown size={20} className='text-gray-400' />
             )}
           </button>
-
           {showCommission && (
             <div className='mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4'>
-              {/* Pro Plan */}
+              {/* Starter Plan */}
               <div className='bg-[#1A1A1C] border border-[#1E1E21] rounded-lg p-5 text-center transition-all duration-300 hover:shadow-lg hover:shadow-[#D4AF37]/10 hover:border-[#D4AF37]/30'>
                 <div className='text-2xl font-extrabold text-blue-400 mb-2'>
-                  20%
+                  40%
                 </div>
                 <div className='text-[#EDEDED] text-base font-semibold mb-1'>
                   Starter Plan
@@ -296,11 +295,11 @@ const AffiliatePage = () => {
                   Standard features
                 </div>
                 <div className='text-xs text-gray-500'>
-                  Recurring commission
+                  Direct referral commission
                 </div>
               </div>
 
-              {/* Empire Plan (Popular) */}
+              {/* Pro Plan (Popular) */}
               <div className='bg-gradient-to-br from-[#D4AF37]/10 to-[#B8941F]/5 border border-[#D4AF37]/30 rounded-lg p-6 text-center relative transform scale-105 hover:scale-100 transition-all duration-300 shadow-lg shadow-[#D4AF37]/10'>
                 <div className='absolute top-2 right-2'>
                   <span className='bg-[#D4AF37] text-black text-xs font-bold px-2 py-1 rounded-full'>
@@ -308,7 +307,7 @@ const AffiliatePage = () => {
                   </span>
                 </div>
                 <div className='text-2xl font-extrabold text-[#D4AF37] mb-2'>
-                  30%
+                  40%
                 </div>
                 <div className='text-[#EDEDED] text-base font-semibold mb-1'>
                   Pro Plan
@@ -317,7 +316,7 @@ const AffiliatePage = () => {
                   Best value for users
                 </div>
                 <div className='text-xs text-gray-500'>
-                  Highest earnings potential
+                  Direct referral commission
                 </div>
               </div>
 
@@ -333,7 +332,18 @@ const AffiliatePage = () => {
                   Premium features
                 </div>
                 <div className='text-xs text-gray-500'>
-                  Maximum commission rate
+                  Direct referral commission
+                </div>
+              </div>
+
+              {/* Optional: Add note about sub-affiliate commission */}
+              <div className='col-span-full mt-2'>
+                <div className='bg-[#1A1A1C]/50 border border-[#1E1E21] rounded-lg p-3 text-center'>
+                  <p className='text-xs text-gray-400'>
+                    Plus{' '}
+                    <span className='text-[#D4AF37] font-semibold'>10%</span>{' '}
+                    commission on sub-affiliate referrals
+                  </p>
                 </div>
               </div>
             </div>

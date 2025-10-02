@@ -1,4 +1,4 @@
-// File: client/src/pages/Admin/AdminPage.jsx
+// File: client/src/pages/Admin/AdminPage.jsx - COMPLETE WITH GIFTED SUBSCRIPTIONS
 import EditUserModal from '@/components/Admin/EditUserModal'
 import {
   BarChart3,
@@ -8,6 +8,8 @@ import {
   DollarSign,
   Edit,
   Eye,
+  Gift,
+  Info,
   Mail,
   Search,
   Shield,
@@ -65,7 +67,6 @@ const AdminPage = () => {
   const approvePayoutMutation = useApprovePayout()
   const rejectPayoutMutation = useRejectPayout()
   const completePayoutMutation = useCompletePayout()
-  // NEW: Subscription management mutations
   const updateUserSubscriptionMutation = useUpdateUserSubscription()
   const cancelUserSubscriptionMutation = useCancelUserSubscription()
   const reactivateUserSubscriptionMutation = useReactivateUserSubscription()
@@ -78,6 +79,7 @@ const AdminPage = () => {
     pendingPayouts: 0,
     totalRevenue: 0,
     newUsersToday: 0,
+    giftedSubscriptions: 0,
   }
 
   const users = usersData?.data?.users || []
@@ -96,20 +98,7 @@ const AdminPage = () => {
     results: payoutsData?.results || 0,
   }
 
-  // Subscription plans configuration
-  const subscriptionPlans = [
-    { value: 'free', label: 'Free' },
-    { value: 'starter', label: 'Starter' },
-    { value: 'pro', label: 'Pro' },
-    { value: 'empire', label: 'Empire' },
-  ]
-
-  const billingCycles = [
-    { value: 'monthly', label: 'Monthly' },
-    { value: 'yearly', label: 'Yearly' },
-  ]
-
-  // Add User Modal Component (same as before)
+  // Add User Modal Component
   const AddUserModal = ({ show, onClose }) => {
     const [formData, setFormData] = useState({
       name: '',
@@ -230,7 +219,7 @@ const AdminPage = () => {
     )
   }
 
-  // User Detail Modal Component (same as before with minor subscription info additions)
+  // User Detail Modal Component - UPDATED WITH GIFTED INFO
   const UserDetailModal = ({ show, user, onClose }) => {
     if (!show || !user) return null
 
@@ -291,17 +280,25 @@ const AdminPage = () => {
                 </div>
               </div>
 
-              {/* Enhanced Subscription Info */}
+              {/* Enhanced Subscription Info with Gifted Status */}
               <div>
                 <h4 className='text-sm font-medium text-[#D4AF37] mb-3'>
                   Subscription
                 </h4>
                 <div className='space-y-2'>
-                  <div className='flex justify-between'>
+                  <div className='flex justify-between items-center'>
                     <span className='text-gray-400'>Plan:</span>
-                    <span className='text-[#EDEDED] capitalize'>
-                      {user.subscription?.plan || 'Free'}
-                    </span>
+                    <div className='flex items-center gap-2'>
+                      <span className='text-[#EDEDED] capitalize'>
+                        {user.subscription?.plan || 'Free'}
+                      </span>
+                      {user.subscription?.isGifted && (
+                        <span className='px-2 py-1 rounded-lg text-xs font-medium bg-pink-500/10 text-pink-400 flex items-center gap-1'>
+                          <Gift size={10} />
+                          Gifted
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className='flex justify-between'>
                     <span className='text-gray-400'>Status:</span>
@@ -315,6 +312,30 @@ const AdminPage = () => {
                       {user.subscription?.status || 'No subscription'}
                     </span>
                   </div>
+
+                  {user.subscription?.isGifted && (
+                    <>
+                      <div className='flex justify-between'>
+                        <span className='text-gray-400'>Gifted By:</span>
+                        <span className='text-pink-400'>Admin</span>
+                      </div>
+                      {user.subscription?.giftedAt && (
+                        <div className='flex justify-between'>
+                          <span className='text-gray-400'>Gifted On:</span>
+                          <span className='text-[#EDEDED]'>
+                            {formatDate(user.subscription.giftedAt)}
+                          </span>
+                        </div>
+                      )}
+                      <div className='bg-pink-500/10 border border-pink-500/30 rounded-lg p-2 mt-2'>
+                        <div className='text-xs text-pink-400'>
+                          This subscription was gifted by admin and does not
+                          count towards revenue or earnings.
+                        </div>
+                      </div>
+                    </>
+                  )}
+
                   {user.subscription?.isActive && (
                     <>
                       <div className='flex justify-between'>
@@ -335,6 +356,11 @@ const AdminPage = () => {
                     <span className='text-gray-400'>Total Spent:</span>
                     <span className='text-[#EDEDED]'>
                       ${user.totalSpent || 0}
+                      {user.subscription?.isGifted && (
+                        <span className='text-xs text-pink-400 ml-1'>
+                          (Gifted)
+                        </span>
+                      )}
                     </span>
                   </div>
                 </div>
@@ -383,7 +409,6 @@ const AdminPage = () => {
                 </div>
               </div>
 
-              {/* Commission Info */}
               <div>
                 <h4 className='text-sm font-medium text-[#D4AF37] mb-3'>
                   Commissions
@@ -434,7 +459,7 @@ const AdminPage = () => {
     )
   }
 
-  // Payout Detail Modal Component (same as before)
+  // Payout Detail Modal Component
   const PayoutDetailModal = ({ show, payout, onClose }) => {
     if (!show || !payout) return null
 
@@ -634,8 +659,8 @@ const AdminPage = () => {
     )
   }
 
-  // NEW: Subscription Badge Component
-  const SubscriptionBadge = ({ plan, isActive }) => {
+  // UPDATED: Subscription Badge with Gifted Status
+  const SubscriptionBadge = ({ plan, isActive, isGifted }) => {
     const planConfig = {
       free: {
         color: 'bg-gray-500/10 text-gray-400',
@@ -663,14 +688,23 @@ const AdminPage = () => {
     const IconComponent = config.icon
 
     return (
-      <span
-        className={`px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1 ${
-          config.color
-        } ${!isActive ? 'opacity-50' : ''}`}
-      >
-        <IconComponent size={12} />
-        {config.label}
-      </span>
+      <div className='flex items-center gap-2'>
+        <span
+          className={`px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1 ${
+            config.color
+          } ${!isActive ? 'opacity-50' : ''}`}
+        >
+          <IconComponent size={12} />
+          {config.label}
+        </span>
+
+        {isGifted && (
+          <span className='px-2 py-1 rounded-lg text-xs font-medium bg-pink-500/10 text-pink-400 flex items-center gap-1'>
+            <Gift size={12} />
+            Gifted
+          </span>
+        )}
+      </div>
     )
   }
 
@@ -827,7 +861,7 @@ const AdminPage = () => {
           </button>
         </div>
 
-        {/* Stats Grid */}
+        {/* Stats Grid - UPDATED WITH GIFTED SUBSCRIPTIONS */}
         <div className='grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4'>
           <StatCard
             title='Total Users'
@@ -865,7 +899,30 @@ const AdminPage = () => {
             icon={<DollarSign size={18} />}
             color='bg-orange-500'
           />
+
+          {/* NEW: Show gifted subscriptions if any exist */}
+          {stats.giftedSubscriptions > 0 && (
+            <StatCard
+              title='Gifted Plans'
+              value={stats.giftedSubscriptions.toString()}
+              icon={<Gift size={18} />}
+              color='bg-pink-500'
+            />
+          )}
         </div>
+
+        {/* NEW: Revenue Note if gifted subscriptions exist */}
+        {stats.giftedSubscriptions > 0 && (
+          <div className='bg-blue-500/10 border border-blue-500/30 rounded-xl p-4'>
+            <div className='flex items-center gap-2 text-blue-400 text-sm'>
+              <Info size={16} />
+              <span className='font-medium'>
+                Revenue excludes {stats.giftedSubscriptions} admin-gifted
+                subscription{stats.giftedSubscriptions !== 1 ? 's' : ''}
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Loading State */}
         {isLoading && (
@@ -946,7 +1003,7 @@ const AdminPage = () => {
                   </div>
                 </div>
 
-                {/* Users Table */}
+                {/* Users Table - UPDATED WITH GIFTED STATUS */}
                 <div className='overflow-x-auto'>
                   <table className='w-full'>
                     <thead>
@@ -1011,11 +1068,17 @@ const AdminPage = () => {
                             <SubscriptionBadge
                               plan={user.subscription?.plan || 'free'}
                               isActive={user.subscription?.isActive}
+                              isGifted={user.subscription?.isGifted || false}
                             />
                             {user.subscription?.isActive && (
                               <div className='text-xs text-gray-400 mt-1'>
                                 {user.subscription?.daysRemaining || 0} days
                                 left
+                                {user.subscription?.isGifted && (
+                                  <span className='text-pink-400 ml-1'>
+                                    (Admin Gift)
+                                  </span>
+                                )}
                               </div>
                             )}
                           </td>
@@ -1108,7 +1171,7 @@ const AdminPage = () => {
               </div>
             )}
 
-            {/* Payouts Tab - Same as before */}
+            {/* Payouts Tab */}
             {activeTab === 'payouts' && (
               <div>
                 <div className='p-4 sm:p-6 border-b border-[#1E1E21]'>

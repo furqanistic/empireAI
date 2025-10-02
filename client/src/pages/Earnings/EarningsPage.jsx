@@ -642,9 +642,6 @@ const EarningsPage = () => {
                     <th className='text-left text-gray-400 text-xs font-medium uppercase tracking-wider px-6 py-4'>
                       Date
                     </th>
-                    <th className='text-right text-gray-400 text-xs font-medium uppercase tracking-wider px-6 py-4'>
-                      Actions
-                    </th>
                   </tr>
                 </thead>
                 <tbody className='divide-y divide-[#1E1E21]'>
@@ -690,11 +687,6 @@ const EarningsPage = () => {
                       </td>
                       <td className='px-6 py-4 text-gray-400 text-sm'>
                         {formatDate(earning.createdAt)}
-                      </td>
-                      <td className='px-6 py-4 text-right'>
-                        <button className='text-gray-400 hover:text-[#EDEDED] transition-colors duration-200'>
-                          <MoreHorizontal size={16} />
-                        </button>
                       </td>
                     </tr>
                   ))}

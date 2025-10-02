@@ -19,24 +19,6 @@ export const generateProduct = async (req, res, next) => {
     } = req.body
     const userId = req.user.id
 
-    // Comprehensive logging for debugging
-    console.log('=== PRODUCT GENERATION DEBUG ===')
-    console.log('User ID:', userId)
-    console.log('User Email:', req.user.email)
-    console.log('Request Body:', {
-      productType,
-      niche,
-      audience,
-      priceRange,
-      complexity,
-      customContext: customContext
-        ? `${customContext.substring(0, 50)}...`
-        : 'None',
-      detailLevel,
-    })
-    console.log('GROQ API Key exists:', !!process.env.GROQ_API_KEY)
-    console.log('GROQ API Key length:', process.env.GROQ_API_KEY?.length || 0)
-
     // Validate required fields
     const requiredFields = {
       productType,
@@ -50,7 +32,6 @@ export const generateProduct = async (req, res, next) => {
       .map(([key]) => key)
 
     if (missingFields.length > 0) {
-      console.log('❌ Missing required fields:', missingFields)
       return next(
         createError(400, `Missing required fields: ${missingFields.join(', ')}`)
       )
@@ -95,7 +76,6 @@ export const generateProduct = async (req, res, next) => {
 
     // Validation with specific error messages
     if (!validProductTypes.includes(productType)) {
-      console.log('❌ Invalid product type:', productType)
       return next(
         createError(
           400,
@@ -107,7 +87,6 @@ export const generateProduct = async (req, res, next) => {
     }
 
     if (!validNiches.includes(niche)) {
-      console.log('❌ Invalid niche:', niche)
       return next(
         createError(
           400,
@@ -117,7 +96,6 @@ export const generateProduct = async (req, res, next) => {
     }
 
     if (!validAudiences.includes(audience)) {
-      console.log('❌ Invalid audience:', audience)
       return next(
         createError(
           400,
@@ -129,7 +107,6 @@ export const generateProduct = async (req, res, next) => {
     }
 
     if (!validPriceRanges.includes(priceRange)) {
-      console.log('❌ Invalid price range:', priceRange)
       return next(
         createError(
           400,
@@ -141,7 +118,6 @@ export const generateProduct = async (req, res, next) => {
     }
 
     if (!validComplexity.includes(complexity)) {
-      console.log('❌ Invalid complexity:', complexity)
       return next(
         createError(
           400,
@@ -153,7 +129,6 @@ export const generateProduct = async (req, res, next) => {
     }
 
     if (!validDetailLevels.includes(detailLevel)) {
-      console.log('❌ Invalid detail level:', detailLevel)
       return next(
         createError(
           400,
@@ -167,14 +142,11 @@ export const generateProduct = async (req, res, next) => {
     // Validate custom context length
     if (customContext && typeof customContext === 'string') {
       if (customContext.length > 2000) {
-        console.log('❌ Custom context too long:', customContext.length)
         return next(
           createError(400, 'Custom context must be less than 2000 characters')
         )
       }
     }
-
-    console.log('✅ All validations passed')
 
     // Create initial generation record WITHOUT generatedProduct field
     // This prevents validation errors if the AI generation fails
@@ -193,23 +165,11 @@ export const generateProduct = async (req, res, next) => {
 
     try {
       await productGeneration.save()
-      console.log(
-        '✅ Product generation record created:',
-        productGeneration._id
-      )
     } catch (saveError) {
-      console.log('❌ Failed to create generation record:', saveError.message)
       return next(createError(500, 'Failed to initialize product generation'))
     }
 
     try {
-      console.log('🚀 Starting AI generation...')
-      console.log(`📊 Using ${detailLevel} mode for enhanced content`)
-      console.log(
-        '⏱️  Expected completion time:',
-        detailLevel === 'detailed' ? '30-60 seconds' : '15-30 seconds'
-      )
-
       // Generate product using AI service with all parameters
       const generationResult = await productService.generateCompleteProduct({
         productType,
@@ -220,32 +180,6 @@ export const generateProduct = async (req, res, next) => {
         customContext,
         detailLevel, // Pass the detail level to the service
       })
-
-      console.log('✅ AI generation successful!')
-      console.log('Generated product details:')
-      console.log('  - Title:', generationResult.product?.title || 'No title')
-      console.log(
-        '  - Overview length:',
-        generationResult.product?.overview?.length || 0,
-        'characters'
-      )
-      console.log(
-        '  - Module count:',
-        generationResult.product?.outline?.modules?.length || 0
-      )
-      console.log(
-        '  - Marketing angles:',
-        generationResult.product?.marketing?.angles?.length || 0
-      )
-      console.log(
-        '  - Bonuses:',
-        generationResult.product?.bonuses?.length || 0
-      )
-      console.log('Generation metadata:')
-      console.log('  - Detail level:', generationResult.detailLevel)
-      console.log('  - Model used:', generationResult.model)
-      console.log('  - Processing time:', generationResult.processingTime, 'ms')
-      console.log('  - Token usage:', generationResult.usage)
 
       // Comprehensive validation of AI response
       if (!generationResult.product) {
@@ -297,12 +231,7 @@ export const generateProduct = async (req, res, next) => {
 
       try {
         await productGeneration.save()
-        console.log('✅ Product generation completed and saved to database')
       } catch (saveError) {
-        console.log(
-          '❌ Failed to save completed generation:',
-          saveError.message
-        )
         // Don't fail the request, just log the error since we have the data
       }
 
@@ -330,11 +259,6 @@ export const generateProduct = async (req, res, next) => {
         },
       })
     } catch (aiError) {
-      console.log('❌ AI generation failed')
-      console.log('Error type:', aiError.constructor.name)
-      console.log('Error message:', aiError.message)
-      console.log('Full error:', aiError)
-
       // Update generation record with error details
       productGeneration.status = 'failed'
       productGeneration.error = {
@@ -346,7 +270,6 @@ export const generateProduct = async (req, res, next) => {
       // Save the failed record (this helps with debugging and analytics)
       try {
         await productGeneration.save()
-        console.log('✅ Failed product generation record saved')
       } catch (saveError) {
         console.log('❌ Failed to save error record:', saveError.message)
       }
@@ -431,11 +354,6 @@ export const generateProduct = async (req, res, next) => {
       )
     }
   } catch (error) {
-    console.log('❌ Unexpected error in generateProduct controller')
-    console.log('Error type:', error.constructor.name)
-    console.log('Error message:', error.message)
-    console.log('Stack trace:', error.stack)
-
     // Handle different types of unexpected errors
     if (error.name === 'ValidationError') {
       const validationErrors = Object.keys(error.errors || {})
@@ -749,15 +667,7 @@ export const testAIConnection = async (req, res, next) => {
 // Test GROQ connection specifically
 export const testGroqConnection = async (req, res, next) => {
   try {
-    console.log('=== GROQ CONNECTION TEST ===')
-    console.log('API Key exists:', !!process.env.GROQ_API_KEY)
-    console.log(
-      'API Key preview:',
-      process.env.GROQ_API_KEY?.substring(0, 10) + '...'
-    )
-
     const result = await productService.testConnection()
-    console.log('✅ GROQ connection successful:', result)
 
     res.status(200).json({
       status: 'success',
@@ -765,7 +675,6 @@ export const testGroqConnection = async (req, res, next) => {
       data: result,
     })
   } catch (error) {
-    console.log('❌ GROQ connection failed:', error.message)
     next(createError(500, `GROQ connection failed: ${error.message}`))
   }
 }
@@ -775,10 +684,6 @@ export const exportProduct = async (req, res, next) => {
     const { generationId, format } = req.body
     const userId = req.user.id
     const userEmail = req.user.email
-
-    console.log(
-      `📤 Export request: ${format} for user: ${userEmail}, generation: ${generationId}`
-    )
 
     // Validate required parameters
     if (!generationId || !format) {
@@ -804,26 +709,17 @@ export const exportProduct = async (req, res, next) => {
     })
 
     if (!productGeneration) {
-      console.log(
-        `❌ Product generation not found: ${generationId} for user: ${userId}`
-      )
       return next(
         createError(404, 'Product generation not found or not completed')
       )
     }
 
     if (!productGeneration.generatedProduct) {
-      console.log(`❌ Product data missing for generation: ${generationId}`)
       return next(createError(400, 'Product data is not available for export'))
     }
 
-    console.log(
-      `✅ Found product generation: ${productGeneration.generatedProduct.title}`
-    )
-
     try {
       // Generate the export using the exportService
-      console.log(`🔄 Starting ${format} generation...`)
       const result = await exportService.exportProduct(
         productGeneration.generatedProduct,
         generationId,
@@ -831,14 +727,9 @@ export const exportProduct = async (req, res, next) => {
         userEmail
       )
 
-      console.log(
-        `✅ Export completed: ${result.filename} (${result.buffer.length} bytes)`
-      )
-
       // Mark as downloaded (optional - for analytics)
       try {
         await productGeneration.markDownloaded()
-        console.log(`📊 Marked generation ${generationId} as downloaded`)
       } catch (markError) {
         console.warn('Failed to mark as downloaded:', markError.message)
         // Don't fail the request for this
@@ -886,11 +777,6 @@ export const trackExport = async (req, res, next) => {
   try {
     const { generationId, format } = req.body
     const userId = req.user.id
-
-    // Log export for analytics
-    console.log(
-      `📊 Export Analytics: User ${userId} exported ${format} for generation ${generationId}`
-    )
 
     // You could save this to a separate analytics collection if needed
     // await ExportAnalytics.create({ userId, generationId, format, timestamp: new Date() })

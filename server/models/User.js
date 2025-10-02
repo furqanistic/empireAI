@@ -752,13 +752,32 @@ UserSchema.methods.validatePasswordResetOTP = function (otp) {
 // Method to update earnings info
 UserSchema.methods.updateEarningsInfo = async function () {
   try {
-    // Dynamically import Earnings model to avoid circular dependency
+    // Dynamically import models to avoid circular dependency
     const { default: Earnings } = await import('./Earnings.js')
+    const { default: Subscription } = await import('./Subscription.js')
 
-    // Calculate earnings summary
+    // Calculate earnings summary - ONLY FROM NON-GIFTED SUBSCRIPTIONS
     const earningsData = await Earnings.aggregate([
       {
         $match: { user: this._id },
+      },
+      // Join with Subscription to check if gifted
+      {
+        $lookup: {
+          from: 'subscriptions',
+          localField: 'subscription',
+          foreignField: '_id',
+          as: 'subscriptionData',
+        },
+      },
+      // Filter out earnings from gifted subscriptions
+      {
+        $match: {
+          $or: [
+            { subscriptionData: { $size: 0 } }, // No subscription (shouldn't happen)
+            { 'subscriptionData.isGifted': { $ne: true } }, // Not gifted
+          ],
+        },
       },
       {
         $group: {

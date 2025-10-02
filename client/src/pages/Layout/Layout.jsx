@@ -566,9 +566,8 @@ const Layout = ({ children }) => {
               <div>
                 © {new Date().getFullYear()} Ascend AI. All rights reserved.
               </div>
-              <div>Ascend AI™ is a trademark of Ascend AI Empire.</div>
+              <div>Ascend AI™ is a trademark of Ascnd Labs LLC.</div>
             </div>
-
             {/* Legal Links */}
             <div className='flex items-center justify-center gap-4 pt-1'>
               <Link

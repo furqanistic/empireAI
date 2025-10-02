@@ -478,8 +478,12 @@ export const useGetSubscription = (enabled = true) => {
     queryKey: ['stripe', 'subscription'],
     queryFn: stripeService.getCurrentSubscription,
     enabled,
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    cacheTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 0, // CHANGED: Was 2 * 60 * 1000, now 0 for immediate updates
+    cacheTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
+    refetchInterval: 30 * 1000, // NEW: Refetch every 30 seconds when page is visible
+    refetchIntervalInBackground: false, // Don't refetch when page is hidden
+    refetchOnWindowFocus: true, // Refetch when user returns to the page
+    refetchOnMount: 'always', // NEW: Always refetch when component mounts
     retry: 2,
   })
 }
@@ -511,15 +515,29 @@ export const useVerifyCheckoutSession = () => {
   return useMutation({
     mutationFn: stripeService.verifyCheckoutSession,
     onSuccess: (data) => {
-      // Invalidate subscription and user queries
+      // AGGRESSIVE CACHE INVALIDATION
+      // Invalidate all subscription-related queries
       queryClient.invalidateQueries({ queryKey: ['stripe', 'subscription'] })
+      queryClient.invalidateQueries({ queryKey: ['stripe'] })
       queryClient.invalidateQueries({ queryKey: ['user'] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
+
+      // FORCE IMMEDIATE REFETCH (don't wait for automatic refetch)
+      queryClient.refetchQueries({
+        queryKey: ['stripe', 'subscription'],
+        type: 'active', // Only refetch active queries
+      })
+
+      // Also refetch user data to get updated subscription info
+      queryClient.refetchQueries({
+        queryKey: ['user'],
+        type: 'active',
+      })
     },
     onError: (error) => {
       const errorMessage =
         error.response?.data?.message || 'Payment verification failed'
       console.error('Payment verification error:', error)
-      alert(errorMessage)
     },
   })
 }
@@ -630,9 +648,31 @@ export const useSyncWithStripe = () => {
 }
 
 export const useSubscriptionStatus = () => {
-  const { data: subscriptionData, isLoading } = useGetSubscription()
+  // CHANGED: Remove enabled condition, always fetch
+  const {
+    data: subscriptionData,
+    isLoading,
+    refetch,
+  } = useGetSubscription(true)
 
   const subscription = subscriptionData?.data?.subscription
+
+  // Calculate days remaining in real-time (don't rely on cached value)
+  const calculateDaysRemaining = () => {
+    if (!subscription?.currentPeriodEnd && !subscription?.trialEnd) return 0
+
+    const now = new Date()
+    const endDate = subscription.trialEnd
+      ? new Date(subscription.trialEnd)
+      : new Date(subscription.currentPeriodEnd)
+
+    const daysRemaining = Math.max(
+      0,
+      Math.ceil((endDate - now) / (1000 * 60 * 60 * 24))
+    )
+
+    return daysRemaining
+  }
 
   const subscriptionStatus = {
     hasSubscription: !!subscription,
@@ -640,7 +680,7 @@ export const useSubscriptionStatus = () => {
     plan: subscription?.plan || null,
     status: subscription?.status || 'none',
     trialActive: subscription?.isTrialActive || false,
-    daysRemaining: subscription?.daysRemaining || 0,
+    daysRemaining: calculateDaysRemaining(), // CHANGED: Calculate in real-time
     cancelAtPeriodEnd: subscription?.cancelAtPeriodEnd || false,
     currentPeriodEnd: subscription?.currentPeriodEnd || null,
     amount: subscription?.amount || 0,
@@ -652,6 +692,7 @@ export const useSubscriptionStatus = () => {
     subscription,
     subscriptionStatus,
     isLoading,
+    refetch, // Expose refetch function for manual refresh
   }
 }
 
