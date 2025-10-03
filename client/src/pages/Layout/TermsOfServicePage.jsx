@@ -1,3 +1,4 @@
+// File: client/src/pages/Layout/TermsOfServicePage.jsx
 import { selectIsAuthenticated } from '@/redux/userSlice'
 import {
   AlertTriangle,
@@ -242,6 +243,7 @@ const TermsOfServicePage = () => {
           </div>
 
           {/* Affiliate Program */}
+          {/* Affiliate Program */}
           <div className='bg-[#121214] border border-[#1E1E21] rounded-xl p-4 sm:p-6'>
             <div className='flex items-center gap-3 mb-4'>
               <div className='bg-blue-500/10 p-2 rounded-xl'>
@@ -253,6 +255,17 @@ const TermsOfServicePage = () => {
             </div>
 
             <div className='space-y-3'>
+              <div className='bg-blue-500/10 border border-blue-500/20 rounded-lg p-3'>
+                <h3 className='text-blue-400 font-semibold mb-2 text-sm'>
+                  Affiliate Agreement
+                </h3>
+                <p className='text-gray-400 text-xs leading-relaxed'>
+                  If you participate in our Affiliate Program, you agree to be
+                  bound by our separate Affiliate Agreement, which governs
+                  commissions, payouts, and program rules.
+                </p>
+              </div>
+
               <div className='bg-red-500/10 border border-red-500/20 rounded-lg p-3'>
                 <h3 className='text-red-400 font-semibold mb-1 text-sm'>
                   Fraud Policy
