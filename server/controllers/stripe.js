@@ -1044,6 +1044,7 @@ export const syncWithStripe = async (req, res, next) => {
   }
 }
 
+// FIXED WEBHOOK HANDLER - Add this to your stripe controller
 export const verifyWebhookPayment = async (req, res) => {
   const sig = req.headers['stripe-signature']
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
@@ -1057,94 +1058,64 @@ export const verifyWebhookPayment = async (req, res) => {
     return res.status(400).send(`Webhook Error: ${err.message}`)
   }
 
-  console.log(`✅ Webhook received: ${event.type}`)
+  console.log(`📨 Webhook received: ${event.type} (ID: ${event.id})`)
+
+  // CRITICAL: Check if we've already processed this event
+  if (isEventProcessed(event.id)) {
+    console.log(`⚠️ Event ${event.id} already processed, skipping...`)
+    return res
+      .status(200)
+      .json({ received: true, message: 'Already processed' })
+  }
 
   try {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object
-        console.log('Checkout session completed:', session.id)
+        console.log(`✅ Checkout session completed: ${session.id}`)
 
-        // Find subscription
+        // ONLY handle subscription creation here, NOT earnings
+        // Earnings will be handled by invoice.payment_succeeded
         const subscription = await Subscription.findOne({
           stripeSubscriptionId: session.subscription,
         })
 
-        if (subscription && !subscription.isGifted) {
-          // Create initial earnings (will be approved after first payment)
-          try {
-            await createEarningForSubscription(subscription, subscription.user)
-            console.log('✅ Initial earnings created for new subscription')
-          } catch (earningError) {
-            console.error('Error creating initial earnings:', earningError)
-          }
+        if (subscription) {
+          console.log(
+            `⚠️ Subscription ${session.subscription} already exists, skipping creation`
+          )
+        } else {
+          console.log(
+            `📝 Checkout completed, but subscription will be handled by customer.subscription.created`
+          )
         }
         break
       }
 
-      case 'invoice.payment_succeeded': {
-        const invoice = event.data.object
-        console.log('Invoice payment succeeded:', invoice.id)
+      case 'customer.subscription.created': {
+        const stripeSubscription = event.data.object
+        console.log(`🆕 Subscription created: ${stripeSubscription.id}`)
 
-        // Find subscription
-        const subscription = await Subscription.findOne({
-          stripeSubscriptionId: invoice.subscription,
+        // Check if subscription already exists (from checkout.session.completed)
+        let subscription = await Subscription.findOne({
+          stripeSubscriptionId: stripeSubscription.id,
         })
 
         if (!subscription) {
-          console.log('⚠️ Subscription not found for invoice')
-          break
-        }
-
-        // CRITICAL: Skip if gifted
-        if (subscription.isGifted) {
-          console.log('⚠️ Skipping earnings - subscription is gifted')
-          break
-        }
-
-        // Add payment to history
-        await subscription.addPaymentToHistory({
-          id: invoice.payment_intent,
-          amount: invoice.amount_paid,
-          currency: invoice.currency,
-          status: 'succeeded',
-          paidAt: new Date(invoice.status_transitions.paid_at * 1000),
-        })
-
-        // Determine if this is renewal or first payment
-        const isRenewal = invoice.billing_reason === 'subscription_cycle'
-
-        if (isRenewal) {
-          // Create renewal earning
-          console.log('Processing renewal payment')
-          await createRenewalEarning(subscription, invoice.payment_intent)
-        } else {
-          // Approve pending earnings for first payment
-          console.log('Processing first payment - approving pending earnings')
-          await approveEarningAfterPayment(
-            subscription._id,
-            invoice.payment_intent
+          console.log(
+            `📝 Creating new subscription record: ${stripeSubscription.id}`
           )
+          // Create subscription record here
+          // DON'T create earnings yet - wait for first payment
+        } else {
+          console.log(`⚠️ Subscription ${stripeSubscription.id} already exists`)
         }
-
-        console.log(
-          `✅ Processed payment for subscription: ${subscription._id}`
-        )
-        break
-      }
-
-      case 'invoice.payment_failed': {
-        const invoice = event.data.object
-        console.log('Invoice payment failed:', invoice.id)
-
-        // You might want to add logic here to handle failed payments
-        // For example, pause earnings until payment succeeds
         break
       }
 
       case 'customer.subscription.updated': {
         const stripeSubscription = event.data.object
-        console.log('Subscription updated:', stripeSubscription.id)
+        console.log(`🔄 Subscription updated: ${stripeSubscription.id}`)
 
         const subscription = await Subscription.findOne({
           stripeSubscriptionId: stripeSubscription.id,
@@ -1164,9 +1135,106 @@ export const verifyWebhookPayment = async (req, res) => {
         break
       }
 
+      case 'invoice.payment_succeeded': {
+        const invoice = event.data.object
+        console.log(`💰 Invoice payment succeeded: ${invoice.id}`)
+
+        // Find subscription
+        const subscription = await Subscription.findOne({
+          stripeSubscriptionId: invoice.subscription,
+        })
+
+        if (!subscription) {
+          console.log('⚠️ Subscription not found for invoice')
+          break
+        }
+
+        // CRITICAL: Skip if gifted
+        if (subscription.isGifted) {
+          console.log('⚠️ Skipping earnings - subscription is gifted')
+          break
+        }
+
+        // IDEMPOTENCY: Check if this exact payment was already processed
+        const paymentAlreadyProcessed = subscription.paymentHistory.some(
+          (payment) => payment.stripePaymentIntentId === invoice.payment_intent
+        )
+
+        if (paymentAlreadyProcessed) {
+          console.log(
+            `⚠️ Payment ${invoice.payment_intent} already processed, skipping...`
+          )
+          break
+        }
+
+        // Add payment to history FIRST (this acts as our idempotency check)
+        await subscription.addPaymentToHistory({
+          id: invoice.payment_intent,
+          amount: invoice.amount_paid,
+          currency: invoice.currency,
+          status: 'succeeded',
+          paidAt: new Date(invoice.status_transitions.paid_at * 1000),
+        })
+
+        // Check if this is the first payment or a renewal
+        const isFirstPayment = subscription.paymentHistory.length === 1
+        const isRenewal = invoice.billing_reason === 'subscription_cycle'
+
+        if (isFirstPayment && !isRenewal) {
+          // THIS IS THE FIRST PAYMENT - Create and approve earnings
+          console.log(
+            '🎯 First payment detected - creating and approving earnings'
+          )
+
+          try {
+            // Create initial earnings
+            await createEarningForSubscription(subscription, subscription.user)
+
+            // Immediately approve them since payment succeeded
+            await approveEarningAfterPayment(
+              subscription._id,
+              invoice.payment_intent
+            )
+
+            console.log('✅ First payment earnings created and approved')
+          } catch (earningError) {
+            console.error(
+              '❌ Error processing first payment earnings:',
+              earningError
+            )
+          }
+        } else if (isRenewal) {
+          // THIS IS A RENEWAL PAYMENT
+          console.log('🔄 Renewal payment detected - creating renewal earnings')
+
+          try {
+            await createRenewalEarning(subscription, invoice.payment_intent)
+            console.log('✅ Renewal earnings created')
+          } catch (renewalError) {
+            console.error('❌ Error creating renewal earnings:', renewalError)
+          }
+        } else {
+          console.log(
+            `ℹ️ Payment processed but no earnings action needed (First: ${isFirstPayment}, Renewal: ${isRenewal})`
+          )
+        }
+
+        console.log(
+          `✅ Payment processed for subscription: ${subscription._id}`
+        )
+        break
+      }
+
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object
+        console.log(`❌ Invoice payment failed: ${invoice.id}`)
+        // Handle failed payments if needed
+        break
+      }
+
       case 'customer.subscription.deleted': {
         const stripeSubscription = event.data.object
-        console.log('Subscription deleted:', stripeSubscription.id)
+        console.log(`🗑️ Subscription deleted: ${stripeSubscription.id}`)
 
         const subscription = await Subscription.findOne({
           stripeSubscriptionId: stripeSubscription.id,
@@ -1197,33 +1265,18 @@ export const verifyWebhookPayment = async (req, res) => {
         break
       }
 
-      case 'charge.refunded': {
-        const charge = event.data.object
-        console.log('Charge refunded:', charge.id)
-
-        // Find subscription by payment intent
-        const subscription = await Subscription.findOne({
-          'paymentHistory.stripePaymentIntentId': charge.payment_intent,
-        })
-
-        if (subscription) {
-          // Cancel earnings for refunded payment
-          await cancelEarningsForSubscription(
-            subscription._id,
-            'Payment refunded'
-          )
-          console.log('✅ Cancelled earnings due to refund')
-        }
-        break
-      }
-
       default:
-        console.log(`Unhandled event type: ${event.type}`)
+        console.log(`❓ Unhandled event type: ${event.type}`)
     }
 
+    // Mark event as processed AFTER successful processing
+    markEventAsProcessed(event.id)
+
+    console.log(`✅ Event ${event.id} processed successfully`)
     res.status(200).json({ received: true })
   } catch (error) {
-    console.error('❌ Error processing webhook:', error)
+    console.error(`❌ Error processing webhook event ${event.id}:`, error)
+    // Don't mark as processed if there was an error - allow retry
     res.status(500).json({ error: 'Webhook processing failed' })
   }
 }

@@ -15,6 +15,8 @@ import React, { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
 
+import { selectUserPlan } from '@/redux/userSlice'
+import { useSelector } from 'react-redux'
 import {
   useChangePassword,
   useCreateBillingPortalSession,
@@ -45,6 +47,7 @@ const ProfilePage = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
+  const userPlan = useSelector(selectUserPlan)
   const profileForm = useForm({
     defaultValues: {
       firstName: '',
@@ -596,38 +599,9 @@ const ProfilePage = () => {
                                     : 'text-gray-400'
                                 }`}
                               >
-                                {formatPlanName(subscription?.plan)} Plan
+                                {userPlan.toUpperCase()} Plan
                               </h4>
-                              <p className='text-gray-300 text-base'>
-                                {hasActiveSubscription ? (
-                                  <>
-                                    {formatAmount(subscription?.amount)}/
-                                    {formatBillingCycle(
-                                      subscription?.billingCycle
-                                    )}
-                                    {subscription?.currentPeriodEnd && (
-                                      <>
-                                        {' '}
-                                        • Next billing:{' '}
-                                        {formatNextBilling(
-                                          subscription.currentPeriodEnd
-                                        )}
-                                      </>
-                                    )}
-                                    {subscription?.cancelAtPeriodEnd && (
-                                      <span className='text-red-400'>
-                                        {' '}
-                                        • Cancels on{' '}
-                                        {formatNextBilling(
-                                          subscription.currentPeriodEnd
-                                        )}
-                                      </span>
-                                    )}
-                                  </>
-                                ) : (
-                                  'No active subscription'
-                                )}
-                              </p>
+
                               {subscription?.status &&
                                 subscription.status !== 'active' && (
                                   <p className='text-orange-400 text-sm mt-1'>
@@ -658,57 +632,30 @@ const ProfilePage = () => {
                                     )}
                                     Manage Billing
                                   </button>
-                                  <button
-                                    onClick={handleUpgradePlan}
-                                    className='bg-[#D4AF37]/20 border border-[#D4AF37]/40 px-4 h-9 rounded-2xl text-sm text-[#D4AF37] hover:bg-[#D4AF37]/30 transition-all duration-300 flex-shrink-0 transform hover:scale-105'
-                                  >
-                                    Change Plan
-                                  </button>
+                                  {/* Only show "Change Plan" if not on Empire plan */}
+                                  {userPlan.toLowerCase() !== 'empire' && (
+                                    <button
+                                      onClick={handleUpgradePlan}
+                                      className='bg-[#D4AF37]/20 border border-[#D4AF37]/40 px-4 h-9 rounded-2xl text-sm text-[#D4AF37] hover:bg-[#D4AF37]/30 transition-all duration-300 flex-shrink-0 transform hover:scale-105'
+                                    >
+                                      Change Plan
+                                    </button>
+                                  )}
                                 </>
                               ) : (
-                                <button
-                                  onClick={handleUpgradePlan}
-                                  className='bg-[#D4AF37] text-black px-4 h-9 rounded-2xl text-sm font-semibold hover:bg-[#E6C547] transition-all duration-300 flex-shrink-0 transform hover:scale-105'
-                                >
-                                  Upgrade Now
-                                </button>
+                                /* Show "Upgrade Now" only if not on Empire plan */
+                                userPlan.toLowerCase() !== 'empire' && (
+                                  <button
+                                    onClick={handleUpgradePlan}
+                                    className='bg-[#D4AF37] text-black px-4 h-9 rounded-2xl text-sm font-semibold hover:bg-[#E6C547] transition-all duration-300 flex-shrink-0 transform hover:scale-105'
+                                  >
+                                    Upgrade Now
+                                  </button>
+                                )
                               )}
                             </div>
                           </div>
                         </div>
-                      </div>
-
-                      <div className='mb-4 sm:mb-6'>
-                        <h3 className='text-[#EDEDED] font-bold text-xl mb-4 sm:mb-6 flex items-center gap-3'>
-                          <div className='w-2 h-6 bg-gradient-to-b from-[#D4AF37] to-[#B8941F] rounded-full'></div>
-                          Billing History
-                        </h3>
-
-                        {hasActiveSubscription ? (
-                          <div className='text-center py-8'>
-                            <p className='text-gray-400 mb-4'>
-                              Billing history is managed through Stripe
-                            </p>
-                            <button
-                              onClick={handleManageBilling}
-                              disabled={createBillingPortalMutation.isLoading}
-                              className='bg-[#D4AF37]/20 border border-[#D4AF37]/40 px-6 h-9 rounded-2xl text-sm text-[#D4AF37] hover:bg-[#D4AF37]/30 transition-all duration-300 flex items-center gap-2 mx-auto disabled:opacity-50'
-                            >
-                              {createBillingPortalMutation.isLoading ? (
-                                <Loader2 size={14} className='animate-spin' />
-                              ) : (
-                                <ExternalLink size={14} />
-                              )}
-                              View Billing History
-                            </button>
-                          </div>
-                        ) : (
-                          <div className='text-center py-8'>
-                            <p className='text-gray-400'>
-                              No billing history available
-                            </p>
-                          </div>
-                        )}
                       </div>
                     </>
                   )}

@@ -35,7 +35,7 @@ import {
   usePointsStatus,
 } from '../../hooks/useAuth.js'
 import { useUnreadCount } from '../../hooks/useNotifications.js'
-import { selectIsAdmin } from '../../redux/userSlice.js'
+import { selectIsAdmin, selectUserPlan } from '../../redux/userSlice.js'
 
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -47,6 +47,7 @@ const Layout = ({ children }) => {
   const currentUser = useCurrentUser()
   const isAdmin = useSelector(selectIsAdmin)
   const logoutMutation = useLogout()
+  const userPlan = useSelector(selectUserPlan)
 
   // Notification data
   const { data: unreadData } = useUnreadCount()
@@ -510,7 +511,7 @@ const Layout = ({ children }) => {
                       fill='currentColor'
                     />
                     <span className='text-[#D4AF37] font-semibold text-[10px] uppercase tracking-wider'>
-                      {isAdmin ? 'ADMIN' : 'FREE PLAN'}
+                      {isAdmin ? 'ADMIN' : userPlan + ' PLAN'}
                     </span>
                   </div>
                 </div>

@@ -85,9 +85,22 @@ const TermsOfServicePage = () => {
           </div>
           <p className='text-gray-400'>
             These Terms of Service are effective as of{' '}
-            <span className='text-[#D4AF37] font-semibold'>Sept 25,2025</span>{' '}
+            <span className='text-[#D4AF37] font-semibold'>Sept 25, 2025</span>{' '}
             and govern your use of the Ascend AI Empire platform.
           </p>
+        </div>
+
+        {/* Download PDF Link */}
+        <div className='bg-[#121214] border border-[#1E1E21] rounded-xl p-4 sm:p-6 text-center'>
+          <a
+            href='/Terms.pdf'
+            target='_blank'
+            rel='noopener noreferrer'
+            className='inline-flex items-center gap-2 text-[#D4AF37] hover:text-[#D4AF37]/80 font-medium transition-colors duration-300'
+          >
+            <FileText size={18} />
+            Download Terms of Service (PDF)
+          </a>
         </div>
 
         {/* Eligibility */}
@@ -242,7 +255,6 @@ const TermsOfServicePage = () => {
             </div>
           </div>
 
-          {/* Affiliate Program */}
           {/* Affiliate Program */}
           <div className='bg-[#121214] border border-[#1E1E21] rounded-xl p-4 sm:p-6'>
             <div className='flex items-center gap-3 mb-4'>
