@@ -1,4 +1,4 @@
-// File: middleware/subscriptionMiddleware.js
+// File: middleware/subscriptionMiddleware.js - UPDATED: REMOVED TRIAL FUNCTIONALITY
 import { SUBSCRIPTION_PLANS } from '../config/stripe.js'
 import { createError } from '../error.js'
 import Subscription from '../models/Subscription.js'
@@ -27,7 +27,7 @@ export const attachSubscription = async (req, res, next) => {
   }
 }
 
-// Middleware to check if user has an active subscription
+// Middleware to check if user has an active subscription - UPDATED: REMOVED TRIAL STATUS
 export const requireActiveSubscription = (req, res, next) => {
   if (!req.subscription) {
     return next(
@@ -127,39 +127,14 @@ export const checkSubscriptionLimit = (limitType) => {
   }
 }
 
-// Middleware to check trial status
-export const checkTrialStatus = (req, res, next) => {
-  if (!req.subscription) {
-    // No subscription at all - allow access for trial
-    req.isTrialUser = true
-    req.trialExpired = false
-    return next()
-  }
+// REMOVED: checkTrialStatus middleware - no longer needed
 
-  if (req.subscription.status === 'trialing') {
-    req.isTrialUser = true
-    req.trialExpired = false
-    req.trialDaysRemaining = Math.ceil(
-      (req.subscription.trialEnd - new Date()) / (1000 * 60 * 60 * 24)
-    )
-  } else if (req.subscription.status === 'active') {
-    req.isTrialUser = false
-    req.trialExpired = false
-  } else {
-    // Trial has ended and no active subscription
-    req.isTrialUser = false
-    req.trialExpired = true
-  }
-
-  next()
-}
-
-// Middleware to get subscription features
+// Middleware to get subscription features - UPDATED: REMOVED TRIAL LOGIC
 export const attachSubscriptionFeatures = (req, res, next) => {
   if (!req.subscription || !req.subscription.isActive) {
-    // Default to starter features for non-subscribers or trial users
+    // Default to free plan features for non-subscribers
     req.subscriptionFeatures = {
-      plan: 'trial',
+      plan: 'free',
       features: SUBSCRIPTION_PLANS.starter.features,
       limits: SUBSCRIPTION_PLANS.starter.limits,
     }
@@ -209,7 +184,7 @@ export const checkExpiringSubscription = (req, res, next) => {
   next()
 }
 
-// Helper function to get subscription status for responses
+// Helper function to get subscription status for responses - UPDATED: REMOVED TRIAL FIELDS
 export const getSubscriptionStatus = (subscription) => {
   if (!subscription) {
     return {
@@ -217,7 +192,6 @@ export const getSubscriptionStatus = (subscription) => {
       isActive: false,
       plan: null,
       status: 'none',
-      trialActive: false,
     }
   }
 
@@ -226,7 +200,6 @@ export const getSubscriptionStatus = (subscription) => {
     isActive: subscription.isActive,
     plan: subscription.plan,
     status: subscription.status,
-    trialActive: subscription.isTrialActive,
     daysRemaining: subscription.daysRemaining,
     cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
   }

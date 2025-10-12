@@ -1,4 +1,4 @@
-// File: models/User.js - COMPLETE VERSION WITH ALL MISSING METHODS
+// File: models/User.js - COMPLETE VERSION WITHOUT TRIAL FUNCTIONALITY
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import mongoose from 'mongoose'
@@ -67,6 +67,7 @@ const UserSchema = new mongoose.Schema(
       default: false,
     },
     emailVerifiedAt: Date,
+    deletedAt: Date,
 
     // Authentication
     passwordChangedAt: Date,
@@ -191,7 +192,7 @@ const UserSchema = new mongoose.Schema(
       min: 0,
     },
 
-    // Subscription information
+    // Subscription information - WITHOUT TRIAL FIELDS
     subscription: {
       plan: {
         type: String,
@@ -200,7 +201,7 @@ const UserSchema = new mongoose.Schema(
       },
       status: {
         type: String,
-        enum: ['active', 'inactive', 'trial', 'cancelled', 'past_due'],
+        enum: ['active', 'inactive', 'cancelled', 'past_due'],
         default: 'inactive',
       },
       startDate: Date,
@@ -209,15 +210,13 @@ const UserSchema = new mongoose.Schema(
         type: Boolean,
         default: false,
       },
-      isTrialActive: {
-        type: Boolean,
-        default: false,
-      },
-      trialStartDate: Date,
-      trialEndDate: Date,
       daysRemaining: {
         type: Number,
         default: 0,
+      },
+      isGifted: {
+        type: Boolean,
+        default: false,
       },
     },
 
@@ -402,8 +401,11 @@ UserSchema.index({ 'stripeConnect.accountId': 1 })
 UserSchema.index({ stripeCustomerId: 1 })
 UserSchema.index({ role: 1 })
 UserSchema.index({ isActive: 1 })
+UserSchema.index({ isDeleted: 1 })
 UserSchema.index({ createdAt: -1 })
 UserSchema.index({ 'discord.discordId': 1 })
+UserSchema.index({ lastLogin: -1 })
+UserSchema.index({ totalPointsEarned: -1 })
 
 // ============================================================================
 // VIRTUALS
@@ -437,6 +439,17 @@ UserSchema.virtual('referralUrl').get(function () {
   if (!this.referralCode) return null
   const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000'
   return `${baseUrl}/auth?ref=${this.referralCode}`
+})
+
+// Virtual to check if account is fully set up
+UserSchema.virtual('isAccountComplete').get(function () {
+  return !!(
+    this.name &&
+    this.email &&
+    this.isEmailVerified &&
+    this.isActive &&
+    !this.isDeleted
+  )
 })
 
 // ============================================================================
@@ -497,6 +510,23 @@ UserSchema.methods.claimDailyPoints = async function () {
     pointsToAward += discordBonus
   }
 
+  // Subscription tier bonus
+  let subscriptionBonus = 0
+  if (this.subscription?.isActive) {
+    switch (this.subscription.plan) {
+      case 'starter':
+        subscriptionBonus = 10
+        break
+      case 'pro':
+        subscriptionBonus = 25
+        break
+      case 'empire':
+        subscriptionBonus = 50
+        break
+    }
+    pointsToAward += subscriptionBonus
+  }
+
   // Award the points
   this.points += pointsToAward
   this.totalPointsEarned += pointsToAward
@@ -506,6 +536,10 @@ UserSchema.methods.claimDailyPoints = async function () {
   const bonusDescription = []
   if (discordBonus > 0)
     bonusDescription.push(`Discord bonus (+${discordBonus})`)
+  if (subscriptionBonus > 0)
+    bonusDescription.push(
+      `${this.subscription.plan} bonus (+${subscriptionBonus})`
+    )
 
   const description =
     bonusDescription.length > 0
@@ -528,6 +562,7 @@ UserSchema.methods.claimDailyPoints = async function () {
     totalPoints: this.points,
     streak: this.dailyClaimStreak,
     discordBonus: discordBonus,
+    subscriptionBonus: subscriptionBonus,
     nextClaimIn: 24, // hours
   }
 }
@@ -539,7 +574,7 @@ UserSchema.statics.getTopPointEarners = async function (limit = 10) {
       isDeleted: false,
       isActive: true,
     })
-      .select('name email totalPointsEarned createdAt')
+      .select('name email totalPointsEarned createdAt avatar')
       .sort({ totalPointsEarned: -1 })
       .limit(limit)
   } catch (error) {
@@ -684,6 +719,43 @@ UserSchema.methods.updateReferralStats = async function () {
   }
 }
 
+// Method to generate new referral code
+UserSchema.methods.generateNewReferralCode = async function () {
+  try {
+    let attempts = 0
+    let newCode
+    let isUnique = false
+
+    while (!isUnique && attempts < 10) {
+      newCode = crypto.randomBytes(4).toString('hex').toUpperCase()
+
+      // Check if code already exists
+      const existingUser = await this.constructor.findOne({
+        referralCode: newCode,
+        _id: { $ne: this._id },
+      })
+
+      if (!existingUser) {
+        isUnique = true
+      }
+      attempts++
+    }
+
+    if (!isUnique) {
+      throw new Error('Failed to generate unique referral code')
+    }
+
+    this.referralCode = newCode
+    this.referralCodeLastChanged = new Date()
+    await this.save()
+
+    return newCode
+  } catch (error) {
+    console.error('Error generating new referral code:', error)
+    throw error
+  }
+}
+
 // ============================================================================
 // PASSWORD RESET OTP METHODS
 // ============================================================================
@@ -754,7 +826,6 @@ UserSchema.methods.updateEarningsInfo = async function () {
   try {
     // Dynamically import models to avoid circular dependency
     const { default: Earnings } = await import('./Earnings.js')
-    const { default: Subscription } = await import('./Subscription.js')
 
     // Calculate earnings summary - ONLY FROM NON-GIFTED SUBSCRIPTIONS
     const earningsData = await Earnings.aggregate([
@@ -917,6 +988,7 @@ UserSchema.statics.getTopEarners = async function (limit = 10, period = '30d') {
           totalCommissions: 1,
           'user.name': 1,
           'user.email': 1,
+          'user.avatar': 1,
           'user.createdAt': 1,
         },
       },
@@ -926,6 +998,60 @@ UserSchema.statics.getTopEarners = async function (limit = 10, period = '30d') {
   } catch (error) {
     console.error('Error getting top earners:', error)
     return []
+  }
+}
+
+// Static method to get user activity stats
+UserSchema.statics.getUserActivityStats = async function (days = 30) {
+  try {
+    const startDate = new Date()
+    startDate.setDate(startDate.getDate() - days)
+
+    const stats = await this.aggregate([
+      {
+        $match: {
+          isDeleted: false,
+        },
+      },
+      {
+        $facet: {
+          totalUsers: [{ $count: 'count' }],
+          newUsers: [
+            { $match: { createdAt: { $gte: startDate } } },
+            { $count: 'count' },
+          ],
+          activeUsers: [
+            { $match: { lastLogin: { $gte: startDate } } },
+            { $count: 'count' },
+          ],
+          verifiedUsers: [
+            { $match: { isEmailVerified: true } },
+            { $count: 'count' },
+          ],
+          premiumUsers: [
+            { $match: { 'subscription.isActive': true } },
+            { $count: 'count' },
+          ],
+        },
+      },
+    ])
+
+    return {
+      totalUsers: stats[0].totalUsers[0]?.count || 0,
+      newUsers: stats[0].newUsers[0]?.count || 0,
+      activeUsers: stats[0].activeUsers[0]?.count || 0,
+      verifiedUsers: stats[0].verifiedUsers[0]?.count || 0,
+      premiumUsers: stats[0].premiumUsers[0]?.count || 0,
+    }
+  } catch (error) {
+    console.error('Error getting user activity stats:', error)
+    return {
+      totalUsers: 0,
+      newUsers: 0,
+      activeUsers: 0,
+      verifiedUsers: 0,
+      premiumUsers: 0,
+    }
   }
 }
 
@@ -979,13 +1105,6 @@ UserSchema.methods.createEmailVerificationToken = function () {
   this.emailVerificationExpires = Date.now() + 24 * 60 * 60 * 1000 // 24 hours
 
   return verificationToken
-}
-
-// Method to generate referral code
-UserSchema.methods.generateReferralCode = function () {
-  const code = crypto.randomBytes(4).toString('hex').toUpperCase()
-  this.referralCode = code
-  return code
 }
 
 // Method to update Connect account status from Stripe account object
@@ -1066,6 +1185,28 @@ UserSchema.methods.safeResetConnectAccount = async function () {
   }
 }
 
+// Method to soft delete user
+UserSchema.methods.softDelete = async function () {
+  this.isDeleted = true
+  this.isActive = false
+  this.deletedAt = new Date()
+  // Keep email but make it non-unique
+  this.email = `deleted_${Date.now()}_${this.email}`
+  await this.save()
+}
+
+// Method to restore soft deleted user
+UserSchema.methods.restore = async function () {
+  this.isDeleted = false
+  this.isActive = true
+  this.deletedAt = null
+  // Restore original email if needed
+  if (this.email.startsWith('deleted_')) {
+    this.email = this.email.split('_').slice(2).join('_')
+  }
+  await this.save()
+}
+
 // ============================================================================
 // PRE-SAVE MIDDLEWARE
 // ============================================================================
@@ -1127,6 +1268,14 @@ UserSchema.pre('save', function (next) {
   next()
 })
 
+// Update login count
+UserSchema.pre('save', function (next) {
+  if (this.isModified('lastLogin') && !this.isNew) {
+    this.loginCount = (this.loginCount || 0) + 1
+  }
+  next()
+})
+
 // ============================================================================
 // QUERY MIDDLEWARE
 // ============================================================================
@@ -1136,6 +1285,28 @@ UserSchema.pre(/^find/, function (next) {
   // this points to the current query
   this.find({ isDeleted: { $ne: true } })
   next()
+})
+
+// ============================================================================
+// ERROR HANDLING
+// ============================================================================
+
+// Handle duplicate key errors
+UserSchema.post('save', function (error, doc, next) {
+  if (error.name === 'MongoError' && error.code === 11000) {
+    const field = Object.keys(error.keyValue)[0]
+    const value = error.keyValue[field]
+
+    if (field === 'email') {
+      next(new Error('Email already exists'))
+    } else if (field === 'referralCode') {
+      next(new Error('Referral code already exists'))
+    } else {
+      next(new Error(`Duplicate ${field}: ${value}`))
+    }
+  } else {
+    next(error)
+  }
 })
 
 export default mongoose.model('User', UserSchema)

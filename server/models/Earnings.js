@@ -1,4 +1,4 @@
-// File: models/Earnings.js - CREATE THIS FILE
+// File: models/Earnings.js - UPDATED WITH 30-DAY HOLD PERIOD
 import mongoose from 'mongoose'
 
 const EarningsSchema = new mongoose.Schema(
@@ -71,6 +71,22 @@ const EarningsSchema = new mongoose.Schema(
       enum: ['pending', 'approved', 'paid', 'disputed', 'cancelled'],
       default: 'pending',
       index: true,
+    },
+
+    // 30-DAY HOLD PERIOD FIELDS
+    paymentCompletedAt: {
+      type: Date,
+      index: true, // When the actual payment was completed
+    },
+
+    eligibleForPayoutAt: {
+      type: Date,
+      index: true, // When earning becomes eligible for payout (payment + 30 days)
+    },
+
+    holdPeriodDays: {
+      type: Number,
+      default: 30, // Configurable hold period
     },
 
     // Approval details
@@ -146,6 +162,22 @@ const EarningsSchema = new mongoose.Schema(
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Earnings',
       },
+      isGifted: {
+        type: Boolean,
+        default: false,
+      },
+      isSubAffiliate: {
+        type: Boolean,
+        default: false,
+      },
+      isRenewal: {
+        type: Boolean,
+        default: false,
+      },
+      level: {
+        type: Number,
+        default: 1,
+      },
     },
   },
   {
@@ -164,6 +196,7 @@ EarningsSchema.index({ digitalProduct: 1 })
 EarningsSchema.index({ payout: 1 })
 EarningsSchema.index({ status: 1, createdAt: -1 })
 EarningsSchema.index({ source: 1, status: 1 })
+EarningsSchema.index({ eligibleForPayoutAt: 1, status: 1 }) // NEW INDEX for hold period
 
 // Virtual for formatted amounts
 EarningsSchema.virtual('formattedAmounts').get(function () {
@@ -175,10 +208,63 @@ EarningsSchema.virtual('formattedAmounts').get(function () {
   }
 })
 
-// Virtual to check if earning is payable
+// Virtual to check if earning is payable (NEW - respects 30-day hold)
 EarningsSchema.virtual('isPayable').get(function () {
-  return this.status === 'approved' && !this.payout
+  if (this.status !== 'approved' || this.payout) return false
+
+  // Check if hold period has passed
+  if (this.eligibleForPayoutAt && new Date() < this.eligibleForPayoutAt) {
+    return false
+  }
+
+  return true
 })
+
+// Virtual to check if earning is ready for approval (NEW)
+EarningsSchema.virtual('isReadyForApproval').get(function () {
+  if (this.status !== 'pending') return false
+  if (!this.eligibleForPayoutAt) return false
+  return new Date() >= this.eligibleForPayoutAt
+})
+
+// NEW: Method to set payment completion and calculate eligibility date
+EarningsSchema.methods.setPaymentCompleted = function (
+  paymentDate = null,
+  paymentIntentId = null
+) {
+  const completedAt = paymentDate || new Date()
+  this.paymentCompletedAt = completedAt
+  this.stripePaymentIntentId = paymentIntentId
+
+  // Calculate eligibility date (30 days after payment)
+  const eligibilityDate = new Date(completedAt)
+  eligibilityDate.setDate(eligibilityDate.getDate() + this.holdPeriodDays)
+  this.eligibleForPayoutAt = eligibilityDate
+
+  return this.save()
+}
+
+// NEW: Static method to approve earnings that have passed hold period
+EarningsSchema.statics.approveEligibleEarnings = async function () {
+  const now = new Date()
+
+  const result = await this.updateMany(
+    {
+      status: 'pending',
+      eligibleForPayoutAt: { $lte: now },
+      paymentCompletedAt: { $exists: true },
+    },
+    {
+      status: 'approved',
+      approvedAt: now,
+    }
+  )
+
+  console.log(
+    `✅ Auto-approved ${result.modifiedCount} earnings that passed 30-day hold period`
+  )
+  return result
+}
 
 // Static method to get earnings summary for a user
 EarningsSchema.statics.getEarningsSummary = async function (userId) {
@@ -232,16 +318,22 @@ EarningsSchema.statics.getRecentEarnings = function (
     .limit(limit)
 }
 
-// Static method to get payable earnings
+// Static method to get payable earnings (UPDATED - respects hold period)
 EarningsSchema.statics.getPayableEarnings = function (
   userId,
   minimumAmount = 0
 ) {
+  const now = new Date()
+
   return this.find({
     user: userId,
     status: 'approved',
     payout: { $exists: false },
     commissionAmount: { $gte: minimumAmount },
+    $or: [
+      { eligibleForPayoutAt: { $exists: false } }, // Legacy earnings without hold period
+      { eligibleForPayoutAt: { $lte: now } }, // Earnings that passed hold period
+    ],
   }).sort({ createdAt: 1 }) // Oldest first for FIFO
 }
 

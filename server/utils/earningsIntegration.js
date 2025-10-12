@@ -1,4 +1,4 @@
-// File: utils/earningsIntegration.js - COMPLETE WITH SUB-AFFILIATE SYSTEM
+// File: utils/earningsIntegration.js - UPDATED WITH 30-DAY HOLD PERIOD
 import { calculateCommission, getCommissionRate } from '../config/stripe.js'
 import Earnings from '../models/Earnings.js'
 import Subscription from '../models/Subscription.js'
@@ -8,7 +8,7 @@ import NotificationService from '../services/notificationService.js'
 // Sub-affiliate commission rate (10% of the referrer's earning)
 const SUB_AFFILIATE_RATE = 0.1
 
-// Create earning when a user subscribes - WITH SUB-AFFILIATE SUPPORT
+// Create earning when a user subscribes - WITH 30-DAY HOLD PERIOD
 export const createEarningForSubscription = async (
   subscriptionData,
   userId
@@ -16,23 +16,18 @@ export const createEarningForSubscription = async (
   try {
     // CRITICAL: Check if this is a gifted subscription - NO EARNINGS FOR GIFTED
     if (subscriptionData.isGifted === true) {
-      console.log(
-        `⚠️ Skipping earnings creation for gifted subscription (User: ${userId})`
-      )
       return null
     }
 
     // Get the user who subscribed
     const subscribedUser = await User.findById(userId).populate('referredBy')
     if (!subscribedUser || !subscribedUser.referredBy) {
-      console.log('No referrer found - no earnings to create')
       return null
     }
 
     // Get the referrer (direct referral - Level 1)
     const referrer = subscribedUser.referredBy
     if (!referrer) {
-      console.log('Referrer not found')
       return null
     }
 
@@ -48,7 +43,7 @@ export const createEarningForSubscription = async (
       return null
     }
 
-    // Create earning record for direct referrer (Level 1)
+    // Create earning record for direct referrer (Level 1) - UPDATED WITH HOLD PERIOD
     const earning = new Earnings({
       user: referrer._id,
       referredUser: subscribedUser._id,
@@ -58,7 +53,7 @@ export const createEarningForSubscription = async (
       commissionRate,
       commissionAmount,
       currency: subscriptionData.currency || 'USD',
-      status: subscriptionData.status === 'trialing' ? 'pending' : 'approved',
+      status: 'pending', // CHANGED: Always start as pending for 30-day hold
       description: `${subscriptionData.plan} plan purchase by ${subscribedUser.name}`,
       metadata: {
         planType: subscriptionData.plan,
@@ -67,13 +62,14 @@ export const createEarningForSubscription = async (
       },
     })
 
-    await earning.save()
+    // Set payment completion date and calculate eligibility date (30 days later)
+    const now = new Date()
+    earning.paymentCompletedAt = now
+    const eligibilityDate = new Date(now)
+    eligibilityDate.setDate(eligibilityDate.getDate() + 30)
+    earning.eligibleForPayoutAt = eligibilityDate
 
-    console.log(
-      `✅ Created Level 1 earning for ${referrer.name}: $${(
-        commissionAmount / 100
-      ).toFixed(2)}`
-    )
+    await earning.save()
 
     // Update referrer's referral stats
     try {
@@ -107,13 +103,15 @@ export const createEarningForSubscription = async (
       // Don't fail the earning creation if stats update fails
     }
 
-    // Send notification to direct referrer
+    // Send notification to direct referrer - UPDATED MESSAGE
     try {
       await NotificationService.createNotification(referrer._id, {
         title: '💰 New Commission Earned!',
         message: `You earned $${(commissionAmount / 100).toFixed(2)} from ${
           subscribedUser.name
-        }'s ${subscriptionData.plan} plan purchase!`,
+        }'s ${
+          subscriptionData.plan
+        } plan purchase! Available for payout after 30-day hold period.`,
         type: 'commission_earned',
         priority: 'high',
         data: {
@@ -121,6 +119,7 @@ export const createEarningForSubscription = async (
           amount: commissionAmount,
           plan: subscriptionData.plan,
           referredUserName: subscribedUser.name,
+          eligibleForPayoutAt: eligibilityDate,
         },
       })
     } catch (notifError) {
@@ -128,8 +127,7 @@ export const createEarningForSubscription = async (
     }
 
     // ========================================================================
-    // SUB-AFFILIATE COMMISSION (Level 2 - 2-tier system)
-    // If the referrer was also referred by someone, give them 10% of this earning
+    // SUB-AFFILIATE COMMISSION (Level 2 - 2-tier system) - WITH HOLD PERIOD
     // ========================================================================
     if (referrer.referredBy) {
       try {
@@ -141,7 +139,7 @@ export const createEarningForSubscription = async (
           const subAffiliate = await User.findById(referrer.referredBy)
 
           if (subAffiliate) {
-            // Create sub-affiliate earning (Level 2)
+            // Create sub-affiliate earning (Level 2) - WITH HOLD PERIOD
             const subEarning = new Earnings({
               user: subAffiliate._id,
               referredUser: subscribedUser._id,
@@ -151,8 +149,7 @@ export const createEarningForSubscription = async (
               commissionRate: SUB_AFFILIATE_RATE,
               commissionAmount: subAffiliateCommission,
               currency: subscriptionData.currency || 'USD',
-              status:
-                subscriptionData.status === 'trialing' ? 'pending' : 'approved',
+              status: 'pending', // CHANGED: Always start as pending for 30-day hold
               description: `Sub-affiliate commission: ${subscribedUser.name} referred by ${referrer.name}`,
               metadata: {
                 planType: subscriptionData.plan,
@@ -164,13 +161,11 @@ export const createEarningForSubscription = async (
               },
             })
 
-            await subEarning.save()
+            // Set same payment completion and eligibility dates
+            subEarning.paymentCompletedAt = now
+            subEarning.eligibleForPayoutAt = eligibilityDate
 
-            console.log(
-              `✅ Created Level 2 (sub-affiliate) earning for ${
-                subAffiliate.name
-              }: $${(subAffiliateCommission / 100).toFixed(2)}`
-            )
+            await subEarning.save()
 
             // Update sub-affiliate's earnings info
             await subAffiliate.updateEarningsInfo()
@@ -182,7 +177,7 @@ export const createEarningForSubscription = async (
                 2
               )} from your referral network (${referrer.name} → ${
                 subscribedUser.name
-              })`,
+              }). Available for payout after 30-day hold period.`,
               type: 'commission_earned',
               priority: 'medium',
               data: {
@@ -191,6 +186,7 @@ export const createEarningForSubscription = async (
                 level: 2,
                 directReferrer: referrer.name,
                 subscriber: subscribedUser.name,
+                eligibleForPayoutAt: eligibilityDate,
               },
             })
           }
@@ -211,7 +207,7 @@ export const createEarningForSubscription = async (
   }
 }
 
-// Auto-approve earnings when trial period ends or payment succeeds
+// UPDATED: Handle payment completion for existing earnings (respects 30-day hold)
 export const approveEarningAfterPayment = async (
   subscriptionId,
   paymentIntentId
@@ -221,27 +217,38 @@ export const approveEarningAfterPayment = async (
     const subscription = await Subscription.findById(subscriptionId)
 
     if (!subscription) {
-      console.log(`⚠️ Subscription not found: ${subscriptionId}`)
       return []
     }
 
     if (subscription.isGifted) {
-      console.log(
-        `⚠️ Skipping earnings approval for gifted subscription: ${subscriptionId}`
-      )
       return []
     }
 
-    // Find all pending earnings for this subscription (includes sub-affiliate)
+    // Find all pending earnings for this subscription
     const earnings = await Earnings.find({
       subscription: subscriptionId,
       status: 'pending',
     })
 
+    const now = new Date()
+    const updatedEarnings = []
+
     for (const earning of earnings) {
-      earning.status = 'approved'
-      earning.approvedAt = new Date()
+      // Set payment completion date if not already set
+      if (!earning.paymentCompletedAt) {
+        earning.paymentCompletedAt = now
+
+        // Calculate eligibility date (30 days after payment)
+        const eligibilityDate = new Date(now)
+        eligibilityDate.setDate(eligibilityDate.getDate() + 30)
+        earning.eligibleForPayoutAt = eligibilityDate
+      }
+
       earning.stripePaymentIntentId = paymentIntentId
+
+      // IMPORTANT: Do NOT approve immediately - respect 30-day hold period
+      // Earnings will be approved automatically when hold period expires
+
       await earning.save()
 
       // Update user earnings info
@@ -251,23 +258,25 @@ export const approveEarningAfterPayment = async (
       }
 
       console.log(
-        `✅ Approved earning ${earning._id} for user ${
+        `✅ Updated earning ${earning._id} for user ${
           user?.name || earning.user
-        }`
+        } - will be approved on ${earning.eligibleForPayoutAt?.toDateString()}`
       )
+
+      updatedEarnings.push(earning)
     }
 
     console.log(
-      `✅ Approved ${earnings.length} earnings (including sub-affiliates) for subscription ${subscriptionId}`
+      `✅ Updated ${earnings.length} earnings (including sub-affiliates) for subscription ${subscriptionId} - 30-day hold period applied`
     )
-    return earnings
+    return updatedEarnings
   } catch (error) {
-    console.error('Error approving earnings after payment:', error)
+    console.error('Error updating earnings after payment:', error)
     throw error
   }
 }
 
-// Create earning for subscription renewals - WITH SUB-AFFILIATE
+// Create earning for subscription renewals - WITH 30-DAY HOLD PERIOD
 export const createRenewalEarning = async (
   subscriptionData,
   paymentIntentId
@@ -293,7 +302,7 @@ export const createRenewalEarning = async (
       return null
     }
 
-    // Calculate renewal commission (40% same as initial - not 50%)
+    // Calculate renewal commission (40% same as initial)
     const commissionRate = getCommissionRate(subscriptionData.plan)
     const commissionAmount = calculateCommission(
       subscriptionData.amount,
@@ -305,7 +314,11 @@ export const createRenewalEarning = async (
       return null
     }
 
-    // Create renewal earning for direct referrer (Level 1)
+    const now = new Date()
+    const eligibilityDate = new Date(now)
+    eligibilityDate.setDate(eligibilityDate.getDate() + 30)
+
+    // Create renewal earning for direct referrer (Level 1) - WITH HOLD PERIOD
     const renewalEarning = new Earnings({
       user: originalEarning.user._id,
       referredUser: originalEarning.referredUser._id,
@@ -315,8 +328,10 @@ export const createRenewalEarning = async (
       commissionRate,
       commissionAmount,
       currency: subscriptionData.currency || 'USD',
-      status: 'approved', // Auto-approve renewals after successful payment
+      status: 'pending', // CHANGED: Start as pending for 30-day hold
       stripePaymentIntentId: paymentIntentId,
+      paymentCompletedAt: now,
+      eligibleForPayoutAt: eligibilityDate,
       description: `Renewal commission for ${subscriptionData.plan} plan`,
       metadata: {
         planType: subscriptionData.plan,
@@ -330,7 +345,9 @@ export const createRenewalEarning = async (
     await renewalEarning.save()
 
     console.log(
-      `✅ Created renewal earning: $${(commissionAmount / 100).toFixed(2)}`
+      `✅ Created renewal earning: $${(commissionAmount / 100).toFixed(
+        2
+      )} (eligible for payout on ${eligibilityDate.toDateString()})`
     )
 
     // Update user earnings info
@@ -338,13 +355,15 @@ export const createRenewalEarning = async (
     if (user) {
       await user.updateEarningsInfo()
 
-      // Send renewal notification
+      // Send renewal notification - UPDATED MESSAGE
       try {
         await NotificationService.createNotification(user._id, {
           title: '🔄 Renewal Commission!',
           message: `${originalEarning.referredUser.name} renewed their ${
             subscriptionData.plan
-          } plan - you earned $${(commissionAmount / 100).toFixed(2)}!`,
+          } plan - you earned $${(commissionAmount / 100).toFixed(
+            2
+          )}! Available for payout after 30-day hold period.`,
           type: 'commission_earned',
           priority: 'medium',
           data: {
@@ -352,6 +371,7 @@ export const createRenewalEarning = async (
             amount: commissionAmount,
             plan: subscriptionData.plan,
             isRenewal: true,
+            eligibleForPayoutAt: eligibilityDate,
           },
         })
       } catch (notifError) {
@@ -360,7 +380,7 @@ export const createRenewalEarning = async (
     }
 
     // ========================================================================
-    // SUB-AFFILIATE RENEWAL COMMISSION (Level 2)
+    // SUB-AFFILIATE RENEWAL COMMISSION (Level 2) - WITH HOLD PERIOD
     // ========================================================================
     if (user && user.referredBy) {
       try {
@@ -372,7 +392,7 @@ export const createRenewalEarning = async (
           const subAffiliate = await User.findById(user.referredBy)
 
           if (subAffiliate) {
-            // Create sub-affiliate renewal earning
+            // Create sub-affiliate renewal earning - WITH HOLD PERIOD
             const subRenewalEarning = new Earnings({
               user: subAffiliate._id,
               referredUser: originalEarning.referredUser._id,
@@ -382,8 +402,10 @@ export const createRenewalEarning = async (
               commissionRate: SUB_AFFILIATE_RATE,
               commissionAmount: subAffiliateCommission,
               currency: subscriptionData.currency || 'USD',
-              status: 'approved',
+              status: 'pending', // CHANGED: Start as pending for 30-day hold
               stripePaymentIntentId: paymentIntentId,
+              paymentCompletedAt: now,
+              eligibleForPayoutAt: eligibilityDate,
               description: `Sub-affiliate renewal: ${originalEarning.referredUser.name} via ${user.name}`,
               metadata: {
                 planType: subscriptionData.plan,
@@ -401,7 +423,9 @@ export const createRenewalEarning = async (
             console.log(
               `✅ Created Level 2 renewal earning for ${subAffiliate.name}: $${(
                 subAffiliateCommission / 100
-              ).toFixed(2)}`
+              ).toFixed(
+                2
+              )} (eligible for payout on ${eligibilityDate.toDateString()})`
             )
 
             // Update sub-affiliate's earnings info
@@ -423,7 +447,7 @@ export const createRenewalEarning = async (
   }
 }
 
-// Cancel earnings if subscription is cancelled or refunded - NEW FUNCTION
+// Cancel earnings if subscription is cancelled or refunded
 export const cancelEarningsForSubscription = async (subscriptionId, reason) => {
   try {
     console.log(`Cancelling earnings for subscription: ${subscriptionId}`)
@@ -460,6 +484,47 @@ export const cancelEarningsForSubscription = async (subscriptionId, reason) => {
     return earnings
   } catch (error) {
     console.error('Error cancelling earnings:', error)
+    throw error
+  }
+}
+
+// NEW: Function to process earnings that have completed their hold period
+export const processEarningsHoldPeriod = async () => {
+  try {
+    console.log('🔄 Processing earnings hold period...')
+
+    // Auto-approve earnings that have passed the 30-day hold period
+    const result = await Earnings.approveEligibleEarnings()
+
+    if (result.modifiedCount > 0) {
+      console.log(
+        `✅ Auto-approved ${result.modifiedCount} earnings after 30-day hold period`
+      )
+
+      // Update earnings info for affected users
+      const affectedEarnings = await Earnings.find({
+        status: 'approved',
+        approvedAt: { $gte: new Date(Date.now() - 60000) }, // Last minute
+      }).distinct('user')
+
+      for (const userId of affectedEarnings) {
+        try {
+          const user = await User.findById(userId)
+          if (user && typeof user.updateEarningsInfo === 'function') {
+            await user.updateEarningsInfo()
+          }
+        } catch (error) {
+          console.error(
+            `Error updating earnings info for user ${userId}:`,
+            error
+          )
+        }
+      }
+    }
+
+    return result
+  } catch (error) {
+    console.error('Error processing earnings hold period:', error)
     throw error
   }
 }

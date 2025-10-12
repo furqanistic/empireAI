@@ -1,9 +1,10 @@
-// File: controllers/payout.js - COMPLETE ROBUST VERSION
+// File: controllers/payout.js - UPDATED WITH 30-DAY HOLD INTEGRATION
 import { retrieveConnectAccount, stripe } from '../config/stripe.js'
 import { createError } from '../error.js'
 import Earnings from '../models/Earnings.js'
 import Payout from '../models/Payout.js'
 import User from '../models/User.js'
+import { processEarningsHoldPeriod } from '../utils/earningsIntegration.js' // NEW IMPORT
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -673,6 +674,14 @@ export const cleanupInvalidConnectAccounts = async (req, res, next) => {
 // Get earnings summary
 export const getEarningsSummary = async (req, res, next) => {
   try {
+    // PROCESS HOLD PERIOD BEFORE GETTING SUMMARY
+    try {
+      await processEarningsHoldPeriod()
+    } catch (holdError) {
+      console.error('Error processing hold period:', holdError)
+      // Continue with summary even if hold period processing fails
+    }
+
     const user = await User.findById(req.user._id)
 
     if (!user) {
@@ -949,9 +958,18 @@ export const getEarningsAnalytics = async (req, res, next) => {
 // PAYOUT MANAGEMENT
 // ============================================================================
 
-// Request payout
+// Request payout - UPDATED WITH 30-DAY HOLD INTEGRATION
 export const requestPayout = async (req, res, next) => {
   try {
+    // PROCESS HOLD PERIOD FIRST - Auto-approve eligible earnings
+    try {
+      console.log('🔄 Processing earnings hold period before payout request...')
+      await processEarningsHoldPeriod()
+    } catch (holdError) {
+      console.error('Error processing hold period:', holdError)
+      // Continue with payout even if hold period processing fails
+    }
+
     const { amount, method = 'standard' } = req.body
     const user = await User.findById(req.user._id)
 
@@ -1006,12 +1024,8 @@ export const requestPayout = async (req, res, next) => {
       )
     }
 
-    // Get approved earnings to include in payout
-    const approvedEarnings = await Earnings.find({
-      user: req.user._id,
-      status: 'approved',
-      payout: { $exists: false },
-    }).sort({ createdAt: 1 })
+    // Get approved earnings that respect the 30-day hold period
+    const approvedEarnings = await Earnings.getPayableEarnings(req.user._id)
 
     let totalAvailable = 0
     const earningsToInclude = []
@@ -1029,7 +1043,7 @@ export const requestPayout = async (req, res, next) => {
       return next(
         createError(
           400,
-          'Not enough approved earnings available for this payout amount'
+          'Not enough eligible earnings available for this payout amount. Some earnings may still be in the 30-day hold period.'
         )
       )
     }

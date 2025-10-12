@@ -906,6 +906,7 @@ const PayoutDashboard = () => {
     <Layout>
       <div className='max-w-6xl mx-auto p-3 sm:p-6 space-y-6 sm:space-y-8'>
         {/* Header */}
+        {/* Header */}
         <div className='px-1'>
           <h1 className='text-2xl sm:text-3xl font-bold text-[#EDEDED] mb-1 sm:mb-2'>
             Payouts
@@ -913,6 +914,38 @@ const PayoutDashboard = () => {
           <p className='text-sm sm:text-base text-gray-400'>
             Manage your earnings and payout settings
           </p>
+        </div>
+
+        {/* Security Notice */}
+        <div className='bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 sm:p-6'>
+          <div className='flex items-start gap-3'>
+            <div className='w-8 h-8 bg-blue-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5'>
+              <Shield className='text-blue-400' size={16} />
+            </div>
+            <div className='flex-1'>
+              <h3 className='text-blue-400 font-semibold text-sm sm:text-base mb-2'>
+                30-Day Security Hold Period
+              </h3>
+              <p className='text-gray-300 text-xs sm:text-sm mb-3 leading-relaxed'>
+                New commission earnings are held for 30 days before becoming
+                eligible for payout. This security measure protects against
+                chargebacks and ensures stable payouts for all affiliates.
+              </p>
+              <div className='grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-gray-400'>
+                <div className='flex items-center gap-2'>
+                  <Clock size={12} className='text-blue-400 flex-shrink-0' />
+                  <span>Earnings approved automatically after 30 days</span>
+                </div>
+                <div className='flex items-center gap-2'>
+                  <CheckCircle2
+                    size={12}
+                    className='text-blue-400 flex-shrink-0'
+                  />
+                  <span>Monthly payout schedule for approved earnings</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Tabs */}

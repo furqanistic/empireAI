@@ -1,4 +1,4 @@
-// File: client/src/pages/Pricing/PricingPage.jsx - COMPLETE VERSION
+// File: client/src/pages/Pricing/PricingPage.jsx - UPDATED: REMOVED TRIAL FUNCTIONALITY
 import {
   useCancelSubscription,
   useCreateBillingPortalSession,
@@ -14,13 +14,11 @@ import {
   AlertTriangle,
   Bot,
   Check,
-  Clock,
   Crown,
   DollarSign,
   Gift,
   Loader,
   MessageCircle,
-  Percent,
   Rocket,
   Shield,
   Star,
@@ -82,33 +80,6 @@ const PricingPage = () => {
       setShowReferralInput(true)
     }
   }, [searchParams, currentUser])
-
-  // Calculate trial display
-  const getTrialDisplay = () => {
-    if (!subscriptionStatus.trialActive || !subscription?.trialInfo) return null
-
-    const { daysRemaining, hoursRemaining, displayText } =
-      subscription.trialInfo || {}
-
-    let color = 'text-green-400'
-    let urgent = false
-
-    if (daysRemaining <= 0 && hoursRemaining <= 24) {
-      color = 'text-orange-400'
-      urgent = true
-    } else if (daysRemaining === 1) {
-      color = 'text-yellow-400'
-      urgent = true
-    }
-
-    return {
-      text: displayText || `${daysRemaining} days left in trial`,
-      color,
-      urgent,
-    }
-  }
-
-  const trialDisplay = getTrialDisplay()
 
   // Check if user is eligible for discount
   const isEligibleForDiscount = () => {
@@ -304,7 +275,7 @@ const PricingPage = () => {
       }
     }
 
-    return 'Start Free Trial'
+    return 'Get Started' // CHANGED: Removed "Start Free Trial"
   }
 
   const isCurrentPlan = (planName) => {
@@ -533,14 +504,7 @@ const PricingPage = () => {
             🚀 Founder Pricing - Limited Time
           </div>
 
-          {/* Trial Notice */}
-          {!isCurrentPlan(plan) &&
-            currentUser &&
-            !subscriptionStatus.hasSubscription && (
-              <div className='text-blue-400 text-xs font-medium mt-2'>
-                7-day free trial included
-              </div>
-            )}
+          {/* REMOVED: Trial Notice - No longer showing trial information */}
 
           {/* Current billing cycle notice */}
           {isCurrentPlan(plan) &&
@@ -732,8 +696,7 @@ const PricingPage = () => {
             and scale from creator to mogul with our AI-powered platform.
           </p>
 
-          {/* Current Subscription Status */}
-          {/* Current Subscription Status - Redesigned */}
+          {/* Current Subscription Status - UPDATED: REMOVED TRIAL DISPLAY */}
           {subscriptionStatus.hasSubscription && (
             <div className='bg-gradient-to-r from-[#1A1A1C] via-[#121214] to-[#1A1A1C] border border-[#D4AF37]/30 rounded-2xl p-6 max-w-2xl mx-auto shadow-lg'>
               <div className='text-center space-y-4'>
@@ -752,19 +715,7 @@ const PricingPage = () => {
                   </div>
                 </div>
 
-                {/* Trial Display */}
-                {trialDisplay && (
-                  <div
-                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
-                      trialDisplay.urgent
-                        ? 'bg-orange-500/20 border border-orange-500/40 text-orange-300 animate-pulse'
-                        : 'bg-green-500/20 border border-green-500/40 text-green-300'
-                    }`}
-                  >
-                    <Clock size={16} />
-                    {trialDisplay.text}
-                  </div>
-                )}
+                {/* REMOVED: Trial Display - No longer showing trial information */}
 
                 {/* Cancellation Status */}
                 {subscriptionStatus.cancelAtPeriodEnd && (
@@ -1023,7 +974,7 @@ const PricingPage = () => {
           </div>
         </div>
 
-        {/* CTA Section */}
+        {/* CTA Section - UPDATED: REMOVED TRIAL MESSAGING */}
         <div className='bg-gradient-to-r from-[#121214] via-[#1A1A1C] to-[#121214] border border-[#1E1E21] rounded-xl p-6 sm:p-8 text-center'>
           <div className='max-w-3xl mx-auto space-y-6'>
             <div className='flex items-center justify-center gap-3 mb-4'>
@@ -1037,19 +988,21 @@ const PricingPage = () => {
 
             <p className='text-gray-400 text-lg leading-relaxed'>
               Join thousands of entrepreneurs who are building their digital
-              empires with our AI-powered platform. Lock in founder pricing with
-              a 7-day free trial
-              {isEligibleForDiscount() ? ' plus 10% off your first month' : ''}.
+              empires with our AI-powered platform. Lock in founder pricing
+              {isEligibleForDiscount()
+                ? ' and get 10% off your first month'
+                : ''}
+              .
             </p>
 
             <div className='flex items-center justify-center gap-6 text-sm text-gray-400'>
               <div className='flex items-center gap-2'>
                 <Check size={16} className='text-[#D4AF37]' />
-                <span>7-day free trial</span>
+                <span>Instant access</span>
               </div>
               <div className='flex items-center gap-2'>
                 <Check size={16} className='text-[#D4AF37]' />
-                <span>No credit card required</span>
+                <span>No setup fees</span>
               </div>
               <div className='flex items-center gap-2'>
                 <Check size={16} className='text-[#D4AF37]' />

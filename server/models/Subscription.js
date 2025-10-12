@@ -1,4 +1,4 @@
-// File: models/Subscription.js
+// File: models/Subscription.js - UPDATED: REMOVED TRIAL FUNCTIONALITY
 import mongoose from 'mongoose'
 
 const SubscriptionSchema = new mongoose.Schema(
@@ -18,7 +18,7 @@ const SubscriptionSchema = new mongoose.Schema(
     },
     stripeSubscriptionId: {
       type: String,
-      sparse: true, // Already correct
+      sparse: true,
     },
     stripePriceId: {
       type: String,
@@ -35,7 +35,6 @@ const SubscriptionSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: [
-        'trialing',
         'active',
         'past_due',
         'canceled',
@@ -57,12 +56,7 @@ const SubscriptionSchema = new mongoose.Schema(
     currentPeriodEnd: {
       type: Date,
     },
-    trialStart: {
-      type: Date,
-    },
-    trialEnd: {
-      type: Date,
-    },
+    // REMOVED: trialStart, trialEnd fields
     canceledAt: {
       type: Date,
     },
@@ -77,20 +71,6 @@ const SubscriptionSchema = new mongoose.Schema(
     currency: {
       type: String,
       default: 'usd',
-    },
-    stripePriceId: {
-      type: String,
-      sparse: true,
-      validate: {
-        validator: function (value) {
-          // Only require stripePriceId if the subscription is not gifted
-          if (this.isGifted) {
-            return true // Allow null for gifted subscriptions
-          }
-          return value != null // Require value for non-gifted subscriptions
-        },
-        message: 'stripePriceId is required for non-gifted subscriptions',
-      },
     },
     // Payment history
     paymentHistory: [
@@ -137,9 +117,9 @@ SubscriptionSchema.index({ status: 1 })
 SubscriptionSchema.index({ plan: 1 })
 SubscriptionSchema.index({ currentPeriodEnd: 1 })
 
-// Virtual to check if subscription is active
+// Virtual to check if subscription is active - UPDATED: REMOVED TRIAL STATUS
 SubscriptionSchema.virtual('isActive').get(function () {
-  return ['active', 'trialing'].includes(this.status)
+  return this.status === 'active'
 })
 
 // Virtual to check if subscription is past due
@@ -160,18 +140,13 @@ SubscriptionSchema.virtual('daysRemaining').get(function () {
   return Math.max(0, Math.ceil(timeDiff / (1000 * 60 * 60 * 24)))
 })
 
-// Virtual to check if trial is active
-SubscriptionSchema.virtual('isTrialActive').get(function () {
-  if (!this.trialEnd) return false
-  const now = new Date()
-  return this.status === 'trialing' && this.trialEnd > now
-})
+// REMOVED: isTrialActive virtual
 
-// Method to update subscription status
+// Method to update subscription status - UPDATED: REMOVED TRIAL LOGIC
 SubscriptionSchema.methods.updateFromStripe = function (stripeSubscription) {
   this.status = stripeSubscription.status
 
-  // Handle undefined period dates during trial
+  // Handle period dates
   this.currentPeriodStart = stripeSubscription.current_period_start
     ? new Date(stripeSubscription.current_period_start * 1000)
     : null
@@ -186,12 +161,7 @@ SubscriptionSchema.methods.updateFromStripe = function (stripeSubscription) {
 
   this.cancelAtPeriodEnd = stripeSubscription.cancel_at_period_end
 
-  if (stripeSubscription.trial_start) {
-    this.trialStart = new Date(stripeSubscription.trial_start * 1000)
-  }
-  if (stripeSubscription.trial_end) {
-    this.trialEnd = new Date(stripeSubscription.trial_end * 1000)
-  }
+  // REMOVED: Trial-related field updates
 
   return this.save()
 }
@@ -209,10 +179,10 @@ SubscriptionSchema.methods.addPaymentToHistory = function (paymentData) {
   return this.save()
 }
 
-// Static method to find active subscriptions
+// Static method to find active subscriptions - UPDATED: REMOVED TRIAL STATUS
 SubscriptionSchema.statics.findActive = function () {
   return this.find({
-    status: { $in: ['active', 'trialing'] },
+    status: 'active', // Removed 'trialing'
   })
 }
 
@@ -222,7 +192,7 @@ SubscriptionSchema.statics.findExpiringSoon = function (days = 7) {
   futureDate.setDate(futureDate.getDate() + days)
 
   return this.find({
-    status: { $in: ['active', 'trialing'] },
+    status: 'active', // Removed 'trialing'
     currentPeriodEnd: { $lte: futureDate },
   })
 }

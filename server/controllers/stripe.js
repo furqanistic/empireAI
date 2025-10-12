@@ -1,4 +1,4 @@
-// File: controllers/stripe.js - UPDATED WITH REFERRAL DISCOUNT FUNCTIONALITY
+// File: controllers/stripe.js - UPDATED: REMOVED TRIAL FUNCTIONALITY
 import {
   calculateDiscountedAmount,
   createOrRetrieveCustomer,
@@ -9,7 +9,6 @@ import {
   getPriceId,
   REFERRAL_DISCOUNT,
   stripe,
-  TRIAL_PERIOD_DAYS,
   validatePlanAndBilling,
 } from '../config/stripe.js'
 import { createError } from '../error.js'
@@ -20,14 +19,15 @@ import NotificationService from '../services/notificationService.js'
 // Import earnings integration
 import {
   approveEarningAfterPayment,
+  cancelEarningsForSubscription,
   createEarningForSubscription,
+  createRenewalEarning,
 } from '../utils/earningsIntegration.js'
 
 // Helper function to sync User model subscription field
 const updateUserSubscriptionField = async (userId, subscription) => {
   try {
     const statusMapping = {
-      trialing: 'trial',
       active: 'active',
       past_due: 'active',
       canceled: 'cancelled',
@@ -43,9 +43,6 @@ const updateUserSubscriptionField = async (userId, subscription) => {
         startDate: subscription.currentPeriodStart,
         endDate: subscription.currentPeriodEnd,
         isActive: subscription.isActive,
-        isTrialActive: subscription.isTrialActive,
-        trialStartDate: subscription.trialStart,
-        trialEndDate: subscription.trialEnd,
         daysRemaining: subscription.daysRemaining,
       },
     }
@@ -69,30 +66,6 @@ const updateUserSubscriptionField = async (userId, subscription) => {
   }
 }
 
-// DEBUG ROUTE - Add this temporarily to check subscriptions
-export const debugSubscriptions = async (req, res, next) => {
-  try {
-    const subscriptions = await Subscription.find({ user: req.user._id })
-      .populate('user', 'name email')
-      .sort({ createdAt: -1 })
-
-    res.status(200).json({
-      status: 'success',
-      userId: req.user._id,
-      userEmail: req.user.email,
-      count: subscriptions.length,
-      subscriptions: subscriptions,
-      message: `Found ${subscriptions.length} subscriptions`,
-    })
-  } catch (error) {
-    console.error('Debug error:', error)
-    res.status(500).json({
-      status: 'error',
-      error: error.message,
-    })
-  }
-}
-
 // Get all available plans
 export const getPlans = async (req, res, next) => {
   try {
@@ -102,7 +75,6 @@ export const getPlans = async (req, res, next) => {
       status: 'success',
       data: {
         plans,
-        trialPeriodDays: TRIAL_PERIOD_DAYS,
         referralDiscount: {
           percentage: REFERRAL_DISCOUNT.percentage,
           description: REFERRAL_DISCOUNT.description,
@@ -116,7 +88,7 @@ export const getPlans = async (req, res, next) => {
   }
 }
 
-// Create a checkout session for new subscription - UPDATED WITH REFERRAL DISCOUNT
+// Create a checkout session for new subscription - UPDATED: REMOVED TRIAL FUNCTIONALITY
 export const createCheckoutSession = async (req, res, next) => {
   try {
     const { planName, billingCycle = 'monthly' } = req.body
@@ -132,7 +104,7 @@ export const createCheckoutSession = async (req, res, next) => {
     // Check if user already has an active subscription
     const existingSubscription = await Subscription.findOne({
       user: user._id,
-      status: { $in: ['active', 'trialing'] },
+      status: { $in: ['active'] }, // Removed 'trialing' status
     })
 
     if (existingSubscription) {
@@ -154,7 +126,7 @@ export const createCheckoutSession = async (req, res, next) => {
     const successUrl = `${process.env.FRONTEND_URL}/pricing/success?session_id={CHECKOUT_SESSION_ID}`
     const cancelUrl = `${process.env.FRONTEND_URL}/pricing?canceled=true`
 
-    // NEW: Check if user has a referral and apply discount
+    // Check if user has a referral and apply discount
     let discountCoupon = null
     let hasReferralDiscount = false
 
@@ -185,7 +157,7 @@ export const createCheckoutSession = async (req, res, next) => {
       }
     }
 
-    // Create checkout session configuration
+    // Create checkout session configuration - REMOVED TRIAL FUNCTIONALITY
     const sessionConfig = {
       customer: customer.id,
       payment_method_types: ['card'],
@@ -199,7 +171,7 @@ export const createCheckoutSession = async (req, res, next) => {
       success_url: successUrl,
       cancel_url: cancelUrl,
       subscription_data: {
-        trial_period_days: TRIAL_PERIOD_DAYS,
+        // REMOVED: trial_period_days
         metadata: {
           userId: user._id.toString(),
           planName: planName,
@@ -285,7 +257,7 @@ export const createCheckoutSession = async (req, res, next) => {
   }
 }
 
-// Verify checkout session and create subscription - UPDATED WITH NOTIFICATIONS
+// Verify checkout session and create subscription - UPDATED: REMOVED TRIAL FUNCTIONALITY
 export const verifyCheckoutSession = async (req, res, next) => {
   try {
     const { sessionId } = req.body
@@ -342,20 +314,14 @@ export const verifyCheckoutSession = async (req, res, next) => {
         session.metadata.planName,
         session.metadata.billingCycle
       ),
-      // Handle undefined dates during trial period
+      // REMOVED: All trial-related fields
       currentPeriodStart: stripeSubscription.current_period_start
         ? new Date(stripeSubscription.current_period_start * 1000)
         : null,
       currentPeriodEnd: stripeSubscription.current_period_end
         ? new Date(stripeSubscription.current_period_end * 1000)
         : null,
-      trialStart: stripeSubscription.trial_start
-        ? new Date(stripeSubscription.trial_start * 1000)
-        : null,
-      trialEnd: stripeSubscription.trial_end
-        ? new Date(stripeSubscription.trial_end * 1000)
-        : null,
-      // NEW: Track referral discount usage
+      // Track referral discount usage
       metadata: {
         hasReferralDiscount: session.metadata.hasReferralDiscount === 'true',
         referredBy: session.metadata.referredBy || null,
@@ -381,16 +347,6 @@ export const verifyCheckoutSession = async (req, res, next) => {
       // Send notifications for subscription events
       try {
         const planDisplayName = getPlanDetails(session.metadata.planName).name
-
-        // If subscription has a trial, send trial started notification
-        if (subscription.trialEnd && subscription.status === 'trialing') {
-          await NotificationService.notifyTrialStarted(
-            user._id,
-            planDisplayName,
-            subscription.trialEnd
-          )
-          console.log(`✅ Trial started notification sent to ${user.email}`)
-        }
 
         // Send subscription activated notification with discount info
         const notificationData = {
@@ -520,7 +476,7 @@ export const handleSuccessfulPayment = async (
   }
 }
 
-// Get current subscription
+// Get current subscription - UPDATED: REMOVED TRIAL FUNCTIONALITY
 export const getCurrentSubscription = async (req, res, next) => {
   try {
     const user = req.user
@@ -535,7 +491,6 @@ export const getCurrentSubscription = async (req, res, next) => {
         data: {
           subscription: null,
           message: 'No subscription found',
-          trialInfo: null,
         },
       })
     }
@@ -555,41 +510,10 @@ export const getCurrentSubscription = async (req, res, next) => {
       }
     }
 
-    // Calculate trial info
-    let trialInfo = null
-    if (subscription.status === 'trialing' && subscription.trialEnd) {
-      const now = new Date()
-      const trialEnd = new Date(subscription.trialEnd)
-      const daysRemaining = Math.max(
-        0,
-        Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24))
-      )
-      const hoursRemaining = Math.max(
-        0,
-        Math.ceil((trialEnd - now) / (1000 * 60 * 60))
-      )
-
-      trialInfo = {
-        isTrialing: true,
-        trialEnd: subscription.trialEnd,
-        daysRemaining,
-        hoursRemaining,
-        displayText:
-          daysRemaining > 0
-            ? `${daysRemaining} day${
-                daysRemaining !== 1 ? 's' : ''
-              } left in trial`
-            : `${hoursRemaining} hour${
-                hoursRemaining !== 1 ? 's' : ''
-              } left in trial`,
-      }
-    }
-
     res.status(200).json({
       status: 'success',
       data: {
         subscription,
-        trialInfo,
       },
     })
   } catch (error) {
@@ -597,6 +521,9 @@ export const getCurrentSubscription = async (req, res, next) => {
     next(createError(500, 'Failed to retrieve subscription'))
   }
 }
+
+// Rest of the file remains the same but with trial references removed...
+// I'll continue with the key methods that had trial logic:
 
 // Update subscription (change plan) - UPDATED WITH NOTIFICATIONS
 export const updateSubscription = async (req, res, next) => {
@@ -614,7 +541,7 @@ export const updateSubscription = async (req, res, next) => {
     // Get current subscription
     const subscription = await Subscription.findOne({
       user: user._id,
-      status: { $in: ['active', 'trialing'] },
+      status: { $in: ['active'] }, // Removed 'trialing'
     })
 
     // If no active subscription, redirect to checkout instead of trying to update
@@ -768,7 +695,7 @@ export const cancelSubscription = async (req, res, next) => {
     // Get current subscription
     const subscription = await Subscription.findOne({
       user: user._id,
-      status: { $in: ['active', 'trialing'] },
+      status: { $in: ['active'] }, // Removed 'trialing'
     })
 
     if (!subscription || !subscription.stripeSubscriptionId) {
@@ -797,19 +724,16 @@ export const cancelSubscription = async (req, res, next) => {
     // Update subscription in database
     await subscription.updateFromStripe(stripeSubscription)
 
-    // FIXED: Update User model's subscription field - FORCE FREE PLAN FOR IMMEDIATE CANCELLATION
+    // Update User model's subscription field - FORCE FREE PLAN FOR IMMEDIATE CANCELLATION
     if (immediate) {
       // For immediate cancellation, set to free plan
       await User.findByIdAndUpdate(user._id, {
         'subscription.plan': 'free',
         'subscription.status': 'inactive',
         'subscription.isActive': false,
-        'subscription.isTrialActive': false,
         'subscription.daysRemaining': 0,
         'subscription.startDate': null,
         'subscription.endDate': null,
-        'subscription.trialStartDate': null,
-        'subscription.trialEndDate': null,
       })
     } else {
       // For cancel at period end, keep current plan until period ends
@@ -827,12 +751,9 @@ export const cancelSubscription = async (req, res, next) => {
         'subscription.plan': subscription.plan, // Keep current plan until period end
         'subscription.status': subscription.isActive ? 'active' : 'inactive',
         'subscription.isActive': subscription.isActive,
-        'subscription.isTrialActive': subscription.isTrialActive,
         'subscription.daysRemaining': daysRemaining,
         'subscription.startDate': subscription.currentPeriodStart,
         'subscription.endDate': subscription.currentPeriodEnd,
-        'subscription.trialStartDate': subscription.trialStart,
-        'subscription.trialEndDate': subscription.trialEnd,
       })
     }
 
@@ -1044,7 +965,28 @@ export const syncWithStripe = async (req, res, next) => {
   }
 }
 
-// FIXED WEBHOOK HANDLER - Add this to your stripe controller
+// Event tracking functions
+const processedEvents = new Map()
+
+// Clean up old events every hour (keep last 24 hours)
+setInterval(() => {
+  const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000
+  for (const [eventId, timestamp] of processedEvents.entries()) {
+    if (timestamp < oneDayAgo) {
+      processedEvents.delete(eventId)
+    }
+  }
+}, 60 * 60 * 1000)
+
+const isEventProcessed = (eventId) => {
+  return processedEvents.has(eventId)
+}
+
+const markEventAsProcessed = (eventId) => {
+  processedEvents.set(eventId, Date.now())
+}
+
+// WEBHOOK HANDLER - UPDATED: REMOVED TRIAL LOGIC
 export const verifyWebhookPayment = async (req, res) => {
   const sig = req.headers['stripe-signature']
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
@@ -1060,7 +1002,7 @@ export const verifyWebhookPayment = async (req, res) => {
 
   console.log(`📨 Webhook received: ${event.type} (ID: ${event.id})`)
 
-  // CRITICAL: Check if we've already processed this event
+  // Check if we've already processed this event
   if (isEventProcessed(event.id)) {
     console.log(`⚠️ Event ${event.id} already processed, skipping...`)
     return res
@@ -1074,7 +1016,7 @@ export const verifyWebhookPayment = async (req, res) => {
         const session = event.data.object
         console.log(`✅ Checkout session completed: ${session.id}`)
 
-        // ONLY handle subscription creation here, NOT earnings
+        // Only handle subscription creation here, NOT earnings
         // Earnings will be handled by invoice.payment_succeeded
         const subscription = await Subscription.findOne({
           stripeSubscriptionId: session.subscription,
@@ -1149,13 +1091,13 @@ export const verifyWebhookPayment = async (req, res) => {
           break
         }
 
-        // CRITICAL: Skip if gifted
+        // Skip if gifted
         if (subscription.isGifted) {
           console.log('⚠️ Skipping earnings - subscription is gifted')
           break
         }
 
-        // IDEMPOTENCY: Check if this exact payment was already processed
+        // Check if this exact payment was already processed
         const paymentAlreadyProcessed = subscription.paymentHistory.some(
           (payment) => payment.stripePaymentIntentId === invoice.payment_intent
         )
@@ -1256,7 +1198,6 @@ export const verifyWebhookPayment = async (req, res) => {
             'subscription.plan': 'free',
             'subscription.status': 'inactive',
             'subscription.isActive': false,
-            'subscription.isTrialActive': false,
             'subscription.daysRemaining': 0,
           })
 

@@ -1,4 +1,4 @@
-// File: config/stripe.js - UPDATED WITH REFERRAL DISCOUNT FUNCTIONALITY
+// File: config/stripe.js - FIXED: Updated commission rates to 40% for all plans
 import dotenv from 'dotenv'
 import Stripe from 'stripe'
 dotenv.config({ quiet: true })
@@ -102,12 +102,12 @@ export const SUBSCRIPTION_PLANS = {
   },
 }
 
-// STRIPE CONNECT CONFIGURATION
+// STRIPE CONNECT CONFIGURATION - FIXED: 40% commission for all plans
 export const CONNECT_CONFIG = {
   commissionRates: {
-    starter: 0.05, // 5%
-    pro: 0.08, // 8%
-    empire: 0.12, // 12%
+    starter: 0.4, // 40% - FIXED from 5%
+    pro: 0.4, // 40% - FIXED from 8%
+    empire: 0.4, // 40% - FIXED from 12%
   },
   minimumPayout: {
     USD: 1000, // $10.00
@@ -216,28 +216,28 @@ export const getAmount = (planName, billingCycle) => {
   return SUBSCRIPTION_PLANS[planName].pricing[billingCycle].amount
 }
 
-// NEW: Helper function to get commission rate
+// Helper function to get commission rate - FIXED: Now returns 40% for all plans
 export const getCommissionRate = (planName) => {
   if (!SUBSCRIPTION_PLANS[planName]) {
     throw new Error(`Invalid plan: ${planName}`)
   }
-  return CONNECT_CONFIG.commissionRates[planName] || 0.05
+  return CONNECT_CONFIG.commissionRates[planName] || 0.4 // Default to 40%
 }
 
-// NEW: Helper function to calculate commission
+// Helper function to calculate commission - FIXED: Now calculates 40% commission
 export const calculateCommission = (amount, planName) => {
   const rate = getCommissionRate(planName)
   return Math.floor(amount * rate) // Return in cents
 }
 
-// NEW: Helper function to validate minimum payout
+// Helper function to validate minimum payout
 export const validateMinimumPayout = (amount, currency = 'USD') => {
   const minimum =
     CONNECT_CONFIG.minimumPayout[currency] || CONNECT_CONFIG.minimumPayout.USD
   return amount >= minimum
 }
 
-// NEW: Create or retrieve referral discount coupon
+// Create or retrieve referral discount coupon
 export const createOrRetrieveReferralCoupon = async () => {
   try {
     // Try to retrieve existing coupon
@@ -271,7 +271,7 @@ export const createOrRetrieveReferralCoupon = async () => {
   }
 }
 
-// NEW: Calculate discounted amount (for display purposes)
+// Calculate discounted amount (for display purposes)
 export const calculateDiscountedAmount = (
   originalAmount,
   discountPercentage = 10
@@ -287,9 +287,6 @@ export const calculateDiscountedAmount = (
     savings: discountAmount,
   }
 }
-
-// Free trial configuration
-export const TRIAL_PERIOD_DAYS = 7
 
 // Stripe webhook events we care about
 export const STRIPE_EVENTS = {
@@ -355,7 +352,7 @@ export const createOrRetrieveCustomer = async (user) => {
   }
 }
 
-// NEW: Helper function to create Stripe Connect account
+// Helper function to create Stripe Connect account
 export const createConnectAccount = async (user, countryCode = 'US') => {
   try {
     // Validate country
@@ -387,7 +384,7 @@ export const createConnectAccount = async (user, countryCode = 'US') => {
   }
 }
 
-// NEW: Helper function to create account link for onboarding
+// Helper function to create account link for onboarding
 export const createAccountLink = async (accountId, returnUrl, refreshUrl) => {
   try {
     const accountLink = await stripe.accountLinks.create({
@@ -404,7 +401,7 @@ export const createAccountLink = async (accountId, returnUrl, refreshUrl) => {
   }
 }
 
-// NEW: Helper function to retrieve Connect account
+// Helper function to retrieve Connect account
 export const retrieveConnectAccount = async (accountId) => {
   try {
     const account = await stripe.accounts.retrieve(accountId)

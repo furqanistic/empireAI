@@ -1,4 +1,4 @@
-// File: controllers/admin.js - COMPLETE WITH FIXED REVENUE CALCULATIONS
+// File: controllers/admin.js - UPDATED: REMOVED TRIAL REFERENCES
 import { getPlanDetails } from '../config/stripe.js'
 import { createError } from '../error.js'
 import Earnings from '../models/Earnings.js'
@@ -6,7 +6,7 @@ import Subscription from '../models/Subscription.js'
 import User from '../models/User.js'
 import NotificationService from '../services/notificationService.js'
 
-// Get admin statistics - FIXED TO EXCLUDE GIFTED SUBSCRIPTIONS FROM REVENUE
+// Get admin statistics - UPDATED: REMOVED TRIAL REFERENCES
 export const getAdminStats = async (req, res, next) => {
   try {
     // Total users
@@ -28,11 +28,11 @@ export const getAdminStats = async (req, res, next) => {
       isDeleted: false,
     })
 
-    // FIXED: Calculate total revenue EXCLUDING gifted subscriptions
+    // Calculate total revenue EXCLUDING gifted subscriptions
     const revenueData = await Subscription.aggregate([
       {
         $match: {
-          status: { $in: ['active', 'trialing'] },
+          status: { $in: ['active'] }, // Removed 'trialing' status
           isGifted: { $ne: true }, // EXCLUDE gifted subscriptions
         },
       },
@@ -50,7 +50,7 @@ export const getAdminStats = async (req, res, next) => {
         ? (revenueData[0].totalRevenue / 100).toFixed(2)
         : '0.00'
 
-    // FIXED: Calculate total commissions EXCLUDING earnings from gifted subscriptions
+    // Calculate total commissions EXCLUDING earnings from gifted subscriptions
     const commissionsData = await Earnings.aggregate([
       {
         $match: {
@@ -97,14 +97,14 @@ export const getAdminStats = async (req, res, next) => {
     // Count gifted subscriptions
     const giftedSubscriptions = await Subscription.countDocuments({
       isGifted: true,
-      status: { $in: ['active', 'trialing'] },
+      status: { $in: ['active'] }, // Removed 'trialing'
     })
 
-    // Additional stats
+    // Additional stats - UPDATED: REMOVED TRIAL REFERENCES
     const subscriptionStats = await Subscription.aggregate([
       {
         $match: {
-          status: { $in: ['active', 'trialing'] },
+          status: { $in: ['active'] }, // Removed 'trialing'
         },
       },
       {
@@ -174,7 +174,6 @@ export const updateUserSubscription = async (req, res, next) => {
         'subscription.plan': 'free',
         'subscription.status': 'inactive',
         'subscription.isActive': false,
-        'subscription.isTrialActive': false,
         'subscription.daysRemaining': 0,
         'subscription.startDate': null,
         'subscription.endDate': null,
@@ -248,16 +247,14 @@ export const updateUserSubscription = async (req, res, next) => {
     }
 
     // Update User model subscription field
-    // Update User model subscription field
     await User.findByIdAndUpdate(userId, {
       'subscription.plan': planName,
       'subscription.status': 'active',
       'subscription.isActive': true,
-      'subscription.isTrialActive': false,
       'subscription.startDate': currentPeriodStart,
       'subscription.endDate': currentPeriodEnd,
       'subscription.daysRemaining': Math.ceil(
-        (currentPeriodEnd - new Date()) / (1000 * 60 * 60 * 24) // ← Changed from currentPeriodStart to new Date()
+        (currentPeriodEnd - new Date()) / (1000 * 60 * 60 * 24)
       ),
       'subscription.isGifted': isGifted,
     })
@@ -320,7 +317,6 @@ export const cancelUserSubscription = async (req, res, next) => {
       'subscription.plan': 'free',
       'subscription.status': 'inactive',
       'subscription.isActive': false,
-      'subscription.isTrialActive': false,
       'subscription.daysRemaining': 0,
       'subscription.startDate': null,
       'subscription.endDate': null,
@@ -377,13 +373,12 @@ export const reactivateUserSubscription = async (req, res, next) => {
     await subscription.save()
 
     // Update User model
-    // In reactivateUserSubscription
     await User.findByIdAndUpdate(userId, {
       'subscription.status': 'active',
       'subscription.isActive': true,
       'subscription.endDate': newEndDate,
       'subscription.daysRemaining': Math.ceil(
-        (newEndDate - new Date()) / (1000 * 60 * 60 * 24) // ← Use new Date() not current time
+        (newEndDate - new Date()) / (1000 * 60 * 60 * 24)
       ),
     })
 

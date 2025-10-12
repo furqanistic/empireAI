@@ -1,4 +1,4 @@
-// File: src/hooks/useAuth.js - COMPLETE WITH ALL FEATURES INCLUDING OTP
+// File: src/hooks/useAuth.js - UPDATED: REMOVED TRIAL FUNCTIONALITY
 import axiosInstance from '@/config/config.js'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDispatch, useSelector } from 'react-redux'
@@ -28,7 +28,7 @@ import {
 // BASIC AUTH HOOKS
 // =============================================================================
 
-// NEW: Send OTP for signup verification
+// Send OTP for signup verification
 export const useSendSignupOTP = () => {
   return useMutation({
     mutationFn: authService.sendSignupOTP,
@@ -38,7 +38,7 @@ export const useSendSignupOTP = () => {
   })
 }
 
-// NEW: Verify OTP and complete signup
+// Verify OTP and complete signup
 export const useVerifySignupOTP = () => {
   const dispatch = useDispatch()
   const queryClient = useQueryClient()
@@ -50,7 +50,6 @@ export const useVerifySignupOTP = () => {
     },
     onSuccess: (data) => {
       dispatch(loginSuccess(data))
-      // Invalidate and refetch any user-related queries
       queryClient.invalidateQueries({ queryKey: ['user'] })
       queryClient.invalidateQueries({ queryKey: ['notifications'] })
       queryClient.invalidateQueries({ queryKey: ['points'] })
@@ -66,7 +65,7 @@ export const useVerifySignupOTP = () => {
   })
 }
 
-// LEGACY: Keep original signup for backward compatibility
+// Legacy signup for backward compatibility
 export const useSignup = () => {
   const dispatch = useDispatch()
   const queryClient = useQueryClient()
@@ -78,7 +77,6 @@ export const useSignup = () => {
     },
     onSuccess: (data) => {
       dispatch(loginSuccess(data))
-      // Invalidate and refetch any user-related queries
       queryClient.invalidateQueries({ queryKey: ['user'] })
       queryClient.invalidateQueries({ queryKey: ['notifications'] })
       queryClient.invalidateQueries({ queryKey: ['points'] })
@@ -103,7 +101,6 @@ export const useSignin = () => {
     },
     onSuccess: (data) => {
       dispatch(loginSuccess(data))
-      // Invalidate and refetch any user-related queries
       queryClient.invalidateQueries({ queryKey: ['user'] })
       queryClient.invalidateQueries({ queryKey: ['notifications'] })
       queryClient.invalidateQueries({ queryKey: ['points'] })
@@ -125,11 +122,9 @@ export const useLogout = () => {
     mutationFn: authService.logout,
     onSuccess: () => {
       dispatch(logout())
-      // Clear all queries
       queryClient.clear()
     },
     onError: (error) => {
-      // Even if the API call fails, clear Redux state
       dispatch(logout())
       queryClient.clear()
       console.error('Logout error:', error)
@@ -138,7 +133,7 @@ export const useLogout = () => {
 }
 
 // =============================================================================
-// PASSWORD RESET HOOKS (NEW OTP FLOW)
+// PASSWORD RESET HOOKS (OTP FLOW)
 // =============================================================================
 
 export const useForgotPassword = () => {
@@ -167,7 +162,6 @@ export const useResetPassword = () => {
     mutationFn: ({ resetToken, password, confirmPassword }) =>
       authService.resetPassword(resetToken, password, confirmPassword),
     onSuccess: (data) => {
-      // User is automatically logged in after password reset
       dispatch(loginSuccess(data))
       queryClient.invalidateQueries({ queryKey: ['user'] })
       queryClient.invalidateQueries({ queryKey: ['notifications'] })
@@ -187,8 +181,8 @@ export const useUserProfile = (userId, enabled = true) => {
     queryKey: ['user', 'profile', userId],
     queryFn: () => authService.getUserProfile(userId),
     enabled: enabled && !!userId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    cacheTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 5 * 60 * 1000,
+    cacheTime: 10 * 60 * 1000,
   })
 }
 
@@ -199,9 +193,7 @@ export const useUpdateProfile = () => {
   return useMutation({
     mutationFn: authService.updateProfile,
     onSuccess: (data) => {
-      // Update Redux state
       dispatch(updateProfile(data.data?.user || data))
-      // Invalidate user queries
       queryClient.invalidateQueries({ queryKey: ['user'] })
     },
     onError: (error) => {
@@ -216,7 +208,6 @@ export const useChangePassword = () => {
   return useMutation({
     mutationFn: authService.changePassword,
     onSuccess: (data) => {
-      // Update Redux state with new token if returned
       dispatch(loginSuccess(data))
     },
     onError: (error) => {
@@ -230,8 +221,8 @@ export const useGetAllUsers = (params = {}, enabled = true) => {
     queryKey: ['users', 'all', params],
     queryFn: () => authService.getAllUsers(params),
     enabled,
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    cacheTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 2 * 60 * 1000,
+    cacheTime: 5 * 60 * 1000,
   })
 }
 
@@ -258,8 +249,8 @@ export const useValidateReferralCode = (code, enabled = true) => {
     queryKey: ['referral', 'validate', code],
     queryFn: () => referralService.validateReferralCode(code),
     enabled: enabled && !!code && code.length >= 3,
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    cacheTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 2 * 60 * 1000,
+    cacheTime: 5 * 60 * 1000,
     retry: 1,
   })
 }
@@ -270,11 +261,8 @@ export const useReferralStats = (userId) => {
   return useQuery({
     queryKey: ['referral', 'stats', userId],
     queryFn: () => referralService.getReferralStats(userId),
-    // Enable the query if:
-    // 1. A specific userId is provided, OR
-    // 2. No userId is provided but we have a current user (for my-stats)
     enabled: !!userId || !!currentUser,
-    staleTime: 60 * 1000, // 1 minute
+    staleTime: 60 * 1000,
   })
 }
 
@@ -282,7 +270,7 @@ export const useReferralLeaderboard = (params = {}) => {
   return useQuery({
     queryKey: ['referral', 'leaderboard', params],
     queryFn: () => referralService.getReferralLeaderboard(params),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   })
 }
 
@@ -292,7 +280,6 @@ export const useGenerateReferralCode = () => {
   return useMutation({
     mutationFn: referralService.generateNewReferralCode,
     onSuccess: () => {
-      // Invalidate referral stats
       queryClient.invalidateQueries({ queryKey: ['referral', 'stats'] })
       queryClient.invalidateQueries({ queryKey: ['user'] })
     },
@@ -310,8 +297,8 @@ export const useNotifications = (params = {}) => {
   return useQuery({
     queryKey: ['notifications', params],
     queryFn: () => notificationService.getNotifications(params),
-    staleTime: 30 * 1000, // 30 seconds
-    cacheTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 30 * 1000,
+    cacheTime: 5 * 60 * 1000,
   })
 }
 
@@ -319,8 +306,8 @@ export const useUnreadCount = () => {
   return useQuery({
     queryKey: ['notifications', 'unread-count'],
     queryFn: notificationService.getUnreadCount,
-    refetchInterval: 60 * 1000, // Refresh every minute
-    staleTime: 30 * 1000, // 30 seconds
+    refetchInterval: 60 * 1000,
+    staleTime: 30 * 1000,
   })
 }
 
@@ -328,7 +315,7 @@ export const useNotificationStats = () => {
   return useQuery({
     queryKey: ['notifications', 'stats'],
     queryFn: notificationService.getNotificationStats,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   })
 }
 
@@ -338,7 +325,6 @@ export const useMarkAsRead = () => {
   return useMutation({
     mutationFn: notificationService.markAsRead,
     onSuccess: () => {
-      // Invalidate and refetch notifications
       queryClient.invalidateQueries({ queryKey: ['notifications'] })
     },
     onError: (error) => {
@@ -353,7 +339,6 @@ export const useMarkAllAsRead = () => {
   return useMutation({
     mutationFn: notificationService.markAllAsRead,
     onSuccess: () => {
-      // Invalidate and refetch notifications
       queryClient.invalidateQueries({ queryKey: ['notifications'] })
     },
     onError: (error) => {
@@ -368,7 +353,6 @@ export const useDeleteNotification = () => {
   return useMutation({
     mutationFn: notificationService.deleteNotification,
     onSuccess: () => {
-      // Invalidate and refetch notifications
       queryClient.invalidateQueries({ queryKey: ['notifications'] })
     },
     onError: (error) => {
@@ -383,7 +367,6 @@ export const useClearReadNotifications = () => {
   return useMutation({
     mutationFn: notificationService.clearReadNotifications,
     onSuccess: () => {
-      // Invalidate and refetch notifications
       queryClient.invalidateQueries({ queryKey: ['notifications'] })
     },
     onError: (error) => {
@@ -402,7 +385,6 @@ export const useClaimDailyPoints = () => {
   return useMutation({
     mutationFn: pointsService.claimDailyPoints,
     onSuccess: (data) => {
-      // Invalidate points and user queries
       queryClient.invalidateQueries({ queryKey: ['points'] })
       queryClient.invalidateQueries({ queryKey: ['user'] })
       queryClient.invalidateQueries({ queryKey: ['notifications'] })
@@ -419,9 +401,9 @@ export const usePointsStatus = () => {
   return useQuery({
     queryKey: ['points', 'status'],
     queryFn: pointsService.getPointsStatus,
-    staleTime: 30 * 1000, // 30 seconds
-    cacheTime: 5 * 60 * 1000, // 5 minutes
-    refetchInterval: 60 * 1000, // Refresh every minute to update claim status
+    staleTime: 30 * 1000,
+    cacheTime: 5 * 60 * 1000,
+    refetchInterval: 60 * 1000,
   })
 }
 
@@ -429,8 +411,8 @@ export const usePointsLeaderboard = (params = {}) => {
   return useQuery({
     queryKey: ['points', 'leaderboard', params],
     queryFn: () => pointsService.getPointsLeaderboard(params),
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    cacheTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 5 * 60 * 1000,
+    cacheTime: 10 * 60 * 1000,
   })
 }
 
@@ -454,21 +436,21 @@ export const usePointsHistory = (params = {}) => {
   return useQuery({
     queryKey: ['points', 'history', params],
     queryFn: () => pointsService.getPointsHistory(params),
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    cacheTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 2 * 60 * 1000,
+    cacheTime: 5 * 60 * 1000,
   })
 }
 
 // =============================================================================
-// STRIPE HOOKS
+// STRIPE HOOKS - UPDATED: REMOVED TRIAL REFERENCES
 // =============================================================================
 
 export const useGetPlans = () => {
   return useQuery({
     queryKey: ['stripe', 'plans'],
     queryFn: stripeService.getPlans,
-    staleTime: 10 * 60 * 1000, // 10 minutes
-    cacheTime: 30 * 60 * 1000, // 30 minutes
+    staleTime: 10 * 60 * 1000,
+    cacheTime: 30 * 60 * 1000,
     retry: 1,
   })
 }
@@ -478,12 +460,12 @@ export const useGetSubscription = (enabled = true) => {
     queryKey: ['stripe', 'subscription'],
     queryFn: stripeService.getCurrentSubscription,
     enabled,
-    staleTime: 0, // CHANGED: Was 2 * 60 * 1000, now 0 for immediate updates
-    cacheTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
-    refetchInterval: 30 * 1000, // NEW: Refetch every 30 seconds when page is visible
-    refetchIntervalInBackground: false, // Don't refetch when page is hidden
-    refetchOnWindowFocus: true, // Refetch when user returns to the page
-    refetchOnMount: 'always', // NEW: Always refetch when component mounts
+    staleTime: 0,
+    cacheTime: 5 * 60 * 1000,
+    refetchInterval: 30 * 1000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    refetchOnMount: 'always',
     retry: 2,
   })
 }
@@ -492,7 +474,6 @@ export const useCreateCheckoutSession = () => {
   return useMutation({
     mutationFn: stripeService.createCheckoutSession,
     onSuccess: (data) => {
-      // Redirect to Stripe Checkout
       if (data.data?.url) {
         window.location.href = data.data.url
       } else {
@@ -515,20 +496,16 @@ export const useVerifyCheckoutSession = () => {
   return useMutation({
     mutationFn: stripeService.verifyCheckoutSession,
     onSuccess: (data) => {
-      // AGGRESSIVE CACHE INVALIDATION
-      // Invalidate all subscription-related queries
       queryClient.invalidateQueries({ queryKey: ['stripe', 'subscription'] })
       queryClient.invalidateQueries({ queryKey: ['stripe'] })
       queryClient.invalidateQueries({ queryKey: ['user'] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
 
-      // FORCE IMMEDIATE REFETCH (don't wait for automatic refetch)
       queryClient.refetchQueries({
         queryKey: ['stripe', 'subscription'],
-        type: 'active', // Only refetch active queries
+        type: 'active',
       })
 
-      // Also refetch user data to get updated subscription info
       queryClient.refetchQueries({
         queryKey: ['user'],
         type: 'active',
@@ -550,7 +527,6 @@ export const useUpdateSubscription = () => {
     onSuccess: (data) => {
       const planName = data.data?.subscription?.plan || 'plan'
       console.log(`Successfully upgraded to ${planName} plan!`)
-      // Invalidate subscription queries
       queryClient.invalidateQueries({ queryKey: ['stripe', 'subscription'] })
       queryClient.invalidateQueries({ queryKey: ['user'] })
     },
@@ -577,7 +553,6 @@ export const useCancelSubscription = () => {
           'Subscription will be canceled at the end of the current period'
         )
       }
-      // Invalidate subscription queries
       queryClient.invalidateQueries({ queryKey: ['stripe', 'subscription'] })
     },
     onError: (error) => {
@@ -596,7 +571,6 @@ export const useReactivateSubscription = () => {
     mutationFn: stripeService.reactivateSubscription,
     onSuccess: () => {
       console.log('Subscription reactivated successfully!')
-      // Invalidate subscription queries
       queryClient.invalidateQueries({ queryKey: ['stripe', 'subscription'] })
     },
     onError: (error) => {
@@ -612,7 +586,6 @@ export const useCreateBillingPortalSession = () => {
   return useMutation({
     mutationFn: stripeService.createBillingPortalSession,
     onSuccess: (data) => {
-      // Redirect to Stripe billing portal
       if (data.data?.url) {
         window.open(data.data.url, '_blank')
       } else {
@@ -635,7 +608,6 @@ export const useSyncWithStripe = () => {
   return useMutation({
     mutationFn: stripeService.syncWithStripe,
     onSuccess: () => {
-      // Invalidate subscription queries
       queryClient.invalidateQueries({ queryKey: ['stripe', 'subscription'] })
     },
     onError: (error) => {
@@ -647,8 +619,8 @@ export const useSyncWithStripe = () => {
   })
 }
 
+// UPDATED: Subscription status hook - REMOVED TRIAL LOGIC
 export const useSubscriptionStatus = () => {
-  // CHANGED: Remove enabled condition, always fetch
   const {
     data: subscriptionData,
     isLoading,
@@ -657,14 +629,12 @@ export const useSubscriptionStatus = () => {
 
   const subscription = subscriptionData?.data?.subscription
 
-  // Calculate days remaining in real-time (don't rely on cached value)
+  // Calculate days remaining in real-time
   const calculateDaysRemaining = () => {
-    if (!subscription?.currentPeriodEnd && !subscription?.trialEnd) return 0
+    if (!subscription?.currentPeriodEnd) return 0
 
     const now = new Date()
-    const endDate = subscription.trialEnd
-      ? new Date(subscription.trialEnd)
-      : new Date(subscription.currentPeriodEnd)
+    const endDate = new Date(subscription.currentPeriodEnd)
 
     const daysRemaining = Math.max(
       0,
@@ -674,13 +644,13 @@ export const useSubscriptionStatus = () => {
     return daysRemaining
   }
 
+  // UPDATED: Removed trial-related fields
   const subscriptionStatus = {
     hasSubscription: !!subscription,
     isActive: subscription?.isActive || false,
     plan: subscription?.plan || null,
     status: subscription?.status || 'none',
-    trialActive: subscription?.isTrialActive || false,
-    daysRemaining: calculateDaysRemaining(), // CHANGED: Calculate in real-time
+    daysRemaining: calculateDaysRemaining(),
     cancelAtPeriodEnd: subscription?.cancelAtPeriodEnd || false,
     currentPeriodEnd: subscription?.currentPeriodEnd || null,
     amount: subscription?.amount || 0,
@@ -692,7 +662,7 @@ export const useSubscriptionStatus = () => {
     subscription,
     subscriptionStatus,
     isLoading,
-    refetch, // Expose refetch function for manual refresh
+    refetch,
   }
 }
 
@@ -701,8 +671,8 @@ export const useGetAllSubscriptions = (params = {}, enabled = true) => {
     queryKey: ['stripe', 'admin', 'subscriptions', params],
     queryFn: () => stripeService.getAllSubscriptions(params),
     enabled,
-    staleTime: 60 * 1000, // 1 minute
-    cacheTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 60 * 1000,
+    cacheTime: 5 * 60 * 1000,
   })
 }
 
@@ -714,8 +684,8 @@ export const useGetUserEarnings = (params = {}) => {
   return useQuery({
     queryKey: ['earnings', 'user', params],
     queryFn: () => earningsService.getUserEarnings(params),
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    cacheTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 2 * 60 * 1000,
+    cacheTime: 5 * 60 * 1000,
   })
 }
 
@@ -724,7 +694,7 @@ export const useGetEarningDetails = (earningId, enabled = true) => {
     queryKey: ['earnings', 'details', earningId],
     queryFn: () => earningsService.getEarningDetails(earningId),
     enabled: enabled && !!earningId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   })
 }
 
@@ -732,7 +702,7 @@ export const useGetEarningsAnalytics = (period = '30') => {
   return useQuery({
     queryKey: ['earnings', 'analytics', period],
     queryFn: () => earningsService.getEarningsAnalytics(period),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   })
 }
 
@@ -740,8 +710,8 @@ export const useGetEarningsSummary = () => {
   return useQuery({
     queryKey: ['earnings', 'summary'],
     queryFn: earningsService.getEarningsSummary,
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    refetchInterval: 5 * 60 * 1000, // Refresh every 5 minutes
+    staleTime: 2 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
   })
 }
 
@@ -764,7 +734,7 @@ export const useGetPayoutHistory = (params = {}) => {
   return useQuery({
     queryKey: ['earnings', 'payouts', params],
     queryFn: () => earningsService.getPayoutHistory(params),
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 2 * 60 * 1000,
   })
 }
 
@@ -772,7 +742,6 @@ export const useExportEarnings = () => {
   return useMutation({
     mutationFn: earningsService.exportEarnings,
     onSuccess: (response) => {
-      // Create download link
       const url = window.URL.createObjectURL(new Blob([response.data]))
       const link = document.createElement('a')
       link.href = url
@@ -794,7 +763,7 @@ export const useGetAllEarnings = (params = {}, enabled = true) => {
     queryKey: ['earnings', 'admin', 'all', params],
     queryFn: () => earningsService.admin.getAllEarnings(params),
     enabled,
-    staleTime: 60 * 1000, // 1 minute
+    staleTime: 60 * 1000,
   })
 }
 
@@ -875,7 +844,7 @@ export const useGetPayoutRequests = (params = {}, enabled = true) => {
     queryKey: ['earnings', 'admin', 'payouts', params],
     queryFn: () => earningsService.admin.getPayoutRequests(params),
     enabled,
-    staleTime: 60 * 1000, // 1 minute
+    staleTime: 60 * 1000,
   })
 }
 
@@ -887,7 +856,7 @@ export const useGetDashboardAnalytics = (period = '30') => {
   return useQuery({
     queryKey: ['analytics', 'dashboard', period],
     queryFn: () => analyticsService.getDashboardAnalytics(period),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   })
 }
 
@@ -895,7 +864,7 @@ export const useGetUserActivity = (params = {}) => {
   return useQuery({
     queryKey: ['analytics', 'activity', params],
     queryFn: () => analyticsService.getUserActivity(params),
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 2 * 60 * 1000,
   })
 }
 
@@ -903,7 +872,7 @@ export const useGetConversionMetrics = (period = '30') => {
   return useQuery({
     queryKey: ['analytics', 'conversions', period],
     queryFn: () => analyticsService.getConversionMetrics(period),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   })
 }
 
@@ -913,7 +882,7 @@ export const useGetPlatformOverview = (period = '30', enabled = true) => {
     queryKey: ['analytics', 'admin', 'overview', period],
     queryFn: () => analyticsService.admin.getPlatformOverview(period),
     enabled,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   })
 }
 
@@ -922,7 +891,7 @@ export const useGetUserMetrics = (params = {}, enabled = true) => {
     queryKey: ['analytics', 'admin', 'users', params],
     queryFn: () => analyticsService.admin.getUserMetrics(params),
     enabled,
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 2 * 60 * 1000,
   })
 }
 
@@ -931,7 +900,7 @@ export const useGetRevenueMetrics = (params = {}, enabled = true) => {
     queryKey: ['analytics', 'admin', 'revenue', params],
     queryFn: () => analyticsService.admin.getRevenueMetrics(params),
     enabled,
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 2 * 60 * 1000,
   })
 }
 
@@ -943,7 +912,7 @@ export const useGetProducts = (params = {}) => {
   return useQuery({
     queryKey: ['products', params],
     queryFn: () => productService.getProducts(params),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   })
 }
 
@@ -952,7 +921,7 @@ export const useGetProduct = (productId, enabled = true) => {
     queryKey: ['products', productId],
     queryFn: () => productService.getProduct(productId),
     enabled: enabled && !!productId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   })
 }
 
@@ -1003,7 +972,7 @@ export const useGetUserProducts = (params = {}) => {
   return useQuery({
     queryKey: ['products', 'user', params],
     queryFn: () => productService.getUserProducts(params),
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 2 * 60 * 1000,
   })
 }
 
@@ -1029,7 +998,7 @@ export const useGetUserTickets = (params = {}) => {
   return useQuery({
     queryKey: ['support', 'tickets', params],
     queryFn: () => supportService.getUserTickets(params),
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 2 * 60 * 1000,
   })
 }
 
@@ -1038,7 +1007,7 @@ export const useGetSupportTicket = (ticketId, enabled = true) => {
     queryKey: ['support', 'tickets', ticketId],
     queryFn: () => supportService.getTicket(ticketId),
     enabled: enabled && !!ticketId,
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: 30 * 1000,
   })
 }
 
@@ -1071,6 +1040,7 @@ export const useCloseSupportTicket = () => {
   })
 }
 
+// Email verification hooks for existing users
 export const useSendExistingUserVerificationOTP = () => {
   return useMutation({
     mutationFn: async (data) => {
@@ -1086,7 +1056,6 @@ export const useSendExistingUserVerificationOTP = () => {
   })
 }
 
-// NEW: Verify existing user's email with OTP
 export const useVerifyExistingUserEmail = () => {
   const dispatch = useDispatch()
   const queryClient = useQueryClient()
@@ -1104,7 +1073,6 @@ export const useVerifyExistingUserEmail = () => {
     },
     onSuccess: (data) => {
       dispatch(loginSuccess(data))
-      // Invalidate and refetch any user-related queries
       queryClient.invalidateQueries({ queryKey: ['user'] })
       queryClient.invalidateQueries({ queryKey: ['notifications'] })
       queryClient.invalidateQueries({ queryKey: ['points'] })

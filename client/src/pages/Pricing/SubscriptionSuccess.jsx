@@ -1,6 +1,7 @@
-// File: client/src/pages/Pricing/SubscriptionSuccess.jsx - ENHANCED WITH DEBUGGING
+// File: client/src/pages/Pricing/SubscriptionSuccess.jsx - PROPERLY USING AXIOS
 import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import axiosInstance from '../../config/config.js'
 import Layout from '../Layout/Layout'
 
 const SubscriptionSuccess = () => {
@@ -18,14 +19,11 @@ const SubscriptionSuccess = () => {
     console.log('Current URL:', window.location.href)
     console.log('Session ID:', sessionId)
     console.log('Has already verified:', hasVerified.current)
-    console.log('Environment:', process.env.NODE_ENV)
-    console.log(
-      'API Base URL:',
-      process.env.REACT_APP_API_URL || 'http://localhost:8800'
-    )
+    console.log('Environment:', import.meta.env.MODE)
+    console.log('Axios baseURL:', axiosInstance.defaults.baseURL)
 
     if (!sessionId) {
-      console.error('❌ No session ID found in URL')
+      console.error('No session ID found in URL')
       setStatus('error')
       setMessage(
         'No session ID found in URL. Please try the payment process again.'
@@ -45,113 +43,75 @@ const SubscriptionSuccess = () => {
       const startTime = Date.now()
 
       try {
-        console.log('🚀 Starting payment verification...')
+        console.log('Starting payment verification...')
         console.log('Request timestamp:', new Date().toISOString())
-
-        // Determine API URL based on environment
-        const apiUrl =
-          process.env.REACT_APP_API_URL ||
-          (window.location.hostname === 'ascndlabs.com'
-            ? 'https://api.ascndlabs.com'
-            : 'http://localhost:8800')
-
-        console.log('API URL:', apiUrl)
 
         const requestBody = { sessionId }
         console.log('Request body:', requestBody)
 
-        const response = await fetch(
-          `${apiUrl}/api/stripe/verify-checkout-session`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            credentials: 'include',
-            body: JSON.stringify(requestBody),
-          }
+        // Using axiosInstance - it handles baseURL, auth, and credentials automatically
+        const response = await axiosInstance.post(
+          '/stripe/verify-checkout-session',
+          requestBody
         )
 
         const responseTime = Date.now() - startTime
-        console.log(`⏱️ API Response time: ${responseTime}ms`)
+        console.log(`API Response time: ${responseTime}ms`)
         console.log('Response status:', response.status)
-        console.log(
-          'Response headers:',
-          Object.fromEntries(response.headers.entries())
-        )
-
-        if (!response.ok) {
-          const errorText = await response.text()
-          console.error('❌ HTTP Error Response:', errorText)
-
-          let errorData
-          try {
-            errorData = JSON.parse(errorText)
-          } catch {
-            errorData = { message: errorText }
-          }
-
-          throw new Error(
-            `HTTP ${response.status}: ${
-              errorData.message || 'Payment verification failed'
-            }`
-          )
-        }
-
-        const data = await response.json()
-        console.log('✅ API Response data:', data)
+        console.log('Response data:', response.data)
 
         const debugInfo = {
           sessionId,
           responseTime: `${responseTime}ms`,
           status: response.status,
           timestamp: new Date().toISOString(),
-          apiUrl,
+          baseURL: axiosInstance.defaults.baseURL,
+          environment: import.meta.env.MODE,
         }
 
-        if (data.status === 'success') {
-          console.log('🎉 Payment verification successful!')
+        if (response.data.status === 'success') {
+          console.log('Payment verification successful!')
 
           setStatus('success')
           setMessage('Subscription verified successfully!')
           setDebugInfo({
             ...debugInfo,
-            subscription: data.data?.subscription,
-            user: data.data?.subscription?.user,
+            subscription: response.data.data?.subscription,
+            user: response.data.data?.subscription?.user,
           })
 
           // Redirect after delay
-          console.log('⏰ Setting redirect timer...')
+          console.log('Setting redirect timer...')
           setTimeout(() => {
-            console.log('🔄 Redirecting to dashboard...')
+            console.log('Redirecting to dashboard...')
             navigate('/dashboard')
           }, 3000)
         } else {
-          console.error('❌ Verification failed - unexpected response status')
+          console.error('Verification failed - unexpected response status')
           setStatus('error')
-          setMessage(data.message || 'Payment verification failed')
-          setDebugInfo({ ...debugInfo, response: data })
+          setMessage(response.data.message || 'Payment verification failed')
+          setDebugInfo({ ...debugInfo, response: response.data })
         }
       } catch (error) {
         const responseTime = Date.now() - startTime
-        console.error('❌ Payment verification error:', error)
-        console.error('Error name:', error.name)
-        console.error('Error message:', error.message)
-        console.error('Error stack:', error.stack)
+        console.error('Payment verification error:', error)
+        console.error('Error response:', error.response?.data)
 
         setStatus('error')
 
         let errorMessage = 'Payment verification failed'
-        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        if (error.code === 'ERR_NETWORK') {
           errorMessage =
             'Network error - please check your connection and try again'
-        } else if (error.message.includes('404')) {
+        } else if (error.response?.status === 404) {
           errorMessage =
             'Verification endpoint not found - please contact support'
-        } else if (error.message.includes('401')) {
+        } else if (error.response?.status === 401) {
           errorMessage = 'Authentication failed - please sign in and try again'
-        } else if (error.message.includes('500')) {
+        } else if (error.response?.status === 500) {
           errorMessage = 'Server error - please try again or contact support'
+        } else if (error.response?.data?.message) {
+          errorMessage = error.response.data.message
         } else {
           errorMessage = error.message
         }
@@ -165,6 +125,10 @@ const SubscriptionSuccess = () => {
           timestamp: new Date().toISOString(),
           userAgent: navigator.userAgent,
           url: window.location.href,
+          environment: import.meta.env.MODE,
+          baseURL: axiosInstance.defaults.baseURL,
+          responseStatus: error.response?.status,
+          responseData: error.response?.data,
         })
       }
     }
@@ -229,7 +193,7 @@ const SubscriptionSuccess = () => {
                   </div>
                 </div>
                 <h1 className='text-3xl font-bold text-[#EDEDED] mb-4'>
-                  Payment Verified Successfully! 🎉
+                  Payment Verified Successfully!
                 </h1>
                 <p className='text-gray-400 text-lg mb-8'>{message}</p>
 
@@ -295,7 +259,6 @@ const SubscriptionSuccess = () => {
                 </h1>
                 <p className='text-red-400 text-lg mb-6'>{message}</p>
 
-                {/* Enhanced error information */}
                 <div className='bg-red-900/20 border border-red-500/30 rounded-xl p-6 mb-6 text-left'>
                   <h3 className='text-red-400 font-semibold mb-3 text-center'>
                     Don't worry - Your payment was successful!
@@ -328,7 +291,6 @@ const SubscriptionSuccess = () => {
                   </button>
                 </div>
 
-                {/* Debug information for support */}
                 <div className='bg-[#121214] border border-[#1E1E21] rounded-xl p-4 text-left'>
                   <div className='flex items-center justify-between mb-3'>
                     <h4 className='text-gray-400 text-sm font-medium'>
