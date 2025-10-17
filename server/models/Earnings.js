@@ -260,9 +260,6 @@ EarningsSchema.statics.approveEligibleEarnings = async function () {
     }
   )
 
-  console.log(
-    `✅ Auto-approved ${result.modifiedCount} earnings that passed 30-day hold period`
-  )
   return result
 }
 
@@ -280,11 +277,11 @@ EarningsSchema.statics.getEarningsSummary = async function (userId) {
   ])
 
   const result = {
-    pending: { total: 0, count: 0 },
-    approved: { total: 0, count: 0 },
-    paid: { total: 0, count: 0 },
-    disputed: { total: 0, count: 0 },
-    cancelled: { total: 0, count: 0 },
+    pending: { total: 0, count: 0, formatted: '0.00' },
+    approved: { total: 0, count: 0, formatted: '0.00' },
+    paid: { total: 0, count: 0, formatted: '0.00' },
+    disputed: { total: 0, count: 0, formatted: '0.00' },
+    cancelled: { total: 0, count: 0, formatted: '0.00' },
   }
 
   summary.forEach((item) => {
@@ -292,6 +289,7 @@ EarningsSchema.statics.getEarningsSummary = async function (userId) {
       result[item._id] = {
         total: item.total,
         count: item.count,
+        formatted: (item.total / 100).toFixed(2), // ADD THIS: Format cents to dollars
       }
     }
   })

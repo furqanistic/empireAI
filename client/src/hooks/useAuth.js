@@ -471,6 +471,8 @@ export const useGetSubscription = (enabled = true) => {
 }
 
 export const useCreateCheckoutSession = () => {
+  const queryClient = useQueryClient() // ADD THIS if not already present
+
   return useMutation({
     mutationFn: stripeService.createCheckoutSession,
     onSuccess: (data) => {
@@ -490,6 +492,7 @@ export const useCreateCheckoutSession = () => {
   })
 }
 
+// Update the useVerifyCheckoutSession mutation
 export const useVerifyCheckoutSession = () => {
   const queryClient = useQueryClient()
 
@@ -500,6 +503,9 @@ export const useVerifyCheckoutSession = () => {
       queryClient.invalidateQueries({ queryKey: ['stripe'] })
       queryClient.invalidateQueries({ queryKey: ['user'] })
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
+
+      // ADD THIS: Invalidate earnings queries when subscription is verified
+      queryClient.invalidateQueries({ queryKey: ['earnings'] })
 
       queryClient.refetchQueries({
         queryKey: ['stripe', 'subscription'],
@@ -519,6 +525,7 @@ export const useVerifyCheckoutSession = () => {
   })
 }
 
+// Update the useUpdateSubscription mutation
 export const useUpdateSubscription = () => {
   const queryClient = useQueryClient()
 
@@ -529,6 +536,9 @@ export const useUpdateSubscription = () => {
       console.log(`Successfully upgraded to ${planName} plan!`)
       queryClient.invalidateQueries({ queryKey: ['stripe', 'subscription'] })
       queryClient.invalidateQueries({ queryKey: ['user'] })
+
+      // ADD THIS: Invalidate earnings queries when subscription is updated
+      queryClient.invalidateQueries({ queryKey: ['earnings'] })
     },
     onError: (error) => {
       const errorMessage =
@@ -539,6 +549,7 @@ export const useUpdateSubscription = () => {
   })
 }
 
+// Update the useCancelSubscription mutation
 export const useCancelSubscription = () => {
   const queryClient = useQueryClient()
 
@@ -554,6 +565,9 @@ export const useCancelSubscription = () => {
         )
       }
       queryClient.invalidateQueries({ queryKey: ['stripe', 'subscription'] })
+
+      // ADD THIS: Invalidate earnings queries when subscription is cancelled
+      queryClient.invalidateQueries({ queryKey: ['earnings'] })
     },
     onError: (error) => {
       const errorMessage =
@@ -564,6 +578,7 @@ export const useCancelSubscription = () => {
   })
 }
 
+// Update the useReactivateSubscription mutation
 export const useReactivateSubscription = () => {
   const queryClient = useQueryClient()
 
@@ -572,6 +587,9 @@ export const useReactivateSubscription = () => {
     onSuccess: () => {
       console.log('Subscription reactivated successfully!')
       queryClient.invalidateQueries({ queryKey: ['stripe', 'subscription'] })
+
+      // ADD THIS: Invalidate earnings queries when subscription is reactivated
+      queryClient.invalidateQueries({ queryKey: ['earnings'] })
     },
     onError: (error) => {
       const errorMessage =

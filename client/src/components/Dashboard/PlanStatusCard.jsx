@@ -59,9 +59,14 @@ const PlanStatusCard = () => {
     usageData?.data?.plan?.maxGenerations || planConfig?.maxGenerations || 0
   const isUnlimited = maxGenerations === -1
 
+  // Cap generations used to never exceed max generations
+  const cappedGenerationsUsed = isUnlimited
+    ? generationsUsed
+    : Math.min(generationsUsed, maxGenerations)
+
   const usagePercentage = isUnlimited
     ? 0
-    : Math.min((generationsUsed / maxGenerations) * 100, 100)
+    : Math.min((cappedGenerationsUsed / maxGenerations) * 100, 100)
 
   const getUsageColor = () => {
     if (isUnlimited) return 'bg-green-500'
@@ -134,7 +139,7 @@ const PlanStatusCard = () => {
                   Unlimited
                 </span>
               ) : (
-                `${generationsUsed}/${maxGenerations}`
+                `${cappedGenerationsUsed}/${maxGenerations}`
               )}
             </span>
           </div>

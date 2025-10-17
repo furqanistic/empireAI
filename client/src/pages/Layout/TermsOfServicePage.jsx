@@ -99,7 +99,7 @@ const TermsOfServicePage = () => {
             className='inline-flex items-center gap-2 text-[#D4AF37] hover:text-[#D4AF37]/80 font-medium transition-colors duration-300'
           >
             <FileText size={18} />
-            Download Terms of Service (PDF)
+            Download Affiliate Agreement(PDF)
           </a>
         </div>
 

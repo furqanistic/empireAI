@@ -11,7 +11,7 @@ import {
 
 const router = express.Router()
 
-// Get current user's usage stats
+// Update the /stats endpoint to show billing period info
 router.get('/stats', verifyToken, async (req, res, next) => {
   try {
     const userId = req.user._id
@@ -19,13 +19,8 @@ router.get('/stats', verifyToken, async (req, res, next) => {
       ? req.user.subscription.plan
       : 'free'
 
-    // Get usage stats
     const usageStats = await getUserUsageStats(userId)
-
-    // Get plan configuration
-    const planConfig = PLAN_FEATURES[userPlan] || PLAN_FEATURES.free
-
-    // Check current limit status
+    const planConfig = PLAN_FEATURES[userPlan]
     const limitStatus = await checkGenerationLimit(userId, userPlan)
 
     res.status(200).json({
@@ -42,6 +37,7 @@ router.get('/stats', verifyToken, async (req, res, next) => {
         status: {
           canGenerate: limitStatus.allowed,
           remaining: limitStatus.remaining,
+          resetsOn: limitStatus.resetsOn, // NEW: Show reset date
         },
       },
     })

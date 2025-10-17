@@ -1,11 +1,72 @@
-// File: server/utils/usageTracking.js
+// File: server/utils/usageTracking.js - UPDATED FOR SUBSCRIPTION BILLING CYCLES
 import GenerationUsage from '../models/GenerationUsage.js'
+import Subscription from '../models/Subscription.js'
 import { PLAN_FEATURES } from './planConfig.js'
 
-// Get current month in format "2025-01"
-const getCurrentMonth = () => {
+// Get the billing period key based on subscription
+// This resets usage on subscription anniversary date, not calendar months
+const getBillingPeriodKey = (subscriptionStartDate) => {
   const now = new Date()
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const start = new Date(subscriptionStartDate)
+
+  // Start from subscription date and find current billing cycle
+  let currentPeriodStart = new Date(start)
+  let currentPeriodEnd = new Date(start)
+
+  // For monthly billing, add 1 month at a time until we find the current period
+  while (currentPeriodEnd <= now) {
+    currentPeriodStart = new Date(currentPeriodEnd)
+    currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + 1)
+  }
+
+  // Return a key like "2025-01-15-to-2025-02-15" or just use timestamps
+  const startStr = currentPeriodStart.toISOString().split('T')[0]
+  const endStr = currentPeriodEnd.toISOString().split('T')[0]
+  return `${startStr}_to_${endStr}`
+}
+
+// Get current billing period for a user
+export const getCurrentBillingPeriod = async (userId) => {
+  try {
+    const subscription = await Subscription.findOne({ user: userId })
+
+    if (!subscription || !subscription.isActive) {
+      // Free users: use calendar month as period
+      const now = new Date()
+      return {
+        periodKey: `calendar_${now.getFullYear()}-${String(
+          now.getMonth() + 1
+        ).padStart(2, '0')}`,
+        startDate: new Date(now.getFullYear(), now.getMonth(), 1),
+        endDate: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59),
+        isPaid: false,
+      }
+    }
+
+    // Paid users: use subscription billing cycle
+    const startDate = subscription.currentPeriodStart || new Date()
+    const endDate = subscription.currentPeriodEnd || new Date()
+
+    return {
+      periodKey: getBillingPeriodKey(startDate),
+      startDate,
+      endDate,
+      isPaid: true,
+      plan: subscription.plan,
+    }
+  } catch (error) {
+    console.error('Error getting billing period:', error)
+    // Fallback to calendar month
+    const now = new Date()
+    return {
+      periodKey: `calendar_${now.getFullYear()}-${String(
+        now.getMonth() + 1
+      ).padStart(2, '0')}`,
+      startDate: new Date(now.getFullYear(), now.getMonth(), 1),
+      endDate: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59),
+      isPaid: false,
+    }
+  }
 }
 
 // Check if user has access to a feature and usage available
@@ -57,23 +118,28 @@ export const checkFeatureAndUsageLimit = async (
 
 // Track a generation (called after successful generation)
 export const trackGeneration = async (userId, type) => {
-  const month = getCurrentMonth()
-
   try {
+    const billingPeriod = await getCurrentBillingPeriod(userId)
+    const periodKey = billingPeriod.periodKey
+
     console.log(
-      `📈 Tracking generation: ${type} for user ${userId} in ${month}`
+      `📈 Tracking generation: ${type} for user ${userId} in period ${periodKey}`
     )
 
-    // Find or create usage record for this month and type
+    // Find or create usage record for this billing period and type
     const usage = await GenerationUsage.findOneAndUpdate(
       {
         user: userId,
-        month,
+        periodKey, // Use billing period key instead of calendar month
         type,
       },
       {
         $inc: { count: 1 },
-        $set: { lastGenerated: new Date() },
+        $set: {
+          lastGenerated: new Date(),
+          periodStart: billingPeriod.startDate,
+          periodEnd: billingPeriod.endDate,
+        },
       },
       {
         upsert: true,
@@ -89,18 +155,20 @@ export const trackGeneration = async (userId, type) => {
     return usage
   } catch (error) {
     console.error('Error tracking generation:', error)
-    // Don't throw the error - we don't want to break the user flow
-    // if tracking fails, but we should log it
     return null
   }
 }
 
 // Check if user has reached their limit
 export const checkGenerationLimit = async (userId, userPlan) => {
-  const month = getCurrentMonth()
-  const planConfig = PLAN_FEATURES[userPlan] || PLAN_FEATURES.free
-
   try {
+    const billingPeriod = await getCurrentBillingPeriod(userId)
+    const planConfig = PLAN_FEATURES[userPlan] || PLAN_FEATURES.free
+
+    console.log(
+      `📅 Checking limit for billing period: ${billingPeriod.periodKey}`
+    )
+
     // Unlimited for empire plan
     if (planConfig?.maxGenerations === -1) {
       return {
@@ -109,15 +177,17 @@ export const checkGenerationLimit = async (userId, userPlan) => {
         used: 0,
         limit: -1,
         remaining: -1,
+        periodStart: billingPeriod.startDate,
+        periodEnd: billingPeriod.endDate,
       }
     }
 
     const maxGenerations = planConfig?.maxGenerations || 0
 
-    // Get total usage for current month across all types
+    // Get total usage for current billing period across all types
     const usageRecords = await GenerationUsage.find({
       user: userId,
-      month,
+      periodKey: billingPeriod.periodKey,
     }).lean()
 
     const totalUsed = usageRecords.reduce(
@@ -127,12 +197,19 @@ export const checkGenerationLimit = async (userId, userPlan) => {
     const allowed = totalUsed < maxGenerations
     const remaining = Math.max(0, maxGenerations - totalUsed)
 
+    console.log(
+      `📊 Usage: ${totalUsed}/${maxGenerations}, Remaining: ${remaining}`
+    )
+
     return {
       allowed,
       unlimited: false,
       used: totalUsed,
       limit: maxGenerations,
       remaining,
+      periodStart: billingPeriod.startDate,
+      periodEnd: billingPeriod.endDate,
+      resetsOn: billingPeriod.endDate,
     }
   } catch (error) {
     console.error('Error checking generation limit:', error)
@@ -149,16 +226,18 @@ export const checkGenerationLimit = async (userId, userPlan) => {
 
 // Get user's usage stats
 export const getUserUsageStats = async (userId) => {
-  const month = getCurrentMonth()
-
   try {
+    const billingPeriod = await getCurrentBillingPeriod(userId)
+
     const usageRecords = await GenerationUsage.find({
       user: userId,
-      month,
+      periodKey: billingPeriod.periodKey,
     }).lean()
 
     const stats = {
-      month,
+      periodKey: billingPeriod.periodKey,
+      periodStart: billingPeriod.startDate,
+      periodEnd: billingPeriod.endDate,
       viralHooks: 0,
       productGenerator: 0,
       nicheLaunchpad: 0,
@@ -185,8 +264,16 @@ export const getUserUsageStats = async (userId) => {
     return stats
   } catch (error) {
     console.error('Error getting user usage stats:', error)
+    const billingPeriod = await getCurrentBillingPeriod(userId).catch(() => ({
+      periodKey: 'unknown',
+      startDate: new Date(),
+      endDate: new Date(),
+    }))
+
     return {
-      month,
+      periodKey: billingPeriod.periodKey,
+      periodStart: billingPeriod.startDate,
+      periodEnd: billingPeriod.endDate,
       viralHooks: 0,
       productGenerator: 0,
       nicheLaunchpad: 0,
@@ -196,48 +283,43 @@ export const getUserUsageStats = async (userId) => {
   }
 }
 
-// Get usage history for multiple months
-export const getUserUsageHistory = async (userId, monthsBack = 6) => {
-  const currentDate = new Date()
-  const months = []
-
-  // Generate month strings
-  for (let i = 0; i < monthsBack; i++) {
-    const date = new Date(
-      currentDate.getFullYear(),
-      currentDate.getMonth() - i,
-      1
-    )
-    months.push(
-      `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-    )
-  }
-
+// Get usage history for multiple billing periods
+export const getUserUsageHistory = async (userId, periodsBack = 6) => {
   try {
-    const usageRecords = await GenerationUsage.find({
+    // Get all usage records for user
+    const allUsageRecords = await GenerationUsage.find({
       user: userId,
-      month: { $in: months },
     })
-      .sort({ month: -1 })
+      .sort({ periodStart: -1 })
       .lean()
 
-    const history = months.map((month) => {
-      const monthRecords = usageRecords.filter(
-        (record) => record.month === month
-      )
-      const total = monthRecords.reduce((sum, record) => sum + record.count, 0)
-
-      return {
-        month,
-        total,
-        viralHooks:
-          monthRecords.find((r) => r.type === 'viral-hooks')?.count || 0,
-        productGenerator:
-          monthRecords.find((r) => r.type === 'product-generator')?.count || 0,
-        nicheLaunchpad:
-          monthRecords.find((r) => r.type === 'niche-launchpad')?.count || 0,
+    // Group by period and get the last 6 periods
+    const periodMap = new Map()
+    allUsageRecords.forEach((record) => {
+      if (!periodMap.has(record.periodKey)) {
+        periodMap.set(record.periodKey, [])
       }
+      periodMap.get(record.periodKey).push(record)
     })
+
+    // Convert to array and sort by date (most recent first)
+    const history = Array.from(periodMap.entries())
+      .slice(0, periodsBack)
+      .map(([periodKey, records]) => {
+        const total = records.reduce((sum, record) => sum + record.count, 0)
+
+        return {
+          periodKey,
+          periodStart: records[0].periodStart,
+          periodEnd: records[0].periodEnd,
+          total,
+          viralHooks: records.find((r) => r.type === 'viral-hooks')?.count || 0,
+          productGenerator:
+            records.find((r) => r.type === 'product-generator')?.count || 0,
+          nicheLaunchpad:
+            records.find((r) => r.type === 'niche-launchpad')?.count || 0,
+        }
+      })
 
     return history
   } catch (error) {
@@ -247,17 +329,19 @@ export const getUserUsageHistory = async (userId, monthsBack = 6) => {
 }
 
 // Reset usage for testing (admin only)
-export const resetUserUsage = async (userId, month = null) => {
-  const targetMonth = month || getCurrentMonth()
-
+export const resetUserUsage = async (userId, periodKey = null) => {
   try {
-    const result = await GenerationUsage.deleteMany({
-      user: userId,
-      month: targetMonth,
-    })
+    const query = { user: userId }
+    if (periodKey) {
+      query.periodKey = periodKey
+    }
+
+    const result = await GenerationUsage.deleteMany(query)
 
     console.log(
-      `🔄 Reset usage for user ${userId} in ${targetMonth}: ${result.deletedCount} records deleted`
+      `🔄 Reset usage for user ${userId}${
+        periodKey ? ` in period ${periodKey}` : ''
+      }: ${result.deletedCount} records deleted`
     )
     return result
   } catch (error) {

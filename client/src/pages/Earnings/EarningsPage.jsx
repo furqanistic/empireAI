@@ -5,6 +5,7 @@ import {
   Download,
   Loader2,
   MoreHorizontal,
+  RefreshCcw,
   Search,
   Target,
   TrendingUp,
@@ -44,6 +45,7 @@ const EarningsPage = () => {
     recentEarnings,
     isLoading: dashboardLoading,
     error: dashboardError,
+    refetchAll, // ADD THIS
   } = useEarningsDashboard(timeFilter)
 
   // Fetch paginated earnings with filters
@@ -59,6 +61,14 @@ const EarningsPage = () => {
     search: searchTerm || undefined,
   })
 
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  // Add refresh handler
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+    await refetchAll()
+    toast.success('Earnings data refreshed!')
+    setTimeout(() => setIsRefreshing(false), 500)
+  }
   // Export earnings mutation
   const exportEarningsMutation = useExportEarnings()
 
@@ -361,13 +371,28 @@ const EarningsPage = () => {
     <Layout>
       <div className='max-w-7xl mx-auto p-4 sm:p-6 space-y-6 sm:space-y-8'>
         {/* Header */}
-        <div>
-          <h1 className='text-2xl sm:text-3xl font-bold text-[#EDEDED] mb-2'>
-            Earnings Dashboard
-          </h1>
-          <p className='text-gray-400'>
-            Track your affiliate performance and commission earnings
-          </p>
+        <div className='flex items-center justify-between'>
+          <div>
+            <h1 className='text-2xl sm:text-3xl font-bold text-[#EDEDED] mb-2'>
+              Earnings Dashboard
+            </h1>
+            <p className='text-gray-400'>
+              Track your affiliate performance and commission earnings
+            </p>
+          </div>
+
+          {/* ADD THIS: Refresh Button */}
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing || dashboardLoading}
+            className='flex items-center gap-2 px-4 h-10 bg-[#1A1A1C] border border-[#1E1E21] rounded-xl text-sm text-[#EDEDED] hover:border-[#D4AF37]/40 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed'
+          >
+            <RefreshCcw
+              size={16}
+              className={isRefreshing ? 'animate-spin' : ''}
+            />
+            <span className='hidden sm:inline'>Refresh</span>
+          </button>
         </div>
 
         {/* Stats Grid */}

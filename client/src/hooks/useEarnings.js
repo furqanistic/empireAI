@@ -1,5 +1,6 @@
-// File: client/src/hooks/useEarnings.js - UPDATED WITH SHADCN TOAST
+// File: client/src/hooks/useEarnings.js - UPDATED WITH BETTER SYNCING
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import { earningsService } from '../services/earningsServices.js'
 
@@ -9,8 +10,10 @@ export const useGetUserEarnings = (params = {}, enabled = true) => {
     queryKey: ['earnings', 'user', params],
     queryFn: () => earningsService.getUserEarnings(params),
     enabled,
-    staleTime: 60 * 1000, // 1 minute
+    staleTime: 30 * 1000, // REDUCED: 30 seconds instead of 60
     cacheTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: true, // ADDED: Refetch when user returns to tab
+    refetchInterval: 60 * 1000, // ADDED: Auto-refetch every minute
   })
 }
 
@@ -30,7 +33,9 @@ export const useGetEarningsAnalytics = (period = '30', enabled = true) => {
     queryKey: ['earnings', 'analytics', period],
     queryFn: () => earningsService.getEarningsAnalytics(period),
     enabled,
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 30 * 1000, // REDUCED: 30 seconds
+    cacheTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: true, // ADDED: Refetch when user returns to tab
   })
 }
 
@@ -40,7 +45,10 @@ export const useGetEarningsSummary = (enabled = true) => {
     queryKey: ['earnings', 'summary'],
     queryFn: earningsService.getEarningsSummary,
     enabled,
-    staleTime: 60 * 1000, // 1 minute
+    staleTime: 30 * 1000, // REDUCED: 30 seconds instead of 60
+    cacheTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: true, // ADDED: Refetch when user returns to tab
+    refetchInterval: 60 * 1000, // ADDED: Auto-refetch every minute
   })
 }
 
@@ -91,7 +99,8 @@ export const useGetAllEarnings = (params = {}, enabled = true) => {
     queryKey: ['earnings', 'admin', 'all', params],
     queryFn: () => earningsService.admin.getAllEarnings(params),
     enabled,
-    staleTime: 60 * 1000, // 1 minute
+    staleTime: 30 * 1000, // REDUCED: 30 seconds
+    refetchOnWindowFocus: true,
   })
 }
 
@@ -103,7 +112,7 @@ export const useApproveEarning = () => {
     mutationFn: earningsService.admin.approveEarning,
     onSuccess: (data) => {
       toast.success('Earning approved successfully!')
-      // Invalidate relevant queries
+      // Invalidate ALL earnings queries
       queryClient.invalidateQueries({ queryKey: ['earnings'] })
     },
     onError: (error) => {
@@ -124,7 +133,7 @@ export const useBulkApproveEarnings = () => {
     onSuccess: (data) => {
       const count = data.data?.approvedCount || 0
       toast.success(`${count} earnings approved successfully!`)
-      // Invalidate relevant queries
+      // Invalidate ALL earnings queries
       queryClient.invalidateQueries({ queryKey: ['earnings'] })
     },
     onError: (error) => {
@@ -145,7 +154,7 @@ export const useDisputeEarning = () => {
       earningsService.admin.disputeEarning(earningId, reason),
     onSuccess: () => {
       toast.success('Earning disputed successfully!')
-      // Invalidate relevant queries
+      // Invalidate ALL earnings queries
       queryClient.invalidateQueries({ queryKey: ['earnings'] })
     },
     onError: (error) => {
@@ -166,7 +175,7 @@ export const useCancelEarning = () => {
       earningsService.admin.cancelEarning(earningId, reason),
     onSuccess: () => {
       toast.success('Earning cancelled successfully!')
-      // Invalidate relevant queries
+      // Invalidate ALL earnings queries
       queryClient.invalidateQueries({ queryKey: ['earnings'] })
     },
     onError: (error) => {
@@ -188,19 +197,29 @@ export const useEarningsDashboard = (period = '30') => {
     data: summaryData,
     isLoading: summaryLoading,
     error: summaryError,
+    refetch: refetchSummary,
   } = useGetEarningsSummary()
 
   const {
     data: analyticsData,
     isLoading: analyticsLoading,
     error: analyticsError,
+    refetch: refetchAnalytics,
   } = useGetEarningsAnalytics(period)
 
   const {
     data: earningsData,
     isLoading: earningsLoading,
     error: earningsError,
+    refetch: refetchEarnings,
   } = useGetUserEarnings({ limit: 10, page: 1 })
+
+  // ADDED: Manual refetch all function
+  const refetchAll = () => {
+    refetchSummary()
+    refetchAnalytics()
+    refetchEarnings()
+  }
 
   return {
     summary: summaryData?.data,
@@ -208,12 +227,13 @@ export const useEarningsDashboard = (period = '30') => {
     recentEarnings: earningsData?.data?.earnings || [],
     isLoading: summaryLoading || analyticsLoading || earningsLoading,
     error: summaryError || analyticsError || earningsError,
+    refetchAll, // ADDED: Expose manual refetch
   }
 }
 
 // Hook for paginated earnings with filters
 export const usePaginatedEarnings = (initialParams = {}) => {
-  const [params, setParams] = React.useState({
+  const [params, setParams] = useState({
     page: 1,
     limit: 20,
     ...initialParams,
