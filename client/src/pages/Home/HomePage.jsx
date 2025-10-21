@@ -1,61 +1,32 @@
-// File: client/src/pages/Home/HomePage.jsx
-import {
-  ArrowRight,
-  BarChart3,
-  Bot,
-  CheckCircle,
-  Crown,
-  ExternalLink,
-  Mail,
-  Menu,
-  MessageCircle,
-  Rocket,
-  Shield,
-  Sparkles,
-  Target,
-  TrendingUp,
-  Users,
-  X,
-  Zap,
-} from 'lucide-react'
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
+
+// Icon component matching Layout style
+const CrownLogo = ({ size = 18 }) => (
+  <svg
+    xmlns='http://www.w3.org/2000/svg'
+    viewBox='0 0 256 256'
+    width={size}
+    height={size}
+    fill='currentColor'
+  >
+    <path d='M248 80a28 28 0 1 0-51.12 15.77l-26.79 33L146 73.4a28 28 0 1 0-36.06 0l-24.03 55.34l-26.79-33a28 28 0 1 0-26.6 12L47 194.63A16 16 0 0 0 62.78 208h130.44A16 16 0 0 0 209 194.63l14.47-86.85A28 28 0 0 0 248 80M128 40a12 12 0 1 1-12 12a12 12 0 0 1 12-12M24 80a12 12 0 1 1 12 12a12 12 0 0 1-12-12m196 12a12 12 0 1 1 12-12a12 12 0 0 1-12 12' />
+  </svg>
+)
 
 const HomePage = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const [counts, setCounts] = useState({ builders: 0, products: 0, revenue: 0 })
 
   const handleGetStarted = () => {
     window.location.href = '/auth'
   }
 
-  useEffect(() => {
-    const targets = { builders: 12500, products: 8900, revenue: 2400 }
-    let currentStep = 0
-    const timer = setInterval(() => {
-      if (currentStep < 60) {
-        const progress = currentStep / 60
-        setCounts({
-          builders: Math.floor(targets.builders * progress),
-          products: Math.floor(targets.products * progress),
-          revenue: Math.floor(targets.revenue * progress),
-        })
-        currentStep++
-      } else {
-        setCounts(targets)
-        clearInterval(timer)
-      }
-    }, 33)
-    return () => clearInterval(timer)
-  }, [])
-
-  const FeatureCard = ({ icon: Icon, title, description, index }) => (
+  const FeatureCard = ({ icon, title, description }) => (
     <div className='group relative p-6 rounded-lg border border-gray-800 bg-gray-950/40 backdrop-blur-sm hover:border-[#D4AF37]/50 hover:bg-gray-900/60 transition-all duration-300 cursor-pointer overflow-hidden'>
       <div className='absolute inset-0 bg-gradient-to-br from-[#D4AF37]/0 to-[#D4AF37]/0 group-hover:from-[#D4AF37]/5 group-hover:to-[#D4AF37]/10 transition-all duration-300' />
-
       <div className='relative z-10'>
         <div className='flex items-center gap-3 mb-4'>
-          <div className='w-12 h-12 rounded-lg bg-[#D4AF37] flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-[#D4AF37]/20'>
-            <Icon size={24} className='text-black' strokeWidth={1.5} />
+          <div className='w-12 h-12 rounded-lg bg-[#D4AF37] flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-[#D4AF37]/20 text-lg'>
+            {icon}
           </div>
         </div>
         <h3 className='text-white font-semibold mb-2 text-lg group-hover:text-[#D4AF37] transition-colors duration-300'>
@@ -96,7 +67,7 @@ const HomePage = () => {
     description,
     features,
     popular = false,
-    icon: Icon,
+    emoji,
   }) => (
     <div
       className={`relative rounded-lg border transition-all duration-300 overflow-hidden ${
@@ -112,27 +83,20 @@ const HomePage = () => {
           </span>
         </div>
       )}
-
       <div className='p-8'>
         <div className='flex items-center gap-3 mb-4'>
           <div
-            className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+            className={`w-12 h-12 rounded-lg flex items-center justify-center text-2xl ${
               popular ? 'bg-[#D4AF37]' : 'bg-gray-800'
             }`}
           >
-            <Icon
-              size={24}
-              className={popular ? 'text-black' : 'text-[#D4AF37]'}
-              strokeWidth={1.5}
-            />
+            {emoji}
           </div>
           <h3 className='text-xl font-semibold text-white'>{plan}</h3>
         </div>
-
         <p className='text-gray-400 text-sm mb-6 leading-relaxed'>
           {description}
         </p>
-
         <div className='mb-6 pb-6 border-b border-gray-800'>
           <div className='flex items-baseline gap-1 mb-2'>
             <span className='text-4xl font-bold text-white'>${price}</span>
@@ -142,19 +106,14 @@ const HomePage = () => {
             Founder pricing • Limited time
           </p>
         </div>
-
         <ul className='space-y-3 mb-8'>
           {features.map((feature, i) => (
             <li key={i} className='flex items-start gap-3'>
-              <CheckCircle
-                size={16}
-                className='text-[#D4AF37] flex-shrink-0 mt-0.5'
-              />
+              <span className='text-[#D4AF37] flex-shrink-0 mt-0.5'>✓</span>
               <span className='text-sm text-gray-300'>{feature}</span>
             </li>
           ))}
         </ul>
-
         <button
           onClick={handleGetStarted}
           className={`w-full py-3 rounded-lg font-semibold text-sm transition-all duration-300 hover:scale-105 ${
@@ -175,8 +134,8 @@ const HomePage = () => {
       <nav className='fixed top-0 left-0 right-0 z-50 border-b border-gray-900 bg-black/95 backdrop-blur-sm'>
         <div className='max-w-7xl mx-auto px-6 py-4 flex items-center justify-between'>
           <div className='flex items-center gap-2'>
-            <div className='w-8 h-8 rounded-lg bg-[#D4AF37] flex items-center justify-center'>
-              <Crown size={18} className='text-black' />
+            <div className='text-[#D4AF37] p-2 rounded-lg bg-[#D4AF37]/10'>
+              <CrownLogo size={18} />
             </div>
             <span className='font-semibold text-lg'>Ascnd Labs</span>
           </div>
@@ -195,7 +154,7 @@ const HomePage = () => {
               onClick={handleGetStarted}
               className='flex items-center gap-2 px-4 py-2 rounded-lg bg-[#D4AF37] text-black font-medium text-sm hover:shadow-lg hover:shadow-[#D4AF37]/40 transition-all duration-300 hover:scale-105'
             >
-              Get Started <ArrowRight size={16} />
+              Get Started →
             </button>
           </div>
 
@@ -203,7 +162,7 @@ const HomePage = () => {
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             className='md:hidden text-gray-400 hover:text-white transition-colors'
           >
-            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            {isMobileMenuOpen ? '✕' : '☰'}
           </button>
         </div>
 
@@ -223,7 +182,7 @@ const HomePage = () => {
                 onClick={handleGetStarted}
                 className='w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[#D4AF37] text-black font-medium text-sm hover:shadow-lg hover:shadow-[#D4AF37]/40 transition-all duration-300'
               >
-                Get Started <ArrowRight size={16} />
+                Get Started →
               </button>
             </div>
           </div>
@@ -236,7 +195,7 @@ const HomePage = () => {
           <div className='inline-flex items-center gap-2 px-4 py-2 rounded-full border border-gray-800 bg-gray-950/50 hover:border-[#D4AF37]/30 transition-all duration-300'>
             <div className='w-2 h-2 bg-[#D4AF37] rounded-full animate-pulse' />
             <span className='text-xs font-medium text-gray-400'>
-              Trusted by 12,500+ Empire Builders
+              Now accepting early access members
             </span>
           </div>
 
@@ -250,7 +209,7 @@ const HomePage = () => {
           <p className='text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed'>
             Transform from creator to mogul with our AI-powered platform. Build
             digital products, scale automatically, and earn through intelligent
-            systems. Join thousands of successful empire builders.
+            systems. Join the next generation of empire builders.
           </p>
 
           <div className='flex flex-col sm:flex-row gap-3 justify-center pt-4'>
@@ -258,39 +217,60 @@ const HomePage = () => {
               onClick={handleGetStarted}
               className='group flex items-center justify-center gap-2 px-8 py-4 rounded-lg bg-[#D4AF37] text-black font-semibold hover:shadow-xl hover:shadow-[#D4AF37]/40 transition-all duration-300 hover:scale-105'
             >
-              <Rocket size={20} /> Start Building{' '}
-              <ArrowRight
-                size={20}
-                className='group-hover:translate-x-1 transition-transform duration-300'
-              />
+              Start Building
+              <span className='group-hover:translate-x-1 transition-transform duration-300'>
+                →
+              </span>
             </button>
           </div>
         </div>
       </section>
 
-      {/* Stats Section */}
+      {/* Why Choose Us Section */}
       <section className='py-16 px-6 bg-gray-950/50 border-y border-gray-900'>
-        <div className='max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8'>
-          {[
-            { number: counts.builders, label: 'Active Builders', suffix: '+' },
-            { number: counts.products, label: 'Products Launched', suffix: '' },
-            { number: '99.9%', label: 'Uptime', suffix: '' },
-            {
-              number: counts.revenue,
-              label: 'Revenue Generated',
-              suffix: 'M+',
-            },
-          ].map((stat, i) => (
-            <div key={i} className='text-center'>
-              <p className='text-3xl md:text-4xl font-bold text-[#D4AF37] mb-2'>
-                {typeof stat.number === 'number'
-                  ? stat.number.toLocaleString()
-                  : stat.number}
-                {stat.suffix}
+        <div className='max-w-6xl mx-auto'>
+          <h3 className='text-center text-2xl md:text-3xl font-bold mb-12 text-white'>
+            Why Builders Choose{' '}
+            <span className='text-[#D4AF37]'>Ascnd Labs</span>
+          </h3>
+          <div className='grid grid-cols-1 md:grid-cols-3 gap-8'>
+            <div className='text-center'>
+              <div className='w-14 h-14 bg-[#D4AF37]/20 rounded-lg flex items-center justify-center mx-auto mb-4 text-2xl'>
+                ⚡
+              </div>
+              <h4 className='text-white font-semibold mb-2 text-lg'>
+                Fast Setup
+              </h4>
+              <p className='text-gray-400 text-sm'>
+                Get up and running in minutes with our intuitive interface and
+                pre-built templates.
               </p>
-              <p className='text-xs md:text-sm text-gray-400'>{stat.label}</p>
             </div>
-          ))}
+            <div className='text-center'>
+              <div className='w-14 h-14 bg-[#D4AF37]/20 rounded-lg flex items-center justify-center mx-auto mb-4 text-2xl'>
+                🤖
+              </div>
+              <h4 className='text-white font-semibold mb-2 text-lg'>
+                AI Powered
+              </h4>
+              <p className='text-gray-400 text-sm'>
+                Leverage advanced AI tools to automate tasks and make smarter
+                business decisions.
+              </p>
+            </div>
+            <div className='text-center'>
+              <div className='w-14 h-14 bg-[#D4AF37]/20 rounded-lg flex items-center justify-center mx-auto mb-4 text-2xl'>
+                👥
+              </div>
+              <h4 className='text-white font-semibold mb-2 text-lg'>
+                Community
+              </h4>
+              <p className='text-gray-400 text-sm'>
+                Connect with fellow creators, share wins, and grow together in
+                our active community.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -310,40 +290,34 @@ const HomePage = () => {
 
           <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
             <FeatureCard
-              icon={Bot}
+              icon='🤖'
               title='AI Product Builder'
-              description='Create digital products with our advanced AI assistant. From SaaS tools to mobile apps, build anything without coding expertise. Get started in minutes.'
-              index={0}
+              description='Create digital products with our advanced AI assistant. From SaaS tools to mobile apps, build anything without coding expertise.'
             />
             <FeatureCard
-              icon={Target}
+              icon='🎯'
               title='Smart Launchpad'
-              description='Launch your products with AI-optimized strategies. Automated marketing, pricing optimization, competitor analysis, and customer acquisition tools included.'
-              index={1}
+              description='Launch your products with AI-optimized strategies. Automated marketing, pricing optimization, and customer acquisition tools included.'
             />
             <FeatureCard
-              icon={Users}
+              icon='👥'
               title='Affiliate Empire'
-              description='Build and manage your affiliate network with intelligent recruitment tools and automated commission systems. Scale your revenue 10x faster.'
-              index={2}
+              description='Build and manage your affiliate network with intelligent recruitment tools and automated commission systems.'
             />
             <FeatureCard
-              icon={Zap}
+              icon='⚡'
               title='Automation Suite'
-              description='Automate repetitive tasks with AI workflows. Save 20+ hours per week with intelligent automation that learns from your business patterns.'
-              index={3}
+              description='Automate repetitive tasks with AI workflows. Save time on manual work with intelligent automation that learns from your patterns.'
             />
             <FeatureCard
-              icon={BarChart3}
+              icon='📊'
               title='Analytics & Insights'
-              description='Real-time dashboards show every metric that matters. Track revenue, customer behavior, market trends, and optimize based on data.'
-              index={4}
+              description='Real-time dashboards show every metric that matters. Track revenue, customer behavior, and market trends.'
             />
             <FeatureCard
-              icon={Shield}
+              icon='🛡️'
               title='Enterprise Security'
-              description='Bank-level encryption, SOC 2 certified, GDPR compliant. Your data is protected with military-grade security standards.'
-              index={5}
+              description='Bank-level encryption, SOC 2 certified, GDPR compliant. Your data is protected with military-grade standards.'
             />
           </div>
         </div>
@@ -354,11 +328,11 @@ const HomePage = () => {
         <div className='max-w-6xl mx-auto'>
           <div className='text-center mb-16'>
             <h2 className='text-4xl md:text-5xl font-bold mb-4'>
-              Loved by <span className='text-[#D4AF37]'>Empire Builders</span>
+              Loved by{' '}
+              <span className='text-[#D4AF37]'>Creators & Entrepreneurs</span>
             </h2>
             <p className='text-gray-400 max-w-2xl mx-auto text-lg'>
-              See what successful creators are saying about their journey with
-              Ascnd Labs
+              See what early adopters are saying about building with Ascnd Labs
             </p>
           </div>
 
@@ -367,37 +341,37 @@ const HomePage = () => {
               name='Alex Chen'
               role='SaaS Founder'
               avatar='A'
-              content="Ascnd Labs helped me launch my first product in 2 weeks. The AI tools are incredible. I've already made $50K in revenue."
+              content='The speed to market is incredible. I went from idea to launch in less than a month. This is game-changing.'
             />
             <TestimonialCard
               name='Maya Patel'
               role='Digital Creator'
               avatar='M'
-              content='The automation suite saved me 15 hours every week. I can now focus on strategy instead of getting bogged down in execution.'
+              content='The automation tools have freed up so much of my time. I can focus on what I do best instead of admin work.'
             />
             <TestimonialCard
               name='Jordan Lee'
               role='E-commerce Entrepreneur'
               avatar='J'
-              content='Best investment I made this year. The affiliate system alone has generated passive income streams for my entire team.'
+              content='The affiliate system is elegant and easy to manage. Great for scaling revenue without hiring a team.'
             />
             <TestimonialCard
               name='Sarah Williams'
               role='Product Manager'
               avatar='S'
-              content='The analytics dashboard is a game changer. I can see exactly where my revenue is coming from and optimize accordingly.'
+              content='The analytics dashboard gives me clarity on my business. The insights are actionable and help with strategy.'
             />
             <TestimonialCard
               name='David Martinez'
               role='Agency Owner'
               avatar='D'
-              content='Scaled from $10K to $100K MRR in 6 months using Ascnd Labs. The tools are professional-grade but easy to use.'
+              content='Professional-grade tools at an accessible price point. This is exactly what I was looking for.'
             />
             <TestimonialCard
               name='Emma Thompson'
               role='Startup Founder'
               avatar='E'
-              content='The customer support is outstanding. They helped me customize workflows for my specific use case. Highly recommended!'
+              content='Great support from the team. They took time to understand my use case and helped me set up everything smoothly.'
             />
           </div>
         </div>
@@ -420,50 +394,100 @@ const HomePage = () => {
             <PricingCard
               plan='Starter'
               price='5'
-              description='Perfect for beginners starting their digital journey and validating ideas.'
+              description='Perfect for beginners starting their digital journey.'
               features={[
+                'Viral Hook Factory',
                 'AI Product Generator',
-                'Basic Content Creation',
-                'Starter Templates',
-                'Community Access',
+                'Niche Launchpad',
+                '10 Generations per Month',
                 'Email Support',
-                'Basic Analytics',
               ]}
-              icon={Rocket}
+              emoji='🚀'
+              affiliateEarnings={{ l1: '2.00', l2: '0.50' }}
             />
             <PricingCard
               plan='Pro'
               price='12'
-              description='For serious creators ready to scale and monetize their audience and products.'
+              description='For serious creators ready to scale and monetize.'
               features={[
-                'Everything in Starter',
-                'AI Product Generator Pro',
                 'Viral Hook Factory',
-                'Pro AI Strategist',
-                'Advanced Templates',
+                'AI Product Generator',
+                'Niche Launchpad',
+                '50 Generations per Month',
                 'Priority Support',
-                'Advanced Analytics',
-                'Affiliate Tools',
               ]}
-              icon={Crown}
+              emoji='👑'
               popular={true}
+              affiliateEarnings={{ l1: '4.80', l2: '1.20' }}
             />
             <PricingCard
               plan='Empire'
               price='25'
-              description='For ambitious builders who want total domination and unlimited potential.'
+              description='For empire builders who want total domination.'
               features={[
-                'Everything in Pro',
-                'Empire AI Life OS',
-                'Full Automation Suite',
-                'Empire Architect AI',
+                'Viral Hook Factory',
+                'AI Product Generator',
+                'Niche Launchpad',
+                'Unlimited Generations',
+                'Priority Support',
                 'Direct Mentor Access',
-                'White-label Rights',
-                '1-on-1 Strategy Calls',
-                'Custom Integrations',
               ]}
-              icon={TrendingUp}
+              emoji='📈'
+              affiliateEarnings={{ l1: '10.00', l2: '2.50' }}
             />
+          </div>
+
+          {/* Affiliate Program Section */}
+          <div className='mt-16 bg-gray-950/50 border border-gray-800 rounded-lg p-8'>
+            <div className='text-center mb-10'>
+              <h3 className='text-2xl md:text-3xl font-bold text-white mb-3'>
+                💰 2-Tier Affiliate Program
+              </h3>
+              <p className='text-gray-400 text-lg'>
+                Earn recurring commissions by referring others to Ascnd Labs
+              </p>
+            </div>
+
+            <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
+              <div className='bg-gray-900/40 border border-gray-800 rounded p-5 text-center'>
+                <div className='text-3xl font-bold text-[#D4AF37] mb-2'>
+                  40%
+                </div>
+                <div className='text-sm text-white font-semibold mb-1'>
+                  Level 1 Commission
+                </div>
+                <p className='text-xs text-gray-400'>
+                  Earn 40% recurring on every direct referral you bring
+                </p>
+              </div>
+              <div className='bg-gray-900/40 border border-gray-800 rounded p-5 text-center'>
+                <div className='text-3xl font-bold text-[#D4AF37] mb-2'>
+                  10%
+                </div>
+                <div className='text-sm text-white font-semibold mb-1'>
+                  Level 2 Override
+                </div>
+                <p className='text-xs text-gray-400'>
+                  Earn 10% on referrals your L1 members bring in
+                </p>
+              </div>
+              <div className='bg-gray-900/40 border border-gray-800 rounded p-5 text-center'>
+                <div className='text-3xl font-bold text-[#D4AF37] mb-2'>∞</div>
+                <div className='text-sm text-white font-semibold mb-1'>
+                  Recurring
+                </div>
+                <p className='text-xs text-gray-400'>
+                  Commissions continue as long as they stay subscribed
+                </p>
+              </div>
+            </div>
+
+            <div className='mt-8 p-4 bg-gray-900/60 border border-[#D4AF37]/20 rounded text-center'>
+              <p className='text-sm text-gray-300'>
+                Want to start earning? Join hundreds of affiliates turning Ascnd
+                Labs into a passive income stream.
+              </p>
+            </div>
           </div>
         </div>
       </section>
@@ -472,19 +496,19 @@ const HomePage = () => {
       <section id='community' className='relative py-24 px-6'>
         <div className='max-w-3xl mx-auto'>
           <div className='rounded-lg border border-gray-800 bg-gray-950/40 backdrop-blur-sm p-8 md:p-16 text-center hover:border-[#D4AF37]/30 transition-all duration-300'>
-            <div className='w-16 h-16 bg-[#D4AF37] rounded-lg flex items-center justify-center mx-auto mb-8'>
-              <MessageCircle size={32} className='text-black' />
+            <div className='w-16 h-16 bg-[#D4AF37] rounded-lg flex items-center justify-center mx-auto mb-8 text-3xl'>
+              💬
             </div>
             <h3 className='text-3xl md:text-4xl font-bold mb-4'>
               Join Our Community
             </h3>
             <p className='text-gray-400 text-lg mb-4 leading-relaxed'>
-              Connect with 12,500+ empire builders, share strategies, get
+              Connect with fellow empire builders, share strategies, get
               feedback, and access exclusive resources and opportunities.
             </p>
             <p className='text-gray-400 text-lg mb-8 leading-relaxed'>
-              Our Discord community is where the real magic happens. Daily wins
-              are shared, strategies discussed, and collaborations are born.
+              Our Discord community is where builders gather to discuss ideas,
+              celebrate wins, and collaborate on projects.
             </p>
             <a
               href='https://discord.gg/t7r94BZUXv'
@@ -492,7 +516,7 @@ const HomePage = () => {
               rel='noopener noreferrer'
               className='inline-flex items-center gap-2 px-8 py-4 rounded-lg bg-[#D4AF37] text-black font-semibold hover:shadow-lg hover:shadow-[#D4AF37]/40 transition-all duration-300 hover:scale-105'
             >
-              Join Discord Community <ExternalLink size={20} />
+              Join Discord Community →
             </a>
           </div>
         </div>
@@ -504,8 +528,8 @@ const HomePage = () => {
           <div className='grid grid-cols-1 md:grid-cols-3 gap-8 mb-8 pb-8 border-b border-gray-900'>
             <div>
               <div className='flex items-center gap-2 mb-4'>
-                <div className='w-8 h-8 rounded-lg bg-[#D4AF37] flex items-center justify-center'>
-                  <Crown size={16} className='text-black' />
+                <div className='text-[#D4AF37] p-2 rounded-lg bg-[#D4AF37]/10'>
+                  <CrownLogo size={16} />
                 </div>
                 <span className='font-semibold'>Ascnd Labs</span>
               </div>
@@ -581,7 +605,7 @@ const HomePage = () => {
               href='mailto:hello@ascndlabs.com'
               className='flex items-center gap-2 text-gray-400 hover:text-[#D4AF37] transition-colors text-sm'
             >
-              <Mail size={16} /> hello@ascndlabs.com
+              📧 hello@ascndlabs.com
             </a>
           </div>
         </div>

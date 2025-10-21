@@ -1135,7 +1135,7 @@ const AdminPage = () => {
 
                 {/* Users Pagination */}
                 {usersPagination.totalPages > 1 && (
-                  <div className='px-4 sm:px-6 py-4 border-t border-[#1E1E21] flex items-center justify-between'>
+                  <div className='px-4 sm:px-6 py-4 border-t border-[#1E1E21] flex items-center justify-between flex-wrap gap-4'>
                     <div className='text-gray-400 text-sm'>
                       Showing {usersPagination.results} of{' '}
                       {usersPagination.totalResults} users
@@ -1150,9 +1150,27 @@ const AdminPage = () => {
                       >
                         Previous
                       </button>
-                      <span className='px-3 h-8 bg-[#D4AF37] text-black rounded-lg text-sm font-medium flex items-center'>
-                        {usersPagination.currentPage}
-                      </span>
+
+                      {/* Page Numbers */}
+                      <div className='flex items-center gap-1'>
+                        {Array.from(
+                          { length: usersPagination.totalPages },
+                          (_, i) => i + 1
+                        ).map((page) => (
+                          <button
+                            key={page}
+                            onClick={() => changePage('users', page)}
+                            className={`w-8 h-8 rounded-lg text-sm font-medium transition-all duration-300 ${
+                              usersPagination.currentPage === page
+                                ? 'bg-[#D4AF37] text-black'
+                                : 'bg-[#1A1A1C] border border-[#1E1E21] text-[#EDEDED] hover:border-[#D4AF37]/40'
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        ))}
+                      </div>
+
                       <button
                         onClick={() =>
                           changePage('users', usersPagination.currentPage + 1)
@@ -1321,7 +1339,7 @@ const AdminPage = () => {
                 </div>
 
                 {payoutsPagination.totalPages > 1 && (
-                  <div className='px-4 sm:px-6 py-4 border-t border-[#1E1E21] flex items-center justify-between'>
+                  <div className='px-4 sm:px-6 py-4 border-t border-[#1E1E21] flex items-center justify-between flex-wrap gap-4'>
                     <div className='text-gray-400 text-sm'>
                       Showing {payoutsPagination.results} of{' '}
                       {payoutsPagination.totalResults} payouts
@@ -1339,9 +1357,27 @@ const AdminPage = () => {
                       >
                         Previous
                       </button>
-                      <span className='px-3 h-8 bg-[#D4AF37] text-black rounded-lg text-sm font-medium flex items-center'>
-                        {payoutsPagination.currentPage}
-                      </span>
+
+                      {/* Page Numbers */}
+                      <div className='flex items-center gap-1'>
+                        {Array.from(
+                          { length: payoutsPagination.totalPages },
+                          (_, i) => i + 1
+                        ).map((page) => (
+                          <button
+                            key={page}
+                            onClick={() => changePage('payouts', page)}
+                            className={`w-8 h-8 rounded-lg text-sm font-medium transition-all duration-300 ${
+                              payoutsPagination.currentPage === page
+                                ? 'bg-[#D4AF37] text-black'
+                                : 'bg-[#1A1A1C] border border-[#1E1E21] text-[#EDEDED] hover:border-[#D4AF37]/40'
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        ))}
+                      </div>
+
                       <button
                         onClick={() =>
                           changePage(
