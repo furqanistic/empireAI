@@ -1,4 +1,4 @@
-// File: controllers/admin.js - UPDATED: REMOVED TRIAL REFERENCES
+// File: controllers/admin.js - FIXED: Handle missing NotificationService
 import { getPlanDetails } from '../config/stripe.js'
 import { createError } from '../error.js'
 import Earnings from '../models/Earnings.js'
@@ -6,7 +6,7 @@ import Subscription from '../models/Subscription.js'
 import User from '../models/User.js'
 import NotificationService from '../services/notificationService.js'
 
-// Get admin statistics - UPDATED: REMOVED TRIAL REFERENCES
+// Get admin statistics
 export const getAdminStats = async (req, res, next) => {
   try {
     // Total users
@@ -32,8 +32,8 @@ export const getAdminStats = async (req, res, next) => {
     const revenueData = await Subscription.aggregate([
       {
         $match: {
-          status: { $in: ['active'] }, // Removed 'trialing' status
-          isGifted: { $ne: true }, // EXCLUDE gifted subscriptions
+          status: { $in: ['active'] },
+          isGifted: { $ne: true },
         },
       },
       {
@@ -67,10 +67,9 @@ export const getAdminStats = async (req, res, next) => {
       },
       {
         $match: {
-          // Only include earnings where subscription is NOT gifted
           $or: [
-            { subscriptionData: { $size: 0 } }, // No subscription found (shouldn't happen)
-            { 'subscriptionData.isGifted': { $ne: true } }, // Subscription exists but not gifted
+            { subscriptionData: { $size: 0 } },
+            { 'subscriptionData.isGifted': { $ne: true } },
           ],
         },
       },
@@ -88,7 +87,7 @@ export const getAdminStats = async (req, res, next) => {
         ? (commissionsData[0].totalCommissions / 100).toFixed(2)
         : '0.00'
 
-    // Pending payouts (all pending, regardless of gifted status for payout requests)
+    // Pending payouts
     const pendingPayoutsCount = await Earnings.countDocuments({
       status: 'approved',
       payoutStatus: { $in: ['pending', 'approved'] },
@@ -97,14 +96,14 @@ export const getAdminStats = async (req, res, next) => {
     // Count gifted subscriptions
     const giftedSubscriptions = await Subscription.countDocuments({
       isGifted: true,
-      status: { $in: ['active'] }, // Removed 'trialing'
+      status: { $in: ['active'] },
     })
 
-    // Additional stats - UPDATED: REMOVED TRIAL REFERENCES
+    // Additional stats
     const subscriptionStats = await Subscription.aggregate([
       {
         $match: {
-          status: { $in: ['active'] }, // Removed 'trialing'
+          status: { $in: ['active'] },
         },
       },
       {
@@ -123,8 +122,8 @@ export const getAdminStats = async (req, res, next) => {
         totalUsers,
         activeUsers,
         newUsersToday,
-        totalRevenue, // Now excludes gifted subscriptions
-        totalCommissions, // Now excludes earnings from gifted subscriptions
+        totalRevenue,
+        totalCommissions,
         pendingPayouts: pendingPayoutsCount,
         giftedSubscriptions,
         subscriptionBreakdown: subscriptionStats,
@@ -142,7 +141,7 @@ export const getAdminStats = async (req, res, next) => {
   }
 }
 
-// Update user subscription (admin can gift or modify plans) - ENHANCED
+// Update user subscription (admin can gift or modify plans)
 export const updateUserSubscription = async (req, res, next) => {
   try {
     const { userId } = req.params
@@ -218,10 +217,11 @@ export const updateUserSubscription = async (req, res, next) => {
       subscription.giftedBy = isGifted ? req.user._id : null
       subscription.giftedAt = isGifted ? new Date() : null
 
-      // Clear Stripe IDs for gifted subscriptions
+      // FIXED: Clear ALL Stripe IDs for gifted subscriptions
       if (isGifted) {
         subscription.stripeSubscriptionId = null
         subscription.stripePriceId = null
+        subscription.stripeCustomerId = null
       }
 
       await subscription.save()
@@ -229,7 +229,8 @@ export const updateUserSubscription = async (req, res, next) => {
       // Create new subscription
       subscription = new Subscription({
         user: userId,
-        stripeCustomerId: user.stripeCustomerId || `gift_${userId}`,
+        // Only set stripeCustomerId if NOT gifted
+        ...(isGifted ? {} : { stripeCustomerId: user.stripeCustomerId }),
         plan: planName,
         billingCycle: billingCycle,
         amount: amount,
@@ -239,8 +240,8 @@ export const updateUserSubscription = async (req, res, next) => {
         isGifted: isGifted,
         giftedBy: isGifted ? req.user._id : null,
         giftedAt: isGifted ? new Date() : null,
-        stripeSubscriptionId: null, // No Stripe ID for gifted
-        stripePriceId: null, // No Stripe price for gifted
+        stripeSubscriptionId: null,
+        stripePriceId: null,
       })
 
       await subscription.save()
@@ -259,24 +260,31 @@ export const updateUserSubscription = async (req, res, next) => {
       'subscription.isGifted': isGifted,
     })
 
-    // Send notification
+    // Send notification - FIXED: Check if service exists
     try {
-      await NotificationService.createNotification(userId, {
-        title: isGifted ? '🎁 Subscription Gifted!' : '✅ Subscription Updated',
-        message: isGifted
-          ? `You've been gifted a ${planDetails.name} plan by admin! Enjoy your free access.`
-          : `Your subscription has been updated to ${planDetails.name} (${billingCycle}).`,
-        type: isGifted ? 'subscription_gifted' : 'subscription_update',
-        priority: 'high',
-        data: {
-          plan: planName,
-          billingCycle: billingCycle,
-          isGifted: isGifted,
-          periodEnd: currentPeriodEnd,
-        },
-      })
+      if (
+        NotificationService &&
+        typeof NotificationService.createNotification === 'function'
+      ) {
+        await NotificationService.createNotification(userId, {
+          title: isGifted
+            ? '🎁 Subscription Gifted!'
+            : '✅ Subscription Updated',
+          message: isGifted
+            ? `You've been gifted a ${planDetails.name} plan by admin! Enjoy your free access.`
+            : `Your subscription has been updated to ${planDetails.name} (${billingCycle}).`,
+          type: isGifted ? 'subscription_gifted' : 'subscription_update',
+          priority: 'high',
+          data: {
+            plan: planName,
+            billingCycle: billingCycle,
+            isGifted: isGifted,
+            periodEnd: currentPeriodEnd,
+          },
+        })
+      }
     } catch (notifError) {
-      console.error('Error sending notification:', notifError)
+      console.warn('Warning: Could not send notification:', notifError.message)
     }
 
     res.status(200).json({
@@ -323,17 +331,22 @@ export const cancelUserSubscription = async (req, res, next) => {
       'subscription.isGifted': false,
     })
 
-    // Send notification
+    // Send notification - FIXED: Check if service exists
     try {
-      const user = await User.findById(userId)
-      await NotificationService.createNotification(userId, {
-        title: 'Subscription Cancelled',
-        message: 'Your subscription has been cancelled by admin.',
-        type: 'subscription_cancelled',
-        priority: 'high',
-      })
+      if (
+        NotificationService &&
+        typeof NotificationService.createNotification === 'function'
+      ) {
+        const user = await User.findById(userId)
+        await NotificationService.createNotification(userId, {
+          title: 'Subscription Cancelled',
+          message: 'Your subscription has been cancelled by admin.',
+          type: 'subscription_cancelled',
+          priority: 'high',
+        })
+      }
     } catch (notifError) {
-      console.error('Error sending notification:', notifError)
+      console.warn('Warning: Could not send notification:', notifError.message)
     }
 
     res.status(200).json({
@@ -382,16 +395,21 @@ export const reactivateUserSubscription = async (req, res, next) => {
       ),
     })
 
-    // Send notification
+    // Send notification - FIXED: Check if service exists
     try {
-      await NotificationService.createNotification(userId, {
-        title: 'Subscription Reactivated',
-        message: 'Your subscription has been reactivated by admin.',
-        type: 'subscription_reactivated',
-        priority: 'high',
-      })
+      if (
+        NotificationService &&
+        typeof NotificationService.createNotification === 'function'
+      ) {
+        await NotificationService.createNotification(userId, {
+          title: 'Subscription Reactivated',
+          message: 'Your subscription has been reactivated by admin.',
+          type: 'subscription_reactivated',
+          priority: 'high',
+        })
+      }
     } catch (notifError) {
-      console.error('Error sending notification:', notifError)
+      console.warn('Warning: Could not send notification:', notifError.message)
     }
 
     res.status(200).json({

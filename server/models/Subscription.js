@@ -1,4 +1,4 @@
-// File: models/Subscription.js - UPDATED: REMOVED TRIAL FUNCTIONALITY
+// File: models/Subscription.js - FIXED: ADDED SPARSE INDEXES FOR NULL VALUES
 import mongoose from 'mongoose'
 
 const SubscriptionSchema = new mongoose.Schema(
@@ -56,7 +56,6 @@ const SubscriptionSchema = new mongoose.Schema(
     currentPeriodEnd: {
       type: Date,
     },
-    // REMOVED: trialStart, trialEnd fields
     canceledAt: {
       type: Date,
     },
@@ -109,15 +108,15 @@ const SubscriptionSchema = new mongoose.Schema(
   }
 )
 
-// Indexes for better performance
+// Indexes for better performance - FIXED: Added sparse: true for nullable fields
 SubscriptionSchema.index({ user: 1 })
-SubscriptionSchema.index({ stripeCustomerId: 1 })
-SubscriptionSchema.index({ stripeSubscriptionId: 1 })
+SubscriptionSchema.index({ stripeCustomerId: 1, sparse: true }) // ✅ FIXED: Added sparse
+SubscriptionSchema.index({ stripeSubscriptionId: 1, sparse: true }) // ✅ FIXED: Added sparse
 SubscriptionSchema.index({ status: 1 })
 SubscriptionSchema.index({ plan: 1 })
 SubscriptionSchema.index({ currentPeriodEnd: 1 })
 
-// Virtual to check if subscription is active - UPDATED: REMOVED TRIAL STATUS
+// Virtual to check if subscription is active
 SubscriptionSchema.virtual('isActive').get(function () {
   return this.status === 'active'
 })
@@ -140,9 +139,7 @@ SubscriptionSchema.virtual('daysRemaining').get(function () {
   return Math.max(0, Math.ceil(timeDiff / (1000 * 60 * 60 * 24)))
 })
 
-// REMOVED: isTrialActive virtual
-
-// Method to update subscription status - UPDATED: REMOVED TRIAL LOGIC
+// Method to update subscription status
 SubscriptionSchema.methods.updateFromStripe = function (stripeSubscription) {
   this.status = stripeSubscription.status
 
@@ -161,8 +158,6 @@ SubscriptionSchema.methods.updateFromStripe = function (stripeSubscription) {
 
   this.cancelAtPeriodEnd = stripeSubscription.cancel_at_period_end
 
-  // REMOVED: Trial-related field updates
-
   return this.save()
 }
 
@@ -179,10 +174,10 @@ SubscriptionSchema.methods.addPaymentToHistory = function (paymentData) {
   return this.save()
 }
 
-// Static method to find active subscriptions - UPDATED: REMOVED TRIAL STATUS
+// Static method to find active subscriptions
 SubscriptionSchema.statics.findActive = function () {
   return this.find({
-    status: 'active', // Removed 'trialing'
+    status: 'active',
   })
 }
 
@@ -192,7 +187,7 @@ SubscriptionSchema.statics.findExpiringSoon = function (days = 7) {
   futureDate.setDate(futureDate.getDate() + days)
 
   return this.find({
-    status: 'active', // Removed 'trialing'
+    status: 'active',
     currentPeriodEnd: { $lte: futureDate },
   })
 }
