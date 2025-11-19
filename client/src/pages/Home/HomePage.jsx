@@ -1,3 +1,4 @@
+// File: client/src/pages/Home/HomePage.jsx
 import React, { useState } from 'react'
 
 // Icon component matching Layout style
@@ -15,10 +16,48 @@ const CrownLogo = ({ size = 18 }) => (
 
 const HomePage = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isVideoOpen, setIsVideoOpen] = useState(false)
 
   const handleGetStarted = () => {
     window.location.href = '/auth'
   }
+
+  // Video Modal Component
+  const VideoModal = () => (
+    <div
+      className='fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4'
+      onClick={(e) => {
+        if (e.target === e.currentTarget) setIsVideoOpen(false)
+      }}
+    >
+      <div className='relative w-full max-w-4xl'>
+        {/* Close Button */}
+        <button
+          onClick={() => setIsVideoOpen(false)}
+          className='absolute -top-12 right-0 text-white hover:text-[#D4AF37] transition-colors duration-300 text-2xl font-bold'
+        >
+          ✕
+        </button>
+
+        {/* Video Container */}
+        <div className='rounded-lg overflow-hidden border border-[#D4AF37]/30 shadow-2xl shadow-[#D4AF37]/20'>
+          <div className='bg-black aspect-video'>
+            <video className='w-full h-full' controls controlsList='nodownload'>
+              <source src='/demo.mp4' type='video/mp4' />
+              Your browser does not support the video tag.
+            </video>
+          </div>
+        </div>
+
+        {/* Video Info */}
+        <div className='mt-4 text-center'>
+          <p className='text-gray-300 text-sm'>
+            Watch how to build your digital empire in minutes
+          </p>
+        </div>
+      </div>
+    </div>
+  )
 
   const FeatureCard = ({ icon, title, description }) => (
     <div className='group relative p-6 rounded-lg border border-gray-800 bg-gray-950/40 backdrop-blur-sm hover:border-[#D4AF37]/50 hover:bg-gray-900/60 transition-all duration-300 cursor-pointer overflow-hidden'>
@@ -130,6 +169,9 @@ const HomePage = () => {
 
   return (
     <div className='min-h-screen bg-black text-white'>
+      {/* Video Modal */}
+      {isVideoOpen && <VideoModal />}
+
       {/* Navigation */}
       <nav className='fixed top-0 left-0 right-0 z-50 border-b border-gray-900 bg-black/95 backdrop-blur-sm'>
         <div className='max-w-7xl mx-auto px-6 py-4 flex items-center justify-between'>
@@ -221,6 +263,13 @@ const HomePage = () => {
               <span className='group-hover:translate-x-1 transition-transform duration-300'>
                 →
               </span>
+            </button>
+            <button
+              onClick={() => setIsVideoOpen(true)}
+              className='group flex items-center justify-center gap-2 px-8 py-4 rounded-lg border border-[#D4AF37]/50 text-white font-semibold hover:bg-[#D4AF37]/10 hover:border-[#D4AF37] transition-all duration-300 hover:scale-105'
+            >
+              <span className='text-lg'>▶</span>
+              Watch Demo
             </button>
           </div>
         </div>
