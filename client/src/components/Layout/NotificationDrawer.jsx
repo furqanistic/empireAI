@@ -1,4 +1,4 @@
-// File: client/src/components/NotificationDrawer.jsx
+// File: client/src/components/Layout/NotificationDrawer.jsx
 import {
   useClearReadNotifications,
   useDeleteNotification,
@@ -8,6 +8,7 @@ import {
   useUnreadCount,
 } from '@/hooks/useAuth'
 import { formatTimeAgo } from '@/utils/timeUtils'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
   AlertTriangle,
   Bell,
@@ -22,6 +23,7 @@ import {
   Lock,
   Megaphone,
   Shield,
+  Sparkles,
   Star,
   Trash2,
   TrendingUp,
@@ -52,352 +54,211 @@ const NotificationDrawer = ({ isOpen, onClose }) => {
   // Auto mark all as read when drawer opens
   useEffect(() => {
     if (isOpen && unreadCount > 0 && !markAllAsReadMutation.isPending) {
-      // Small delay to ensure the drawer has opened
       const timer = setTimeout(() => {
         markAllAsReadMutation.mutateAsync().catch((error) => {
           console.error('Error auto-marking notifications as read:', error)
         })
       }, 300)
-
       return () => clearTimeout(timer)
     }
   }, [isOpen, unreadCount, markAllAsReadMutation])
 
-  // Helper function to get notification icon with updated subscription types
   const getNotificationIcon = (type) => {
     switch (type) {
-      // Referral notifications
-      case 'referral_join':
-        return <User size={16} className='text-blue-500' />
-      case 'referral_reward':
-        return <DollarSign size={16} className='text-emerald-500' />
-
-      // Trial notifications
-      case 'trial_started':
-        return <Gift size={16} className='text-green-500' />
-      case 'trial_ending_soon':
-        return <Clock size={16} className='text-yellow-500' />
-      case 'trial_ended':
-        return <AlertTriangle size={16} className='text-orange-500' />
-
-      // Subscription notifications
-      case 'subscription_activated':
-        return <CheckCircle size={16} className='text-emerald-500' />
-      case 'subscription_upgraded':
-        return <TrendingUp size={16} className='text-[#D4AF37]' />
-      case 'subscription_downgraded':
-        return (
-          <TrendingUp
-            size={16}
-            className='text-orange-500 transform rotate-180'
-          />
-        )
-      case 'subscription_cancelled':
-        return <XCircle size={16} className='text-red-500' />
-      case 'subscription_expired':
-        return <Calendar size={16} className='text-red-500' />
-      case 'subscription_renewed':
-        return <CheckCircle size={16} className='text-green-500' />
-
-      // Payment notifications
-      case 'payment_successful':
-        return <CreditCard size={16} className='text-emerald-500' />
-      case 'payment_failed':
-        return <XCircle size={16} className='text-red-500' />
-      case 'payment_retry':
-        return <Clock size={16} className='text-yellow-500' />
-      case 'payout_processed':
-        return <DollarSign size={16} className='text-emerald-500' />
-      case 'commission_earned':
-        return <DollarSign size={16} className='text-[#D4AF37]' />
-
-      // General notifications
-      case 'achievement':
-        return <Trophy size={16} className='text-[#D4AF37]' />
-      case 'system_announcement':
-        return <Megaphone size={16} className='text-purple-500' />
-      case 'account_update':
-        return <User size={16} className='text-blue-500' />
-      case 'payment_update':
-        return <CreditCard size={16} className='text-emerald-500' />
-      case 'subscription_update':
-        return <Crown size={16} className='text-[#D4AF37]' />
-      case 'security_alert':
-        return <Shield size={16} className='text-red-500' />
-      case 'points':
-        return <Zap size={16} className='text-yellow-500' />
-
-      default:
-        return <Bell size={16} className='text-gray-400' />
+      case 'referral_join': return <User size={16} className='text-blue-400' />
+      case 'referral_reward': return <DollarSign size={16} className='text-emerald-400' />
+      case 'trial_started': return <Gift size={16} className='text-emerald-400' />
+      case 'trial_ending_soon': return <Clock size={16} className='text-amber-400' />
+      case 'trial_ended': return <AlertTriangle size={16} className='text-orange-500' />
+      case 'subscription_activated': return <CheckCircle size={16} className='text-emerald-400' />
+      case 'subscription_upgraded': return <TrendingUp size={16} className='text-gold' />
+      case 'subscription_downgraded': return <TrendingUp size={16} className='text-orange-500 rotate-180' />
+      case 'subscription_cancelled': return <XCircle size={16} className='text-red-400' />
+      case 'subscription_expired': return <Calendar size={16} className='text-red-400' />
+      case 'subscription_renewed': return <CheckCircle size={16} className='text-emerald-400' />
+      case 'payment_successful': return <CreditCard size={16} className='text-emerald-400' />
+      case 'payment_failed': return <XCircle size={16} className='text-red-400' />
+      case 'payment_retry': return <Clock size={16} className='text-amber-400' />
+      case 'payout_processed': return <DollarSign size={16} className='text-emerald-400' />
+      case 'commission_earned': return <DollarSign size={16} className='text-gold' />
+      case 'achievement': return <Trophy size={16} className='text-gold' />
+      case 'system_announcement': return <Megaphone size={16} className='text-indigo-400' />
+      case 'account_update': return <User size={16} className='text-blue-400' />
+      case 'payment_update': return <CreditCard size={16} className='text-emerald-400' />
+      case 'subscription_update': return <Crown size={16} className='text-gold' />
+      case 'security_alert': return <Shield size={16} className='text-red-400' />
+      case 'points': return <Zap size={16} className='text-gold' />
+      default: return <Bell size={16} className='text-gray-400' />
     }
   }
 
-  // Helper function to get priority styling
-  const getPriorityStyles = (priority) => {
+  const getPriorityClasses = (priority) => {
     switch (priority) {
-      case 'urgent':
-        return 'border-l-4 border-red-500 bg-red-500/5'
-      case 'high':
-        return 'border-l-4 border-[#D4AF37] bg-[#D4AF37]/5'
-      case 'medium':
-        return 'border-l-4 border-blue-500 bg-blue-500/5'
-      case 'low':
-        return 'border-l-4 border-gray-400 bg-gray-400/5'
-      default:
-        return ''
+      case 'urgent': return 'ring-1 ring-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.05)]'
+      case 'high': return 'ring-1 ring-gold/30 shadow-[0_0_15px_rgba(212,175,55,0.05)]'
+      default: return ''
     }
   }
 
-  // Helper function to format notification message for display
-  const formatNotificationMessage = (notification) => {
-    const message = notification.message
-
-    // Truncate long messages
-    if (message.length > 120) {
-      return message.substring(0, 120) + '...'
-    }
-
-    return message
-  }
-
-  // Helper function to get notification category for grouping
-  const getNotificationCategory = (type) => {
-    const categories = {
-      // Subscription related
-      trial_started: 'subscription',
-      trial_ending_soon: 'subscription',
-      trial_ended: 'subscription',
-      subscription_activated: 'subscription',
-      subscription_upgraded: 'subscription',
-      subscription_downgraded: 'subscription',
-      subscription_cancelled: 'subscription',
-      subscription_expired: 'subscription',
-      subscription_renewed: 'subscription',
-      subscription_update: 'subscription',
-
-      // Payment related
-      payment_successful: 'payment',
-      payment_failed: 'payment',
-      payment_retry: 'payment',
-      payout_processed: 'payment',
-      commission_earned: 'payment',
-      payment_update: 'payment',
-
-      // Referral related
-      referral_join: 'referral',
-      referral_reward: 'referral',
-
-      // Other
-      achievement: 'achievement',
-      system_announcement: 'system',
-      account_update: 'account',
-      security_alert: 'security',
-      points: 'points',
-    }
-
-    return categories[type] || 'general'
-  }
-
-  // Handle notification click
-  const handleNotificationClick = async (notification) => {
-    // Since all notifications are auto-marked as read when drawer opens,
-    // we don't need to mark individual notifications as read on click
-
-    // Navigate to action URL if provided
-    if (notification.actionUrl) {
-      onClose()
-      // You can use React Router's navigate here if needed
-    }
-  }
-
-  // Handle delete notification
   const handleDeleteNotification = async (notificationId, e) => {
     e.stopPropagation()
     try {
       await deleteNotificationMutation.mutateAsync(notificationId)
-    } catch (error) {
-      console.error('Error deleting notification:', error)
-    }
+    } catch (error) {}
   }
 
-  // Handle clear read notifications
   const handleClearRead = async () => {
     try {
       await clearReadMutation.mutateAsync()
-    } catch (error) {
-      console.error('Error clearing read notifications:', error)
-    }
+    } catch (error) {}
   }
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className={`fixed inset-0 bg-black/50 z-40 backdrop-blur-sm transition-opacity duration-300 ease-in-out ${
-          isOpen
-            ? 'opacity-100 pointer-events-auto'
-            : 'opacity-0 pointer-events-none'
-        }`}
-        onClick={onClose}
-      />
-
-      {/* Drawer */}
-      <div
-        className={`fixed top-0 right-0 h-full w-full md:w-96 bg-[#121214] border-l border-[#1E1E21] z-50 transform transition-transform duration-300 ease-in-out ${
-          isOpen ? 'translate-x-0' : 'translate-x-full'
-        }`}
-      >
-        {/* Header */}
-        <div className='flex items-center justify-between p-4 border-b border-[#1E1E21]'>
-          <div className='flex items-center gap-3'>
-            <Bell size={20} className='text-[#D4AF37]' />
-            <h2 className='text-lg font-semibold text-[#EDEDED]'>
-              Notifications
-            </h2>
-            {/* Show loading indicator when auto-marking as read */}
-            {markAllAsReadMutation.isPending && (
-              <div className='w-4 h-4 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin' />
-            )}
-          </div>
-          <button
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             onClick={onClose}
-            className='p-2 rounded-lg bg-[#1A1A1C] text-[#EDEDED] hover:bg-[#1E1E21] transition-colors h-8 w-8 flex items-center justify-center'
+            className='fixed inset-0 bg-black/80 z-[100] backdrop-blur-md'
+          />
+
+          {/* Drawer */}
+          <motion.div
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className='fixed top-0 right-0 h-full w-full md:w-[380px] bg-[#0A0A0B] border-l border-white/5 z-[110] shadow-2xl flex flex-col'
           >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Actions - Simplified since auto-mark is enabled */}
-        <div className='p-4 border-b border-[#1E1E21] flex justify-between items-center'>
-          <div className='flex items-center gap-2 text-sm text-gray-400'>
-            <Check size={14} className='text-[#D4AF37]' />
-            <span>Auto-marked as read</span>
-          </div>
-
-          <button
-            onClick={handleClearRead}
-            disabled={clearReadMutation.isPending}
-            className='text-sm text-gray-400 hover:text-gray-300 font-medium disabled:opacity-50 disabled:cursor-not-allowed'
-          >
-            {clearReadMutation.isPending ? 'Clearing...' : 'Clear all'}
-          </button>
-        </div>
-
-        {/* Notifications List */}
-        <div className='flex-1 overflow-y-auto'>
-          {isLoading ? (
-            <div className='flex items-center justify-center p-8'>
-              <div className='w-6 h-6 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin' />
-            </div>
-          ) : notifications.length === 0 ? (
-            <div className='flex flex-col items-center justify-center p-8 text-center'>
-              <Bell size={48} className='text-gray-400 mb-4' />
-              <h3 className='text-lg font-medium text-[#EDEDED] mb-2'>
-                No notifications
-              </h3>
-              <p className='text-gray-400 text-sm'>
-                You're all caught up! New notifications will appear here.
-              </p>
-            </div>
-          ) : (
-            notifications.map((notification) => (
-              <div
-                key={notification._id}
-                onClick={() => handleNotificationClick(notification)}
-                className={`group p-4 border-b border-[#1E1E21] hover:bg-[#1A1A1C] transition-colors cursor-pointer relative ${getPriorityStyles(
-                  notification.priority
-                )}`}
-              >
-                <div className='flex items-start gap-3'>
-                  <div className='mt-1 flex-shrink-0'>
-                    {getNotificationIcon(notification.type)}
+            {/* Header */}
+            <div className='p-5 border-b border-white/5'>
+              <div className='flex items-center justify-between mb-1'>
+                <div className='flex items-center gap-2.5'>
+                  <div className='bg-gold/10 p-1.5 rounded-lg text-gold'>
+                    <Bell size={18} />
                   </div>
-                  <div className='flex-1 min-w-0'>
-                    <div className='flex items-center gap-2 mb-1'>
-                      <h4 className='text-sm font-medium text-[#EDEDED] truncate'>
-                        {notification.title}
-                      </h4>
-                      {notification.priority === 'urgent' && (
-                        <div className='text-xs bg-red-500 text-white px-2 py-0.5 rounded-full font-medium'>
-                          URGENT
-                        </div>
-                      )}
-                    </div>
-                    <p className='text-xs text-gray-400 mb-2 leading-relaxed'>
-                      {formatNotificationMessage(notification)}
-                    </p>
-                    <div className='flex items-center justify-between'>
-                      <div className='flex items-center gap-2 text-xs text-gray-500'>
-                        <Clock size={12} />
-                        <span>{formatTimeAgo(notification.createdAt)}</span>
-                        {/* Show notification category tag */}
-                        <span className='bg-gray-600 text-gray-300 px-1 py-0.5 rounded text-[10px] uppercase font-medium'>
-                          {getNotificationCategory(notification.type)}
-                        </span>
-                      </div>
-                      {notification.actionText && notification.actionUrl && (
-                        <Link
-                          to={notification.actionUrl}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onClose()
-                          }}
-                          className='text-xs text-[#D4AF37] hover:text-[#D4AF37]/80 font-medium'
-                        >
-                          {notification.actionText}
-                        </Link>
-                      )}
-                    </div>
-                    {/* Show additional data for certain notification types */}
-                    {notification.data && (
-                      <div className='mt-2'>
-                        {notification.type === 'payment_successful' &&
-                          notification.data.amount && (
-                            <div className='text-xs text-emerald-400 font-medium'>
-                              Amount: $
-                              {(notification.data.amount / 100).toFixed(2)}{' '}
-                              {notification.data.currency?.toUpperCase() ||
-                                'USD'}
-                            </div>
-                          )}
-                        {notification.type === 'commission_earned' &&
-                          notification.data.rewardAmount && (
-                            <div className='text-xs text-[#D4AF37] font-medium'>
-                              Commission: ${notification.data.rewardAmount} from{' '}
-                              {notification.data.referredUserName}
-                            </div>
-                          )}
-                        {(notification.type === 'trial_ending_soon' ||
-                          notification.type === 'trial_ended') &&
-                          notification.data.trialDaysRemaining !==
-                            undefined && (
-                            <div className='text-xs text-yellow-400 font-medium'>
-                              {notification.data.trialDaysRemaining > 0
-                                ? `${notification.data.trialDaysRemaining} days remaining`
-                                : 'Trial expired'}
-                            </div>
-                          )}
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    onClick={(e) =>
-                      handleDeleteNotification(notification._id, e)
-                    }
-                    disabled={deleteNotificationMutation.isPending}
-                    className='opacity-0 group-hover:opacity-100 p-1 rounded text-gray-400 hover:text-red-400 transition-all flex-shrink-0'
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  <h2 className='text-lg font-bold text-white tracking-tight'>Notifications</h2>
                 </div>
+                <button
+                  onClick={onClose}
+                  className='h-8 w-8 rounded-lg bg-white/5 border border-white/5 flex items-center justify-center text-gray-500 hover:text-white transition-all'
+                >
+                  <X size={18} />
+                </button>
               </div>
-            ))
-          )}
-        </div>
+              <div className='flex items-center justify-between mt-5'>
+                <p className='text-[9px] font-black tracking-widest text-gray-600 uppercase'>Recent Activity</p>
+                <button
+                  onClick={handleClearRead}
+                  disabled={clearReadMutation.isPending || notifications.length === 0}
+                  className='text-[10px] font-bold text-gold hover:text-gold/80 transition-colors disabled:opacity-30 disabled:cursor-not-allowed uppercase tracking-wider'
+                >
+                  {clearReadMutation.isPending ? 'Clearing...' : 'Clear All'}
+                </button>
+              </div>
+            </div>
 
-        {/* Footer */}
-      </div>
-    </>
+            {/* List */}
+            <div className='flex-1 overflow-y-auto px-5 py-3 custom-scrollbar space-y-3'>
+              {isLoading ? (
+                <div className='flex flex-col items-center justify-center h-full gap-4 text-gray-600 font-medium'>
+                  <div className='w-6 h-6 border-2 border-gold/30 border-t-gold rounded-full animate-spin' />
+                  <p className='text-[10px] uppercase tracking-widest'>Accessing Feed</p>
+                </div>
+              ) : notifications.length === 0 ? (
+                <div className='flex flex-col items-center justify-center h-full text-center'>
+                  <div className='h-16 w-16 rounded-[1.5rem] bg-white/5 flex items-center justify-center mb-4 text-gray-600 group'>
+                    <Sparkles size={32} className='group-hover:text-gold transition-colors duration-700' />
+                  </div>
+                  <h3 className='text-white font-bold text-base mb-1'>All Caught Up</h3>
+                  <p className='text-gray-500 text-xs max-w-[240px]'>You have no new notifications.</p>
+                </div>
+              ) : (
+                notifications.map((notification, index) => (
+                  <motion.div
+                    key={notification._id}
+                    initial={{ opacity: 0, scale: 0.98, y: 5 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{ delay: index * 0.03 }}
+                    className={`group relative p-3 rounded-xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] hover:border-white/10 transition-all duration-300 ${getPriorityClasses(notification.priority)}`}
+                  >
+                    <div className='flex items-start gap-3'>
+                      <div className='mt-0.5 p-1.5 rounded-lg bg-white/5 text-gray-400 group-hover:text-gold transition-colors'>
+                        {getNotificationIcon(notification.type)}
+                      </div>
+                      <div className='flex-1 min-w-0'>
+                        <div className='flex items-center justify-between gap-2 mb-0.5'>
+                          <h4 className='text-xs font-bold text-white truncate group-hover:text-gold transition-colors'>
+                            {notification.title}
+                          </h4>
+                          <span className='text-[9px] whitespace-nowrap text-gray-600 font-bold'>
+                            {formatTimeAgo(notification.createdAt)}
+                          </span>
+                        </div>
+                        <p className='text-[11px] text-gray-400 leading-relaxed mb-2 line-clamp-2'>
+                          {notification.message}
+                        </p>
+                        
+                        <div className='flex items-center justify-between'>
+                          <div className='flex items-center gap-2'>
+                             <span className='px-1.5 py-0.5 rounded bg-white/5 border border-white/5 text-[8px] font-black uppercase text-gray-500 tracking-wider'>
+                               {notification.type.split('_').join(' ')}
+                             </span>
+                          </div>
+                          
+                          <div className='flex items-center gap-2'>
+                            {notification.actionUrl && (
+                              <Link
+                                to={notification.actionUrl}
+                                onClick={onClose}
+                                className='text-[10px] font-bold text-gold hover:underline'
+                              >
+                                View
+                              </Link>
+                            )}
+                            <button
+                              onClick={(e) => handleDeleteNotification(notification._id, e)}
+                              className='p-1 text-gray-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100'
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Extra Data Badges */}
+                        {notification.data && (
+                          <div className='mt-2'>
+                            {notification.type === 'payment_successful' && notification.data.amount && (
+                              <span className='text-[10px] font-bold text-emerald-400'>
+                                ${ (notification.data.amount / 100).toFixed(2) } Success
+                              </span>
+                            )}
+                            {notification.type === 'commission_earned' && notification.data.rewardAmount && (
+                              <span className='text-[10px] font-bold text-gold'>
+                                ${notification.data.rewardAmount} Reward
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                ))
+              )}
+            </div>
+            
+            {/* Simple Footer */}
+            <div className='p-6 border-t border-white/5 text-center'>
+               <p className='text-[10px] font-black text-gray-700 uppercase tracking-[0.3em]'>System Core v2.0</p>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
   )
 }
 
