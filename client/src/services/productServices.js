@@ -4,7 +4,9 @@ import axiosInstance from '../config/config.js'
 export const productService = {
   // Generate complete digital product
   generateProduct: async (productData) => {
-    const response = await axiosInstance.post('/products/generate', productData)
+    const response = await axiosInstance.post('/products/generate', productData, {
+      timeout: 120000, // 120 seconds for large context generation
+    })
     return response.data
   },
 

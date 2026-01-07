@@ -141,9 +141,9 @@ export const generateProduct = async (req, res, next) => {
 
     // Validate custom context length
     if (customContext && typeof customContext === 'string') {
-      if (customContext.length > 2000) {
+      if (customContext.length > 10000) {
         return next(
-          createError(400, 'Custom context must be less than 2000 characters')
+          createError(400, 'Custom context must be less than 10,000 characters')
         )
       }
     }

@@ -37,10 +37,10 @@ export const validateProductRequest = (req, res, next) => {
 
     // Validate custom context length if provided (increased limit)
     if (customContext && typeof customContext === 'string') {
-      if (customContext.length > 5000) {
-        // Increased from 2000
+      if (customContext.length > 10000) {
+        // Increased from 5000
         return next(
-          createError(400, 'Custom context must be less than 5000 characters')
+          createError(400, 'Custom context must be less than 10,000 characters')
         )
       }
     }
@@ -154,7 +154,7 @@ export const enrichUserContext = (req, res, next) => {
         // Remove any subscription checks - everyone gets full access
         hasFullAccess: true,
         canUseDetailedMode: true,
-        maxCustomContextLength: 5000,
+        maxCustomContextLength: 10000,
       }
     }
 
@@ -290,11 +290,11 @@ export const validateEnhancedProductRequest = (req, res, next) => {
       )
     }
 
-    if (customContext && customContext.length > 5000) {
+    if (customContext && customContext.length > 10000) {
       return next(
         createError(
           400,
-          'Custom context is too long. Maximum 5000 characters allowed.'
+          'Custom context is too long. Maximum 10,000 characters allowed.'
         )
       )
     }

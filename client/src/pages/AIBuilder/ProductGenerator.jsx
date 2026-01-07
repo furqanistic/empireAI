@@ -811,23 +811,55 @@ const ProductGenerator = () => {
 
             {/* Step 6: Custom Context */}
             <div className='space-y-4'>
-              <div className='flex items-center gap-3'>
-                <div className='w-8 h-8 rounded-full border-2 border-gray-600 text-gray-400 flex items-center justify-center text-sm font-bold'>
-                  6
+              <div className='flex items-center justify-between gap-3'>
+                <div className='flex items-center gap-3'>
+                  <div className='w-8 h-8 rounded-full border-2 border-gray-600 text-gray-400 flex items-center justify-center text-sm font-bold'>
+                    6
+                  </div>
+                  <h2 className='text-xl font-semibold text-[#EDEDED]'>
+                    Additional Context (Optional)
+                  </h2>
                 </div>
-                <h2 className='text-xl font-semibold text-[#EDEDED]'>
-                  Additional Context (Optional)
-                </h2>
+                <div
+                  className={`text-xs font-medium px-2 py-1 rounded-md transition-colors ${
+                    customContext.length > 9500
+                      ? 'bg-red-500/10 text-red-400'
+                      : customContext.length > 8000
+                      ? 'bg-yellow-500/10 text-yellow-400'
+                      : 'bg-[#1E1E21] text-gray-500'
+                  }`}
+                >
+                  {customContext.length.toLocaleString()} / 10,000
+                </div>
               </div>
 
-              <div className='ml-11'>
+              <div className='ml-11 space-y-2'>
                 <textarea
                   value={customContext}
                   onChange={(e) => setCustomContext(e.target.value)}
                   disabled={isGenerating}
-                  placeholder='Add specific requirements, unique selling points, competitor insights, or any special considerations...'
-                  className='w-full max-w-3xl bg-gradient-to-br from-[#121214] to-[#0A0A0C] border border-[#1E1E21] rounded-xl px-4 py-4 text-[#EDEDED] placeholder-gray-400 focus:outline-none focus:border-[#D4AF37]/40 h-24 resize-none disabled:opacity-50'
+                  maxLength={10000}
+                  placeholder='Add specific requirements, unique selling points, competitor insights, or any special considerations (Max 10,000 characters)...'
+                  className={`w-full max-w-3xl bg-gradient-to-br from-[#121214] to-[#0A0A0C] border rounded-xl px-4 py-4 text-[#EDEDED] placeholder-gray-400 focus:outline-none transition-all duration-200 h-32 resize-none disabled:opacity-50 ${
+                    customContext.length >= 10000
+                      ? 'border-red-500/50 focus:border-red-500'
+                      : 'border-[#1E1E21] focus:border-[#D4AF37]/40'
+                  }`}
                 />
+                {customContext.length >= 10000 && (
+                  <p className='text-red-400 text-xs flex items-center gap-1 animate-pulse'>
+                    <AlertCircle size={12} />
+                    Maximum character limit reached
+                  </p>
+                )}
+                {customContext.length > 0 &&
+                  customContext.length < 10000 &&
+                  customContext.length > 9000 && (
+                    <p className='text-yellow-400 text-xs flex items-center gap-1'>
+                      <HelpCircle size={12} />
+                      Approaching character limit
+                    </p>
+                  )}
               </div>
             </div>
 
