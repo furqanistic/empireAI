@@ -1,41 +1,48 @@
-// File: client/src/pages/Layout/Layout.jsx - UPDATED WITH COPYRIGHT & TRADEMARK NOTICES
-
+// File: client/src/pages/Layout/Layout.jsx
 import AscendAIChatbot from '@/components/Layout/AscendAIChatbot.jsx'
 import NotificationDrawer from '@/components/Layout/NotificationDrawer.jsx'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Bell,
-  Bot,
-  Box,
-  CreditCard,
-  Crown,
-  CrownIcon,
-  DollarSign,
-  Gem,
-  Home,
-  LogOut,
-  Menu,
-  MessageCircle,
-  PanelLeft,
-  PanelRight,
-  Shield,
-  Star,
-  User,
-  User2,
-  Users,
-  X,
-  Zap,
+    Bell,
+    Bot,
+    Box,
+    Cpu,
+    CreditCard,
+    Crown,
+    DollarSign,
+    Gem,
+    HelpCircle,
+    Home,
+    LayoutDashboard,
+    LogOut,
+    Menu,
+    MessageCircle,
+    PanelLeft,
+    PanelRight,
+    Settings,
+    Shield,
+    Star,
+    User,
+    User2,
+    UserPlus,
+    Users,
+    Wallet,
+    X,
+    Zap,
 } from 'lucide-react'
 import React, { useState } from 'react'
 import { FaDiscord } from 'react-icons/fa'
 import { useSelector } from 'react-redux'
 import { Link, useLocation } from 'react-router-dom'
 import {
-  useCurrentUser,
-  useLogout,
-  usePointsStatus,
+    useCurrentUser,
+    useLogout,
+    usePointsStatus,
 } from '../../hooks/useAuth.js'
 import { useUnreadCount } from '../../hooks/useNotifications.js'
 import { selectIsAdmin, selectUserPlan } from '../../redux/userSlice.js'
+
+const PRIMARY_GOLD = '#D4AF37'
 
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -43,553 +50,310 @@ const Layout = ({ children }) => {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false)
   const [showText, setShowText] = useState(true)
 
-  // Redux state
   const currentUser = useCurrentUser()
   const isAdmin = useSelector(selectIsAdmin)
   const logoutMutation = useLogout()
   const userPlan = useSelector(selectUserPlan)
 
-  // Notification data
   const { data: unreadData } = useUnreadCount()
   const unreadCount = unreadData?.data?.unreadCount || 0
 
-  // Points data
   const { data: pointsData, isLoading: pointsLoading } = usePointsStatus()
   const userPoints = pointsData?.data?.points || 0
 
-  // Get current location to determine active menu item
   const location = useLocation()
 
-  const CustomCrown = ({ size = 16, className = '' }) => (
+  const CrownLogo = ({ size = 20, className = '' }) => (
     <svg
       xmlns='http://www.w3.org/2000/svg'
       viewBox='0 0 256 256'
-      width='1em'
-      height='1em'
+      width={size}
+      height={size}
       className={className}
+      fill='currentColor'
     >
-      <path
-        fill='currentColor'
-        d='M248 80a28 28 0 1 0-51.12 15.77l-26.79 33L146 73.4a28 28 0 1 0-36.06 0l-24.03 55.34l-26.79-33a28 28 0 1 0-26.6 12L47 194.63A16 16 0 0 0 62.78 208h130.44A16 16 0 0 0 209 194.63l14.47-86.85A28 28 0 0 0 248 80M128 40a12 12 0 1 1-12 12a12 12 0 0 1 12-12M24 80a12 12 0 1 1 12 12a12 12 0 0 1-12-12m196 12a12 12 0 1 1 12-12a12 12 0 0 1-12 12'
-      />
+      <path d='M248 80a28 28 0 1 0-51.12 15.77l-26.79 33L146 73.4a28 28 0 1 0-36.06 0l-24.03 55.34l-26.79-33a28 28 0 1 0-26.6 12L47 194.63A16 16 0 0 0 62.78 208h130.44A16 16 0 0 0 209 194.63l14.47-86.85A28 28 0 0 0 248 80M128 40a12 12 0 1 1-12 12a12 12 0 0 1 12-12M24 80a12 12 0 1 1 12 12a12 12 0 0 1-12-12m196 12a12 12 0 1 1 12-12a12 12 0 0 1-12 12' />
     </svg>
   )
 
-  const AIIcon = ({ size = 16, className = '' }) => (
-    <div className={`relative ${className}`}>
-      <div className='relative flex items-center justify-center'>
-        <MessageCircle size={size} className='text-current' />
-
-        {/* Crown with glow */}
-        <div className='absolute -top-2.25 right-0.5'>
-          <CustomCrown
-            size={size * 0.6}
-            className='relative text-current z-10'
-          />
-        </div>
-      </div>
-    </div>
-  )
-
   const menuItems = [
-    {
-      id: 'dashboard',
-      label: 'Dashboard',
-      icon: <Home size={18} />,
-      path: '/dashboard',
-    },
-    {
-      id: 'ai-builder',
-      label: 'AI Builder',
-      icon: <Bot size={18} />,
-      path: '/build',
-      badge: 'START HERE',
-      badgeColor: 'bg-emerald-500',
-    },
-    {
-      id: 'ai-chat',
-      label: 'AI Assistant',
-      icon: <AIIcon size={18} />,
-      path: '/chat',
-    },
-    {
-      id: 'earnings',
-      label: 'Earnings',
-      icon: <DollarSign size={18} />,
-      path: '/earn',
-    },
-    {
-      id: 'affiliate-army',
-      label: 'Affiliate Army',
-      icon: <Users size={18} />,
-      path: '/invite',
-      badge: 'Join',
-      badgeColor: 'bg-blue-500',
-    },
-    {
-      id: 'paid',
-      label: 'Get Paid',
-      icon: <CreditCard size={18} />,
-      path: '/payout',
-      badgeColor: 'bg-blue-500',
-    },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
+    { id: 'ai-builder', label: 'AI Builder', icon: Cpu, path: '/build', badge: 'PRO', badgeColor: 'bg-gold/20 text-gold border border-gold/10' },
+    { id: 'ai-chat', label: 'AI Assistant', icon: Bot, path: '/chat' },
+    { id: 'earnings', label: 'Earnings', icon: Wallet, path: '/earn' },
+    { id: 'affiliate-army', label: 'Affiliate Army', icon: UserPlus, path: '/invite' },
+    { id: 'paid', label: 'Get Paid', icon: CreditCard, path: '/payout' },
   ]
 
   const advancedItems = [
-    {
-      id: 'products',
-      label: 'Products',
-      icon: <Box size={18} />,
-      path: '/product',
-    },
-    {
-      id: 'profile',
-      label: 'Profile',
-      icon: <User2 size={18} />,
-      path: '/profile',
-    },
-    {
-      id: 'pricing',
-      label: 'Pricing',
-      icon: <Gem size={18} />,
-      path: '/pricing',
-    },
-    ...(isAdmin
-      ? [
-          {
-            id: 'admin',
-            label: 'Admin Panel',
-            icon: <Shield size={18} />,
-            path: '/admin',
-            badge: 'ADMIN',
-            badgeColor: 'bg-red-500',
-          },
-        ]
-      : []),
+    { id: 'products', label: 'Sell Products', icon: Box, path: '/product' },
+    { id: 'profile', label: 'Profile', icon: User, path: '/profile' },
+    { id: 'pricing', label: 'Pricing', icon: Gem, path: '/pricing' },
+    ...(isAdmin ? [{ id: 'admin', label: 'Admin Panel', icon: Shield, path: '/admin', badge: 'ADM' }] : []),
   ]
 
-  const communityItems = [
-    {
-      id: 'discord',
-      label: 'Discord Server',
-      icon: <FaDiscord size={18} />,
-      path: 'https://discord.gg/t7r94BZUXv', // Replace with your actual Discord invite link
-      external: true,
-      badge: 'JOIN',
-      badgeColor: 'bg-indigo-500',
-    },
-  ]
+  const isActive = (path) => location.pathname === path
 
-  // Function to check if menu item is active
-  const isActive = (itemPath) => {
-    return location.pathname === itemPath
-  }
-
-  // Handle sidebar toggle with text animation
   const handleSidebarToggle = () => {
     if (sidebarOpen) {
-      // Closing sidebar - hide text immediately
       setShowText(false)
-      setSidebarOpen(false)
+      setTimeout(() => setSidebarOpen(false), 50)
     } else {
-      // Opening sidebar - show sidebar first, then text after animation
       setSidebarOpen(true)
-      setTimeout(() => {
-        setShowText(true)
-      }, 200) // Delay text appearance until sidebar animation is mostly complete
+      setTimeout(() => setShowText(true), 200)
     }
   }
 
-  // Handle logout
   const handleLogout = async () => {
     try {
       await logoutMutation.mutateAsync()
       window.location.href = '/auth'
     } catch (error) {
-      console.error('Logout error:', error)
       window.location.href = '/auth'
     }
   }
 
-  const MenuItem = ({ item, section }) => {
+  const MenuItem = ({ item }) => {
     const active = isActive(item.path)
+    const Icon = item.icon
 
-    // Handle external links (like Discord)
+    const content = (
+      <div className={`
+        group relative flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-300
+        ${active ? 'bg-gold text-black shadow-[0_0_20px_rgba(212,175,55,0.2)]' : 'text-gray-400 hover:text-white hover:bg-white/5'}
+        ${!sidebarOpen ? 'justify-center px-0' : ''}
+      `}>
+        <Icon size={sidebarOpen ? 18 : 22} className={active ? 'text-black' : 'group-hover:text-gold transition-colors'} />
+        
+        {sidebarOpen && showText && (
+          <div className='flex-1 flex items-center justify-between whitespace-nowrap overflow-hidden'>
+            <span className='font-medium text-[13px] tracking-tight'>{item.label}</span>
+            {item.badge && (
+              <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-md ${item.badgeColor || 'bg-white/10 text-white/60'}`}>
+                {item.badge}
+              </span>
+            )}
+          </div>
+        )}
+
+        {active && (
+          <div className='absolute -left-3 w-1 h-5 bg-gold rounded-full' />
+        )}
+      </div>
+    )
+
     if (item.external) {
       return (
-        <li>
-          <a
-            href={item.path}
-            target='_blank'
-            rel='noopener noreferrer'
-            className='block'
-            title={!sidebarOpen ? item.label : undefined}
-          >
-            <button
-              className={`group w-full flex items-center ${
-                sidebarOpen ? 'gap-3 px-3' : 'justify-center px-0'
-              } py-2.5 rounded-lg transition-all duration-200 text-sm font-medium ${
-                item.premium
-                  ? 'text-gray-500 hover:text-gray-400 hover:bg-[#1A1A1C]'
-                  : 'text-[#EDEDED] hover:bg-[#1A1A1C] hover:text-white'
-              }`}
-              disabled={item.premium}
-            >
-              <span>{item.icon}</span>
-
-              {showText && sidebarOpen && (
-                <>
-                  <span className='flex-1 text-left truncate'>
-                    {item.label}
-                  </span>
-
-                  {item.badge && (
-                    <span
-                      className={`${item.badgeColor} text-white text-[10px] px-1.5 py-0.5 rounded-md font-semibold tracking-wide`}
-                    >
-                      {item.badge}
-                    </span>
-                  )}
-
-                  {item.premium && (
-                    <Star
-                      size={14}
-                      className='text-[#D4AF37] opacity-60 group-hover:opacity-80'
-                      fill='currentColor'
-                    />
-                  )}
-                </>
-              )}
-            </button>
-          </a>
-        </li>
+        <a href={item.path} target='_blank' rel='noopener noreferrer' className='block my-1'>
+          {content}
+        </a>
       )
     }
 
-    // Handle internal links
     return (
-      <li>
-        <Link to={item.path || '#'}>
-          <button
-            className={`group w-full flex items-center ${
-              sidebarOpen ? 'gap-3 px-3' : 'justify-center px-0'
-            } py-2.5 rounded-lg transition-all duration-200 text-sm font-medium ${
-              active
-                ? 'bg-[#D4AF37] text-black shadow-sm'
-                : item.premium
-                ? 'text-gray-500 hover:text-gray-400 hover:bg-[#1A1A1C]'
-                : 'text-[#EDEDED] hover:bg-[#1A1A1C] hover:text-white'
-            }`}
-            disabled={item.premium}
-            title={!sidebarOpen ? item.label : undefined}
-          >
-            <span className={`${active ? 'text-black' : ''}`}>{item.icon}</span>
-
-            {showText && sidebarOpen && (
-              <>
-                <span className='flex-1 text-left truncate'>{item.label}</span>
-
-                {item.badge && (
-                  <span
-                    className={`${item.badgeColor} text-white text-[10px] px-1.5 py-0.5 rounded-md font-semibold tracking-wide`}
-                  >
-                    {item.badge}
-                  </span>
-                )}
-
-                {item.premium && (
-                  <Star
-                    size={14}
-                    className='text-[#D4AF37] opacity-60 group-hover:opacity-80'
-                    fill='currentColor'
-                  />
-                )}
-              </>
-            )}
-          </button>
-        </Link>
-      </li>
+      <Link to={item.path} className='block my-1'>
+        {content}
+      </Link>
     )
   }
 
-  const SidebarContent = () => (
-    <>
-      {/* Logo Section */}
-      <div
-        className={`${
-          sidebarOpen ? 'px-4 py-6' : 'px-2 py-6'
-        } border-b border-[#1E1E21]`}
-      >
-        <div className='flex items-center justify-between'>
-          <div
-            className={`flex items-center ${
-              sidebarOpen ? 'gap-3' : 'justify-center w-full'
-            }`}
-          >
-            <div className='text-[#D4AF37] p-2 rounded-lg bg-[#D4AF37]/10'>
-              <CrownIcon />
-            </div>
-            {showText && sidebarOpen && (
-              <div>
-                <h1 className='text-lg font-bold text-[#D4AF37] leading-none'>
-                  Ascend AI
-                </h1>
-                <p className='text-[10px] text-gray-400 uppercase tracking-wider font-semibold'>
-                  EMPIRE
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Mobile Close Button */}
-          <button
-            onClick={() => setIsMobileMenuOpen(false)}
-            className='md:hidden p-2 rounded-lg bg-[#1A1A1C] text-[#EDEDED] hover:bg-[#1E1E21] transition-colors h-8 w-8 flex items-center justify-center'
-          >
-            <X size={18} />
-          </button>
-        </div>
-      </div>
-
-      <nav
-        className={`flex-1 ${
-          sidebarOpen ? 'px-3' : 'px-1'
-        } py-6 space-y-8 overflow-y-auto`}
-      >
-        {/* Essential Tools */}
-        <div>
-          {showText && sidebarOpen && (
-            <h3 className='text-[11px] uppercase tracking-wider text-gray-400 font-semibold mb-4 px-3'>
-              Essential Tools
-            </h3>
-          )}
-          <ul className={`space-y-1 ${!sidebarOpen ? 'mt-0' : ''}`}>
-            {menuItems.map((item) => (
-              <MenuItem key={item.id} item={item} section='essential' />
-            ))}
-          </ul>
-        </div>
-
-        {/* Advanced Tools */}
-        <div>
-          {showText && sidebarOpen && (
-            <h3 className='text-[11px] uppercase tracking-wider text-gray-400 font-semibold mb-4 px-3'>
-              Advanced Tools
-            </h3>
-          )}
-          <ul className='space-y-1'>
-            {advancedItems.map((item) => (
-              <MenuItem key={item.id} item={item} section='advanced' />
-            ))}
-          </ul>
-        </div>
-
-        {/* Community */}
-        <div>
-          {showText && sidebarOpen && (
-            <h3 className='text-[11px] uppercase tracking-wider text-gray-400 font-semibold mb-4 px-3'>
-              Community
-            </h3>
-          )}
-          <ul className='space-y-1'>
-            {communityItems.map((item) => (
-              <MenuItem key={item.id} item={item} section='community' />
-            ))}
-          </ul>
-        </div>
-      </nav>
-
-      {/* Footer */}
-      <div className='border-t border-[#1E1E21] p-3 space-y-3'>
-        {/* Logout Button */}
-        <button
-          onClick={handleLogout}
-          disabled={logoutMutation.isPending}
-          className={`w-full flex items-center ${
-            sidebarOpen ? 'justify-center gap-2 px-4' : 'justify-center px-0'
-          } py-2.5 rounded-lg bg-red-600 text-[#EDEDED] hover:bg-red-800 cursor-pointer transition-colors duration-200 text-sm font-medium h-8 disabled:opacity-50 disabled:cursor-not-allowed`}
-          title={!sidebarOpen ? 'Logout' : undefined}
-        >
-          {logoutMutation.isPending ? (
-            <div className='w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin' />
-          ) : (
-            <LogOut size={16} />
-          )}
-          {showText &&
-            sidebarOpen &&
-            (logoutMutation.isPending ? 'Logging out...' : 'Logout')}
-        </button>
-      </div>
-    </>
-  )
-
-  // If user is not authenticated, redirect to auth
   if (!currentUser) {
     window.location.href = '/auth'
     return null
   }
 
   return (
-    <div className='flex h-screen bg-[#0B0B0C] text-[#EDEDED]'>
-      {/* Top Bar */}
-      <header
-        className={`fixed top-0 z-20 h-14 md:h-16 bg-[#0B0B0C]/95 backdrop-blur-sm border-b border-[#1E1E21] flex items-center px-4 md:px-6 transition-all duration-300 ${
-          sidebarOpen
-            ? 'left-0 md:left-64 right-0'
-            : 'left-0 md:left-16 right-0'
-        }`}
-      >
-        <div className='flex items-center justify-between w-full max-w-screen-2xl mx-auto'>
-          {/* Left Section */}
-          <div className='flex items-center gap-4'>
-            {/* Mobile menu button */}
-            <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className='md:hidden p-2 rounded-lg bg-[#121214] border border-[#1E1E21] text-[#EDEDED] hover:bg-[#1A1A1C] transition-colors h-9 w-9 flex items-center justify-center'
-            >
-              {isMobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
-            </button>
-
-            {/* Desktop sidebar toggle button */}
-            <button
-              onClick={handleSidebarToggle}
-              className='hidden md:flex p-2 rounded-lg bg-[#D4AF37] text-black hover:bg-[#D4AF37]/80 transition-colors h-9 w-9 items-center justify-center font-bold'
-              title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-            >
-              {sidebarOpen ? <PanelLeft size={20} /> : <PanelRight size={20} />}
-            </button>
-          </div>
-
-          {/* Right Section */}
-          <div className='flex items-center gap-3'>
-            {/* Points Display */}
-            <div className='hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#121214] border border-[#1E1E21]'>
-              <Zap size={16} className='text-[#D4AF37]' />
-              <span className='text-[#D4AF37] font-bold text-sm'>
-                {pointsLoading ? '...' : userPoints.toLocaleString()}
-              </span>
-              <span className='text-gray-400 text-xs hidden md:inline'>
-                points
-              </span>
-            </div>
-
-            {/* Mobile Points Display */}
-            <div className='sm:hidden flex items-center gap-1 px-2 py-1 rounded-lg bg-[#121214] border border-[#1E1E21]'>
-              <Zap size={14} className='text-[#D4AF37]' />
-              <span className='text-[#D4AF37] font-bold text-xs'>
-                {pointsLoading ? '...' : userPoints.toLocaleString()}
-              </span>
-            </div>
-
-            {/* Notifications */}
-            <button
-              onClick={() => setIsNotificationOpen(true)}
-              className='relative p-2 rounded-lg bg-[#121214] border border-[#1E1E21] text-[#EDEDED] hover:bg-[#1A1A1C] transition-colors h-9 w-9 flex items-center justify-center'
-            >
-              <Bell size={22} />
-              {unreadCount > 0 && (
-                <span className='absolute -top-1 -right-1 w-4 h-4 bg-[#D4AF37] rounded-full text-black text-[10px] font-bold flex items-center justify-center'>
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </span>
-              )}
-            </button>
-
-            {/* User Profile */}
-            <div className='hidden md:flex items-center gap-3'>
-              <div className='flex items-center gap-3 px-3 py-1.5 rounded-lg transition-colors cursor-pointer'>
-                <div className='w-9 h-9 rounded-full bg-[#D4AF37] flex items-center justify-center'>
-                  <User size={22} className='text-black' />
-                </div>
-                <div className='text-left'>
-                  <p className='font-medium text-sm leading-none'>
-                    {currentUser?.name || 'User'}
-                  </p>
-                  <div className='flex items-center gap-1.5 mt-1'>
-                    <Star
-                      size={10}
-                      className='text-[#D4AF37]'
-                      fill='currentColor'
-                    />
-                    <span className='text-[#D4AF37] font-semibold text-[10px] uppercase tracking-wider'>
-                      {isAdmin ? 'ADMIN' : userPlan + ' PLAN'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Mobile User Info */}
-            <div className='md:hidden flex items-center gap-2'>
-              <div className='w-8 h-8 rounded-full bg-[#D4AF37] flex items-center justify-center'>
-                <User size={22} className='text-black' />
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Mobile sidebar overlay */}
-      {isMobileMenuOpen && (
-        <div
-          className='fixed inset-0 bg-black/75 z-20 md:hidden backdrop-blur-sm'
-          onClick={() => setIsMobileMenuOpen(false)}
-        />
-      )}
+    <div className='flex h-screen bg-black text-[#EDEDED] overflow-hidden selection:bg-gold/30 selection:text-gold'>
+      {/* Sidebar Overlay */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsMobileMenuOpen(false)}
+            className='fixed inset-0 z-[40] bg-black/80 backdrop-blur-sm md:hidden'
+          />
+        )}
+      </AnimatePresence>
 
       {/* Sidebar */}
       <aside
-        className={`fixed md:relative z-30 h-full ${
-          sidebarOpen ? 'w-64' : 'w-16'
-        } border-r border-[#1E1E21] bg-[#121214] transform transition-all duration-300 ease-in-out
-          ${
-            isMobileMenuOpen ? 'translate-x-0 w-64' : '-translate-x-full'
-          } md:translate-x-0`}
+        className={`
+          fixed md:relative z-[50] h-full transition-all duration-500 ease-in-out border-r border-white/5 bg-[#050505]
+          ${sidebarOpen ? 'w-64' : 'w-20'}
+          ${isMobileMenuOpen ? 'translate-x-0 w-64' : '-translate-x-full md:translate-x-0'}
+        `}
       >
-        <div className='h-full flex flex-col'>
-          <SidebarContent />
+        <div className='flex h-full flex-col'>
+          {/* Logo Section */}
+          <div className='p-6 mb-4'>
+            <div className={`flex items-center ${sidebarOpen ? 'gap-3' : 'justify-center'}`}>
+              <div className='text-gold bg-gold/10 p-2.5 rounded-2xl shadow-[0_0_15px_rgba(212,175,55,0.1)]'>
+                <CrownLogo size={24} />
+              </div>
+              {sidebarOpen && showText && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                  <h1 className='text-xl font-bold tracking-tighter text-white leading-none'>
+                    Ascnd<span className='text-gold'>Labs</span>
+                  </h1>
+                  <span className='text-[8px] font-black tracking-[0.3em] text-gray-600 uppercase mt-1 block'>
+                    EMPIRE
+                  </span>
+                </motion.div>
+              )}
+            </div>
+          </div>
+
+          {/* Navigation Area */}
+          <div className='flex-1 overflow-y-auto overflow-x-hidden px-4 scrollbar-hide' style={{ msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
+            <style>{`
+              .scrollbar-hide::-webkit-scrollbar {
+                display: none;
+              }
+            `}</style>
+            <div className='space-y-6 pb-4'>
+              {/* Group 1 */}
+              <div>
+                {sidebarOpen && showText && (
+                  <p className='text-[9px] font-black tracking-[0.2em] text-gray-600 uppercase mb-3 ml-2'>
+                    Core Systems
+                  </p>
+                )}
+                <div className='space-y-0.5'>
+                  {menuItems.map(item => <MenuItem key={item.id} item={item} />)}
+                </div>
+              </div>
+
+              {/* Group 2 */}
+              <div>
+                {sidebarOpen && showText && (
+                  <p className='text-[9px] font-black tracking-[0.2em] text-gray-600 uppercase mb-3 ml-2'>
+                    Extended Module
+                  </p>
+                )}
+                <div className='space-y-0.5'>
+                  {advancedItems.map(item => <MenuItem key={item.id} item={item} />)}
+                </div>
+              </div>
+
+              {/* Discord Link Card */}
+              {sidebarOpen && showText && (
+                <div className='mt-6 px-1'>
+                   <a 
+                     href='https://discord.gg/t7r94BZUXv' 
+                     target='_blank' 
+                     rel='noopener noreferrer'
+                     className='group block p-3 rounded-2xl bg-gradient-to-br from-indigo-500/10 to-transparent border border-indigo-500/10 hover:border-indigo-500/30 transition-all'
+                   >
+                      <div className='flex items-center gap-3 mb-1.5'>
+                         <FaDiscord className='text-indigo-400 group-hover:scale-110 transition-transform' size={16} />
+                         <span className='text-[11px] font-bold'>Alpha Discord</span>
+                      </div>
+                      <p className='text-[9px] text-gray-500 leading-tight font-medium'>Access tactical channels & network.</p>
+                   </a>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* User / Footer */}
+          <div className='p-4 mt-auto border-t border-white/5'>
+             {sidebarOpen ? (
+               <div className='flex items-center gap-3 p-2 rounded-2xl bg-white/5 border border-white/5 mb-3'>
+                  <div className='h-10 w-10 rounded-xl bg-gold/10 flex items-center justify-center text-gold border border-gold/10'>
+                     <User size={20} />
+                  </div>
+                  <div className='flex-1 overflow-hidden'>
+                     <p className='text-sm font-bold text-white truncate'>{currentUser?.name || 'Agent'}</p>
+                     <p className='text-[10px] font-bold text-gold/60 uppercase tracking-tighter'>{isAdmin ? 'Nexus Admin' : 'Founder'}</p>
+                  </div>
+                  <button onClick={handleLogout} className='p-1.5 hover:text-red-400 transition-colors'>
+                     <LogOut size={16} />
+                  </button>
+               </div>
+             ) : (
+               <div className='flex flex-col items-center gap-4 py-2'>
+                  <button onClick={handleLogout} className='text-gray-500 hover:text-red-400 transition-colors'>
+                     <LogOut size={20} />
+                  </button>
+               </div>
+             )}
+          </div>
         </div>
       </aside>
 
-      {/* Notification Drawer */}
+      {/* Main Content Area */}
+      <div className='flex-1 flex flex-col relative overflow-hidden'>
+        {/* Top Header */}
+        <header className='h-16 flex items-center justify-between px-6 border-b border-white/5 bg-black/50 backdrop-blur-xl sticky top-0 z-[30]'>
+          <div className='flex items-center gap-4'>
+            <button
+              onClick={() => setIsMobileMenuOpen(true)}
+              className='md:hidden p-2 text-gray-400 hover:text-white'
+            >
+              <Menu size={20} />
+            </button>
+            <button
+              onClick={handleSidebarToggle}
+              className='hidden md:flex p-2 text-gray-500 hover:text-gold transition-colors'
+            >
+              {sidebarOpen ? <PanelLeft size={20} /> : <PanelRight size={20} />}
+            </button>
+            <div className='h-6 w-px bg-white/5 hidden md:block' />
+            <h2 className='text-sm font-bold text-gray-400 hidden sm:block'>
+               {menuItems.find(i => isActive(i.path))?.label || advancedItems.find(i => isActive(i.path))?.label || 'Nexus Console'}
+            </h2>
+          </div>
+
+          <div className='flex items-center gap-3'>
+            {/* Credits/Points Badge */}
+            <div className='flex items-center gap-2 px-3 py-1.5 rounded-full bg-gold/5 border border-gold/20'>
+               <Zap size={14} className='text-gold' />
+               <span className='text-xs font-black text-gold'>{pointsLoading ? '...' : userPoints.toLocaleString()}</span>
+               <span className='text-[10px] font-bold text-gold/40 hidden md:block'>CREDITS</span>
+            </div>
+
+            <button 
+              onClick={() => setIsNotificationOpen(true)}
+              className='relative p-2.5 text-gray-400 hover:text-white rounded-xl bg-white/5 border border-white/5 transition-all'
+            >
+              <Bell size={20} />
+              {unreadCount > 0 && (
+                <span className='absolute top-2 right-2 w-2 h-2 bg-gold rounded-full shadow-[0_0_10px_rgba(212,175,55,0.5)]' />
+              )}
+            </button>
+
+            <Link to='/profile' className='h-10 w-10 rounded-xl overflow-hidden border border-white/10 hover:border-gold/50 transition-all'>
+               <div className='h-full w-full bg-gradient-to-br from-gold/20 to-transparent flex items-center justify-center text-gold'>
+                  <User size={20} />
+               </div>
+            </Link>
+          </div>
+        </header>
+
+        {/* Dynamic Content */}
+        <main className='flex-1 overflow-y-auto bg-[#030303] custom-scrollbar relative'>
+          <div className='p-6 max-w-7xl mx-auto min-h-full'>
+            {children}
+          </div>
+          
+          {/* Subtle footer */}
+          <footer className='py-6 px-10 border-t border-white/5 opacity-50 text-[10px] font-medium tracking-widest text-center uppercase flex flex-col md:flex-row justify-center gap-4'>
+             <span>© 2025 Ascnd Labs LLC.</span>
+             <Link to='/privacy' className='hover:text-gold transition-colors'>Privacy</Link>
+             <Link to='/terms' className='hover:text-gold transition-colors'>Terms</Link>
+          </footer>
+        </main>
+      </div>
+
+      {/* Notification Drawer Component */}
       <NotificationDrawer
         isOpen={isNotificationOpen}
         onClose={() => setIsNotificationOpen(false)}
       />
 
-      {/* Main Content */}
-      <main className='flex-1 overflow-auto pt-14 md:pt-16 bg-[#0B0B0C] flex flex-col'>
-        <div className='flex-1'>{children}</div>
-
-        {/* Minimal Footer with Copyright & Trademark */}
-        <footer className='mt-auto border-t border-[#1E1E21] bg-[#0B0B0C] py-3 px-4'>
-          <div className='text-center space-y-2'>
-            <div className='text-[10px] text-gray-600 space-y-1'>
-              <div>
-                © {new Date().getFullYear()} Ascend AI. All rights reserved.
-              </div>
-              <div>Ascend AI™ is a trademark of Ascnd Labs LLC.</div>
-            </div>
-            {/* Legal Links */}
-            <div className='flex items-center justify-center gap-4 pt-1'>
-              <Link
-                to='/privacy'
-                className='text-[9px] text-gray-500 hover:text-[#D4AF37] transition-colors duration-300 uppercase tracking-wider font-medium'
-              >
-                Privacy Policy
-              </Link>
-              <div className='w-px h-2 bg-gray-600'></div>
-              <Link
-                to='/terms'
-                className='text-[9px] text-gray-500 hover:text-[#D4AF37] transition-colors duration-300 uppercase tracking-wider font-medium'
-              >
-                Terms of Service
-              </Link>
-            </div>
-          </div>
-        </footer>
-      </main>
-
-      {/* Ascend AI Chatbot - Only show if not on /chat route */}
+      {/* AI Bot Overlay */}
       {location.pathname !== '/chat' && <AscendAIChatbot />}
     </div>
   )

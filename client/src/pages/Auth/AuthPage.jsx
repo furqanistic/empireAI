@@ -1,35 +1,52 @@
-// File: client/src/pages/Auth/AuthPage.jsx - UPDATED WITH TERMS & POLICY AGREEMENT
+// File: client/src/pages/Auth/AuthPage.jsx
+import { AnimatePresence, motion } from 'framer-motion'
 import {
-  AlertTriangle,
-  ArrowLeft,
-  ArrowRight,
-  CheckCircle,
-  Eye,
-  EyeOff,
-  Gift,
-  Lock,
-  Mail,
-  Shield,
-  Timer,
-  User,
-  XCircle,
+    AlertTriangle,
+    ArrowLeft,
+    ArrowRight,
+    CheckCircle,
+    Eye,
+    EyeOff,
+    Gift,
+    Globe,
+    Lock,
+    Mail,
+    Shield,
+    TrendingUp,
+    User,
+    X,
+    XCircle,
+    Zap
 } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
 import { useSelector } from 'react-redux'
 import {
-  useAuthLoading,
-  useCurrentUser,
-  useForgotPassword,
-  useResetPassword,
-  useSendExistingUserVerificationOTP,
-  useSendSignupOTP, // NEW: For existing users
-  useSignin,
-  useValidateReferralCode,
-  useVerifyExistingUserEmail,
-  useVerifyOTP,
-  useVerifySignupOTP,
+    useCurrentUser,
+    useForgotPassword,
+    useResetPassword,
+    useSendExistingUserVerificationOTP,
+    useSendSignupOTP,
+    useSignin,
+    useValidateReferralCode,
+    useVerifyExistingUserEmail,
+    useVerifyOTP,
+    useVerifySignupOTP,
 } from '../../hooks/useAuth.js'
 import { selectIsLoading } from '../../redux/userSlice.js'
+
+const PRIMARY_GOLD = '#D4AF37'
+
+// Reusable Components
+const GlassCard = ({ children, className = '' }) => (
+  <motion.div
+    initial={{ opacity: 0, scale: 0.95, y: 20 }}
+    animate={{ opacity: 1, scale: 1, y: 0 }}
+    exit={{ opacity: 0, scale: 0.95, y: -20 }}
+    className={`relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-8 shadow-2xl ${className}`}
+  >
+    {children}
+  </motion.div>
+)
 
 const Input = ({
   icon: Icon,
@@ -43,41 +60,64 @@ const Input = ({
   ...props
 }) => {
   const [showPassword, setShowPassword] = useState(false)
+  const [isFocused, setIsFocused] = useState(false)
   const inputType = type === 'password' && showPassword ? 'text' : type
+  const isFloating = isFocused || (value && value.toString().length > 0)
 
   return (
-    <div className='space-y-1'>
+    <div className='group space-y-1 w-full'>
       <div className='relative'>
-        <div className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400'>
+        <div className={`absolute left-4 transition-all duration-300 z-20 pointer-events-none ${isFloating ? 'top-4 text-gold' : 'top-1/2 -translate-y-1/2 text-gray-500'} ${isFocused ? 'text-gold' : ''}`}>
           <Icon size={18} />
         </div>
+        
         <input
           type={inputType}
-          placeholder={placeholder}
           value={value}
           onChange={onChange}
-          className={`w-full h-10 pl-11 pr-12 bg-[#121214] border rounded-lg text-[#EDEDED] placeholder-gray-400 transition-all duration-200 focus:outline-none focus:ring-1 focus:ring-[#D4AF37]/20 focus:border-[#D4AF37] ${
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          className={`w-full h-14 pl-12 pr-12 bg-black/40 border rounded-2xl text-white transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-gold/5 ${
+            isFloating ? 'pt-5 pb-1' : 'pt-0'
+          } ${
             error
-              ? 'border-red-500'
+              ? 'border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.1)]'
               : success
-              ? 'border-green-500'
-              : 'border-[#1E1E21]'
-          } hover:border-[#D4AF37]/30`}
+              ? 'border-green-500/50'
+              : isFocused ? 'border-gold shadow-[0_0_20px_rgba(212,175,55,0.1)]' : 'border-white/10'
+          } hover:border-white/20`}
           autoFocus={autoFocus}
           {...props}
         />
+
+        <label 
+          className={`absolute left-12 pointer-events-none transition-all duration-300 z-20
+            ${isFloating 
+                ? 'top-2 text-gold text-[9px] font-black uppercase tracking-[0.2em]' 
+                : 'top-1/2 -translate-y-1/2 text-gray-500 text-sm'}`}
+        >
+          {placeholder}
+        </label>
+
         {type === 'password' && (
           <button
             type='button'
             onClick={() => setShowPassword(!showPassword)}
-            className='absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-[#EDEDED] transition-colors'
+            className={`absolute right-4 top-1/2 -translate-y-1/2 transition-colors z-20 ${showPassword ? 'text-gold' : 'text-gray-500 hover:text-white'}`}
           >
             {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
           </button>
         )}
       </div>
-      {error && <p className='text-red-400 text-sm ml-1'>{error}</p>}
-      {success && <p className='text-green-400 text-sm ml-1'>{success}</p>}
+      {error && (
+        <motion.p 
+          initial={{ opacity: 0, x: -10 }} 
+          animate={{ opacity: 1, x: 0 }} 
+          className='text-red-500 text-[10px] font-bold uppercase tracking-wider ml-4'
+        >
+          {error}
+        </motion.p>
+      )}
     </div>
   )
 }
@@ -90,45 +130,43 @@ const Button = ({
   ...props
 }) => {
   const baseClasses =
-    'h-10 px-4 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed'
+    'relative h-12 px-6 rounded-2xl font-bold transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed group'
 
   const variants = {
     primary:
-      'bg-[#D4AF37] text-black hover:bg-[#D4AF37]/90 active:scale-[0.98]',
+      'bg-gold text-black hover:shadow-[0_0_20px_rgba(212,175,55,0.3)] hover:scale-[1.02] active:scale-[0.98]',
     secondary:
-      'bg-[#121214] border border-[#1E1E21] text-[#EDEDED] hover:border-[#D4AF37]/30 hover:bg-[#1E1E21]/30',
-    ghost: 'text-[#D4AF37] hover:text-[#D4AF37]/80 hover:bg-[#D4AF37]/10',
+      'bg-white/5 border border-white/10 text-white hover:bg-white/10 hover:border-white/20',
+    ghost: 'text-gold hover:bg-gold/10',
   }
 
   return (
-    <button
+    <motion.button
+      whileTap={{ scale: 0.98 }}
       className={`${baseClasses} ${variants[variant]} ${className}`}
       disabled={loading}
       {...props}
     >
       {loading ? (
-        <div className='w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin' />
+        <div className='w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin' />
       ) : (
-        children
+        <>
+          {children}
+        </>
       )}
-    </button>
+    </motion.button>
   )
 }
 
-// OTP Input Component
 const OTPInput = ({ value, onChange, length = 6, error }) => {
   const inputRefs = useRef([])
 
   const handleChange = (index, val) => {
-    if (!/^\d*$/.test(val)) return // Only allow digits
-
+    if (!/^\d*$/.test(val)) return 
     const newValue = value.split('')
     newValue[index] = val
     const otpValue = newValue.join('')
-
     onChange(otpValue)
-
-    // Auto-focus next input
     if (val && index < length - 1) {
       inputRefs.current[index + 1]?.focus()
     }
@@ -140,20 +178,9 @@ const OTPInput = ({ value, onChange, length = 6, error }) => {
     }
   }
 
-  const handlePaste = (e) => {
-    e.preventDefault()
-    const pasteData = e.clipboardData.getData('text').slice(0, length)
-    if (/^\d+$/.test(pasteData)) {
-      onChange(pasteData.padEnd(length, ''))
-      // Focus the next empty input or the last one
-      const nextIndex = Math.min(pasteData.length, length - 1)
-      inputRefs.current[nextIndex]?.focus()
-    }
-  }
-
   return (
-    <div className='space-y-1'>
-      <div className='flex justify-center gap-3'>
+    <div className='space-y-4'>
+      <div className='flex justify-center gap-2 sm:gap-4'>
         {Array.from({ length }, (_, index) => (
           <input
             key={index}
@@ -163,10 +190,9 @@ const OTPInput = ({ value, onChange, length = 6, error }) => {
             value={value[index] || ''}
             onChange={(e) => handleChange(index, e.target.value)}
             onKeyDown={(e) => handleKeyDown(index, e)}
-            onPaste={handlePaste}
-            className={`w-12 h-12 text-center text-xl font-mono bg-[#121214] border rounded-lg text-[#EDEDED] transition-all duration-200 focus:outline-none focus:ring-1 focus:ring-[#D4AF37]/20 focus:border-[#D4AF37] ${
-              error ? 'border-red-500' : 'border-[#1E1E21]'
-            } hover:border-[#D4AF37]/30`}
+            className={`w-10 h-12 sm:w-12 sm:h-14 text-center text-xl font-bold bg-white/5 border rounded-xl text-white transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-gold/10 ${
+              error ? 'border-red-500/50' : 'border-white/10'
+            } focus:border-gold`}
             autoComplete='off'
           />
         ))}
@@ -176,9 +202,21 @@ const OTPInput = ({ value, onChange, length = 6, error }) => {
   )
 }
 
+// Icon component
+const CrownLogo = ({ size = 24 }) => (
+  <svg
+    xmlns='http://www.w3.org/2000/svg'
+    viewBox='0 0 256 256'
+    width={size}
+    height={size}
+    fill='currentColor'
+  >
+    <path d='M248 80a28 28 0 1 0-51.12 15.77l-26.79 33L146 73.4a28 28 0 1 0-36.06 0l-24.03 55.34l-26.79-33a28 28 0 1 0-26.6 12L47 194.63A16 16 0 0 0 62.78 208h130.44A16 16 0 0 0 209 194.63l14.47-86.85A28 28 0 0 0 248 80M128 40a12 12 0 1 1-12 12a12 12 0 0 1 12-12M24 80a12 12 0 1 1 12 12a12 12 0 0 1-12-12m196 12a12 12 0 1 1 12-12a12 12 0 0 1-12 12' />
+  </svg>
+)
+
 export default function AuthPage() {
-  // Auth flow states - UPDATED with email verification flows
-  const [authFlow, setAuthFlow] = useState('signin') // 'signin', 'signup', 'signup-otp', 'forgot', 'otp', 'reset', 'verify-email', 'verify-email-otp'
+  const [authFlow, setAuthFlow] = useState('signin')
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -190,73 +228,53 @@ export default function AuthPage() {
   })
   const [errors, setErrors] = useState({})
   const [referralValidation, setReferralValidation] = useState(null)
-  // NEW: Terms and policy agreement state
   const [agreedToTerms, setAgreedToTerms] = useState(false)
 
-  // Redux state
   const currentUser = useCurrentUser()
   const isLoading = useSelector(selectIsLoading)
   const authError = useSelector((state) => state.user.error)
 
-  // React Query hooks
   const signinMutation = useSignin()
   const sendSignupOTPMutation = useSendSignupOTP()
   const verifySignupOTPMutation = useVerifySignupOTP()
   const forgotPasswordMutation = useForgotPassword()
   const verifyOTPMutation = useVerifyOTP()
   const resetPasswordMutation = useResetPassword()
-
-  // NEW: Email verification hooks for existing users
   const sendExistingUserOTPMutation = useSendExistingUserVerificationOTP()
   const verifyExistingUserOTPMutation = useVerifyExistingUserEmail()
 
-  // Check for referral code in URL parameters
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     const refCode = urlParams.get('ref')
-
     if (refCode && refCode.trim()) {
       setFormData((prev) => ({
         ...prev,
         referralCode: refCode.trim().toUpperCase(),
       }))
-      // Switch to signup mode if referral code is present
       setAuthFlow('signup')
     }
   }, [])
 
-  // Referral code validation
   const {
     data: referralValidationData,
     isLoading: isValidatingReferral,
-    error: referralValidationError,
   } = useValidateReferralCode(
     formData.referralCode.trim(),
     authFlow === 'signup' && formData.referralCode.trim().length >= 3
   )
 
-  // Redirect if user is already authenticated
   useEffect(() => {
     if (currentUser) {
       window.location.href = '/dashboard'
     }
   }, [currentUser])
 
-  // Update referral validation state when data changes
   useEffect(() => {
     if (referralValidationData) {
       setReferralValidation(referralValidationData.data)
-    } else if (referralValidationError) {
-      setReferralValidation({
-        isValid: false,
-        message: 'Error validating referral code',
-      })
-    } else {
-      setReferralValidation(null)
     }
-  }, [referralValidationData, referralValidationError])
+  }, [referralValidationData])
 
-  // Handle Redux auth errors
   useEffect(() => {
     if (authError && typeof authError === 'string') {
       setErrors((prev) => ({ ...prev, general: authError }))
@@ -265,91 +283,33 @@ export default function AuthPage() {
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: '' }))
-    }
-
-    // Reset referral validation when user changes referral code
-    if (field === 'referralCode') {
-      setReferralValidation(null)
-    }
-
-    // Clear general error when user makes changes
-    if (errors.general) {
-      setErrors((prev) => ({ ...prev, general: '' }))
-    }
+    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: '' }))
+    if (field === 'referralCode') setReferralValidation(null)
+    if (errors.general) setErrors((prev) => ({ ...prev, general: '' }))
   }
 
   const validateForm = () => {
     const newErrors = {}
-
     if (authFlow === 'signin') {
-      if (!formData.email) newErrors.email = 'Email is required'
-      else if (!/\S+@\S+\.\S+/.test(formData.email))
-        newErrors.email = 'Email is invalid'
-
-      if (!formData.password) newErrors.password = 'Password is required'
+      if (!formData.email) newErrors.email = 'Email required'
+      if (!formData.password) newErrors.password = 'Password required'
     } else if (authFlow === 'signup') {
-      if (!formData.name) newErrors.name = 'Name is required'
-      if (!formData.email) newErrors.email = 'Email is required'
-      else if (!/\S+@\S+\.\S+/.test(formData.email))
-        newErrors.email = 'Email is invalid'
-
-      if (!formData.password) newErrors.password = 'Password is required'
-      else if (formData.password.length < 8)
-        newErrors.password = 'Password must be at least 8 characters'
-
-      if (!formData.confirmPassword)
-        newErrors.confirmPassword = 'Please confirm your password'
-      else if (formData.password !== formData.confirmPassword) {
-        newErrors.confirmPassword = 'Passwords do not match'
-      }
-
-      // Validate referral code if provided
-      if (formData.referralCode && formData.referralCode.trim().length > 0) {
-        if (formData.referralCode.trim().length < 3) {
-          newErrors.referralCode = 'Referral code must be at least 3 characters'
-        } else if (referralValidation && !referralValidation.isValid) {
-          newErrors.referralCode =
-            referralValidation.message || 'Invalid referral code'
-        }
-      }
-    } else if (['signup-otp', 'verify-email-otp', 'otp'].includes(authFlow)) {
-      if (!formData.otp) newErrors.otp = 'OTP is required'
-      else if (!/^\d{6}$/.test(formData.otp))
-        newErrors.otp = 'OTP must be 6 digits'
-    } else if (authFlow === 'forgot') {
-      if (!formData.email) newErrors.email = 'Email is required'
-      else if (!/\S+@\S+\.\S+/.test(formData.email))
-        newErrors.email = 'Email is invalid'
-    } else if (authFlow === 'reset') {
-      if (!formData.password) newErrors.password = 'Password is required'
-      else if (formData.password.length < 8)
-        newErrors.password = 'Password must be at least 8 characters'
-
-      if (!formData.confirmPassword)
-        newErrors.confirmPassword = 'Please confirm your password'
-      else if (formData.password !== formData.confirmPassword) {
-        newErrors.confirmPassword = 'Passwords do not match'
-      }
+      if (!formData.name) newErrors.name = 'Name required'
+      if (!formData.email) newErrors.email = 'Email required'
+      if (!formData.password) newErrors.password = 'Password required'
+      else if (formData.password.length < 8) newErrors.password = 'Min 8 characters'
+      if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = 'Passwords mismatch'
     }
-
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
 
   const handleSubmit = async () => {
     if (authFlow === 'signup' && !agreedToTerms) {
-      setErrors((prev) => ({
-        ...prev,
-        general:
-          'You must agree to the Terms of Service and Privacy Policy to continue',
-      }))
+      setErrors((prev) => ({ ...prev, general: 'Please agree to the Terms & Policy' }))
       return
     }
-
     if (!validateForm()) return
-
     setErrors({})
 
     try {
@@ -359,668 +319,248 @@ export default function AuthPage() {
             email: formData.email.trim(),
             password: formData.password,
           })
-          if (result.status === 'success') {
-            window.location.href = '/dashboard'
-          }
+          if (result.status === 'success') window.location.href = '/dashboard'
         } catch (error) {
-          // NEW: Handle email not verified error
           if (error.response?.data?.code === 'EMAIL_NOT_VERIFIED') {
-            // Update form data with user info from error response
-            setFormData((prev) => ({
-              ...prev,
-              email: error.response.data.data.email,
-              name: error.response.data.data.name,
-              otp: '', // Clear any previous OTP
-            }))
-            // Switch to email verification flow
+            setFormData(p => ({ ...p, ...error.response.data.data, otp: '' }))
             setAuthFlow('verify-email')
-            return // Don't throw the error
+            return
           }
-          throw error // Re-throw other errors
+          throw error
         }
       } else if (authFlow === 'verify-email') {
-        // NEW: Send verification OTP to existing user
-        const result = await sendExistingUserOTPMutation.mutateAsync({
-          email: formData.email.trim(),
-        })
-        if (result.status === 'success') {
-          setAuthFlow('verify-email-otp')
-        }
+        const r = await sendExistingUserOTPMutation.mutateAsync({ email: formData.email.trim() })
+        if (r.status === 'success') setAuthFlow('verify-email-otp')
       } else if (authFlow === 'verify-email-otp') {
-        // NEW: Verify existing user's email
-        const result = await verifyExistingUserOTPMutation.mutateAsync({
-          email: formData.email.trim(),
-          otp: formData.otp,
-        })
-        if (result.status === 'success') {
-          window.location.href = '/dashboard'
-        }
+        const r = await verifyExistingUserOTPMutation.mutateAsync({ email: formData.email.trim(), otp: formData.otp })
+        if (r.status === 'success') window.location.href = '/dashboard'
       } else if (authFlow === 'signup') {
-        const signupData = {
-          name: formData.name.trim(),
-          email: formData.email.trim(),
-          password: formData.password,
-        }
-
-        // Include referral code if valid
-        if (formData.referralCode.trim() && referralValidation?.isValid) {
-          signupData.referralCode = formData.referralCode.trim()
-        }
-
+        const signupData = { name: formData.name.trim(), email: formData.email.trim(), password: formData.password }
+        if (formData.referralCode.trim() && referralValidation?.isValid) signupData.referralCode = formData.referralCode.trim()
         const result = await sendSignupOTPMutation.mutateAsync(signupData)
-        if (result.status === 'success') {
-          setAuthFlow('signup-otp')
-        }
+        if (result.status === 'success') setAuthFlow('signup-otp')
       } else if (authFlow === 'signup-otp') {
-        const result = await verifySignupOTPMutation.mutateAsync({
-          email: formData.email.trim(),
-          otp: formData.otp,
-        })
-        if (result.status === 'success') {
-          window.location.href = '/dashboard'
-        }
+        const r = await verifySignupOTPMutation.mutateAsync({ email: formData.email.trim(), otp: formData.otp })
+        if (r.status === 'success') window.location.href = '/dashboard'
       } else if (authFlow === 'forgot') {
-        const result = await forgotPasswordMutation.mutateAsync(
-          formData.email.trim()
-        )
-        if (result.status === 'success') {
-          setAuthFlow('otp')
-        }
+        const r = await forgotPasswordMutation.mutateAsync(formData.email.trim())
+        if (r.status === 'success') setAuthFlow('otp')
       } else if (authFlow === 'otp') {
-        const result = await verifyOTPMutation.mutateAsync({
-          email: formData.email.trim(),
-          otp: formData.otp,
-        })
-        if (result.status === 'success') {
-          setFormData((prev) => ({
-            ...prev,
-            resetToken: result.data.resetToken,
-          }))
+        const r = await verifyOTPMutation.mutateAsync({ email: formData.email.trim(), otp: formData.otp })
+        if (r.status === 'success') {
+          setFormData(p => ({ ...p, resetToken: r.data.resetToken }))
           setAuthFlow('reset')
         }
       } else if (authFlow === 'reset') {
-        const result = await resetPasswordMutation.mutateAsync({
-          resetToken: formData.resetToken,
-          password: formData.password,
-          confirmPassword: formData.confirmPassword,
-        })
-        if (result.status === 'success') {
-          window.location.href = '/dashboard'
-        }
+        const r = await resetPasswordMutation.mutateAsync({ resetToken: formData.resetToken, password: formData.password, confirmPassword: formData.confirmPassword })
+        if (r.status === 'success') window.location.href = '/dashboard'
       }
     } catch (error) {
-      console.error('Auth error:', error)
-
-      let errorMessage = ''
-
-      if (error.response) {
-        const { data } = error.response
-        if (data?.message) {
-          errorMessage = data.message
-        } else {
-          errorMessage = 'An unexpected error occurred. Please try again.'
-        }
-      } else if (error.request) {
-        errorMessage = 'Network error. Please check your connection.'
-      } else {
-        errorMessage = 'An error occurred. Please try again.'
-      }
-
-      setErrors((prev) => ({ ...prev, general: errorMessage }))
+      setErrors(p => ({ ...p, general: error.response?.data?.message || 'An unexpected error occurred' }))
     }
   }
 
   const goBack = () => {
-    if (['signup-otp', 'verify-email-otp'].includes(authFlow)) {
-      setAuthFlow(authFlow === 'signup-otp' ? 'signup' : 'verify-email')
-    } else if (authFlow === 'verify-email') {
-      setAuthFlow('signin')
-    } else if (['otp', 'reset'].includes(authFlow)) {
-      setAuthFlow('forgot')
-    } else if (authFlow === 'forgot') {
-      setAuthFlow('signin')
-    }
+    if (['signup-otp', 'verify-email-otp'].includes(authFlow)) setAuthFlow(authFlow === 'signup-otp' ? 'signup' : 'verify-email')
+    else if (authFlow === 'verify-email') setAuthFlow('signin')
+    else if (['otp', 'reset'].includes(authFlow)) setAuthFlow('forgot')
+    else if (authFlow === 'forgot') setAuthFlow('signin')
     setErrors({})
   }
 
-  const startForgotPassword = () => {
-    setFormData((prev) => ({ ...prev, email: '', otp: '', resetToken: '' }))
-    setAuthFlow('forgot')
+  const switchMode = (mode) => {
+    setAuthFlow(mode)
     setErrors({})
-  }
-
-  // Show loading spinner if redirecting to dashboard
-  if (currentUser) {
-    return (
-      <div className='min-h-screen bg-[#0B0B0C] flex items-center justify-center'>
-        <div className='text-center'>
-          <div className='w-8 h-8 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin mx-auto mb-4' />
-          <p className='text-[#EDEDED]'>Redirecting to dashboard...</p>
-        </div>
-      </div>
-    )
-  }
-
-  const getTitle = () => {
-    switch (authFlow) {
-      case 'signin':
-        return 'Welcome back'
-      case 'signup':
-        return 'Start your journey'
-      case 'signup-otp':
-        return 'Verify your email'
-      case 'verify-email':
-        return 'Verify your account'
-      case 'verify-email-otp':
-        return 'Enter verification code'
-      case 'forgot':
-        return 'Reset your password'
-      case 'otp':
-        return 'Verify OTP'
-      case 'reset':
-        return 'Create new password'
-      default:
-        return 'Welcome'
-    }
-  }
-
-  const getSubtitle = () => {
-    switch (authFlow) {
-      case 'signin':
-        return 'Sign in to your account'
-      case 'signup':
-        return 'Create your Ascend AI account'
-      case 'signup-otp':
-        return `Enter the 6-digit code sent to ${formData.email}`
-      case 'verify-email':
-        return 'Your email needs to be verified before you can sign in'
-      case 'verify-email-otp':
-        return `Enter the 6-digit code sent to ${formData.email}`
-      case 'forgot':
-        return 'Enter your email to receive an OTP'
-      case 'otp':
-        return `Enter the 6-digit code sent to ${formData.email}`
-      case 'reset':
-        return 'Enter your new password'
-      default:
-        return ''
-    }
   }
 
   return (
-    <div className='min-h-screen bg-[#0B0B0C] flex items-center justify-center p-4'>
-      <div className='w-full max-w-md'>
-        <div className='text-center mb-8'>
-          <div className='mb-4'>
-            <span className='text-xl font-bold text-[#EDEDED]'>Ascend AI</span>
-          </div>
-          <h1 className='text-2xl font-bold text-[#EDEDED] mb-2'>
-            {getTitle()}
-          </h1>
-          <p className='text-gray-400'>{getSubtitle()}</p>
-        </div>
+    <div className='min-h-screen bg-black flex selection:bg-gold/30 selection:text-gold'>
+      {/* Background elements */}
+      <div className='fixed inset-0 pointer-events-none'>
+        <div className='absolute top-[-20%] left-[-10%] h-[50%] w-[50%] rounded-full bg-gold/10 blur-[150px]' />
+        <div className='absolute bottom-[-10%] right-[-10%] h-[40%] w-[40%] rounded-full bg-blue-500/5 blur-[120px]' />
+      </div>
 
-        <div className='bg-[#121214] rounded-xl border border-[#1E1E21] p-6'>
-          {/* Back button for multi-step flows */}
-          {[
-            'signup-otp',
-            'verify-email',
-            'verify-email-otp',
-            'forgot',
-            'otp',
-            'reset',
-          ].includes(authFlow) && (
-            <button
-              onClick={goBack}
-              className='flex items-center gap-2 text-gray-400 hover:text-[#EDEDED] transition-colors mb-4'
-            >
-              <ArrowLeft size={16} />
-              Back
-            </button>
-          )}
-
-          {/* Tab switcher for signin/signup */}
-          {['signin', 'signup'].includes(authFlow) && (
-            <div className='flex bg-[#0B0B0C] rounded-lg p-1 mb-6'>
-              <button
-                onClick={() => setAuthFlow('signin')}
-                className={`flex-1 h-8 rounded-md text-sm font-medium transition-all duration-200 ${
-                  authFlow === 'signin'
-                    ? 'bg-[#D4AF37] text-black'
-                    : 'text-gray-400 hover:text-[#EDEDED]'
-                }`}
-              >
-                Sign In
-              </button>
-              <button
-                onClick={() => setAuthFlow('signup')}
-                className={`flex-1 h-8 rounded-md text-sm font-medium transition-all duration-200 ${
-                  authFlow === 'signup'
-                    ? 'bg-[#D4AF37] text-black'
-                    : 'text-gray-400 hover:text-[#EDEDED]'
-                }`}
-              >
-                Sign Up
-              </button>
-            </div>
-          )}
-
-          {/* General error message */}
-          {errors.general && (
-            <div className='mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg'>
-              <p className='text-red-400 text-sm'>{errors.general}</p>
-            </div>
-          )}
-
-          {/* Form */}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              handleSubmit()
-            }}
-            className='space-y-4'
+      {/* Main Content Area */}
+      <div className='relative z-10 w-full flex flex-col lg:flex-row min-h-screen'>
+        {/* Left Side: Branding (Hidden on mobile) */}
+        <div className='hidden lg:flex lg:w-1/2 flex-col justify-between p-12'>
+          <motion.div 
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className='flex items-center gap-2'
           >
-            {/* Signin Form */}
-            {authFlow === 'signin' && (
-              <>
-                <Input
-                  icon={Mail}
-                  type='email'
-                  placeholder='Email address'
-                  value={formData.email}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                  error={errors.email}
-                  autoFocus
-                />
-                <Input
-                  icon={Lock}
-                  type='password'
-                  placeholder='Password'
-                  value={formData.password}
-                  onChange={(e) =>
-                    handleInputChange('password', e.target.value)
-                  }
-                  error={errors.password}
-                />
-                <div className='flex justify-end'>
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    onClick={startForgotPassword}
-                    className='text-sm'
-                  >
-                    Forgot password?
-                  </Button>
-                </div>
-              </>
-            )}
-
-            {/* NEW: Email Verification Required */}
-            {authFlow === 'verify-email' && (
-              <>
-                <div className='text-center space-y-4'>
-                  <div className='w-16 h-16 bg-orange-500/10 rounded-full flex items-center justify-center mx-auto'>
-                    <AlertTriangle className='w-8 h-8 text-orange-500' />
-                  </div>
-                  <p className='text-sm text-gray-400'>
-                    Hi {formData.name}, your email address needs to be verified
-                    before you can sign in to your account.
-                  </p>
-                  <div className='bg-[#0B0B0C] border border-[#1E1E21] rounded-lg p-3'>
-                    <p className='text-[#EDEDED] text-sm font-medium'>
-                      {formData.email}
-                    </p>
-                  </div>
-                  <p className='text-xs text-gray-500'>
-                    Click below to send a verification code to your email
-                    address
-                  </p>
-                </div>
-              </>
-            )}
-
-            {/* NEW: Email Verification OTP */}
-            {authFlow === 'verify-email-otp' && (
-              <>
-                <div className='text-center space-y-4'>
-                  <div className='w-16 h-16 bg-[#D4AF37]/10 rounded-full flex items-center justify-center mx-auto'>
-                    <Shield className='w-8 h-8 text-[#D4AF37]' />
-                  </div>
-                  <p className='text-sm text-gray-400'>
-                    We've sent a 6-digit verification code to your email address
-                  </p>
-                </div>
-                <div className='space-y-4'>
-                  <OTPInput
-                    value={formData.otp}
-                    onChange={(otp) => handleInputChange('otp', otp)}
-                    error={errors.otp}
-                  />
-                  <div className='text-center'>
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      onClick={() => {
-                        setFormData((prev) => ({ ...prev, otp: '' }))
-                        setAuthFlow('verify-email')
-                      }}
-                      className='text-sm'
-                    >
-                      Didn't receive the code? Try again
-                    </Button>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* Signup Form */}
-            {authFlow === 'signup' && (
-              <>
-                <Input
-                  icon={User}
-                  placeholder='Full name'
-                  value={formData.name}
-                  onChange={(e) => handleInputChange('name', e.target.value)}
-                  error={errors.name}
-                  autoFocus
-                />
-                <Input
-                  icon={Mail}
-                  type='email'
-                  placeholder='Email address'
-                  value={formData.email}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                  error={errors.email}
-                />
-                <Input
-                  icon={Lock}
-                  type='password'
-                  placeholder='Password'
-                  value={formData.password}
-                  onChange={(e) =>
-                    handleInputChange('password', e.target.value)
-                  }
-                  error={errors.password}
-                />
-                <Input
-                  icon={Lock}
-                  type='password'
-                  placeholder='Confirm password'
-                  value={formData.confirmPassword}
-                  onChange={(e) =>
-                    handleInputChange('confirmPassword', e.target.value)
-                  }
-                  error={errors.confirmPassword}
-                />
-                <div className='space-y-1'>
-                  <div className='relative'>
-                    <Input
-                      icon={Gift}
-                      placeholder='Referral code (optional)'
-                      value={formData.referralCode}
-                      onChange={(e) =>
-                        handleInputChange(
-                          'referralCode',
-                          e.target.value.toUpperCase()
-                        )
-                      }
-                      error={errors.referralCode}
-                    />
-                    {formData.referralCode.trim().length >= 3 && (
-                      <div className='absolute right-3 top-3 transform -translate-y-1/2'>
-                        {isValidatingReferral ? (
-                          <div className='w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin' />
-                        ) : referralValidation?.isValid ? (
-                          <CheckCircle size={16} className='text-green-500' />
-                        ) : referralValidation?.isValid === false ? (
-                          <XCircle size={16} className='text-red-500' />
-                        ) : null}
-                      </div>
-                    )}
-                  </div>
-                  {referralValidation?.isValid &&
-                    referralValidation.referrer && (
-                      <div className='ml-1 mt-3 p-2 bg-green-500/10 border border-green-500/20 rounded text-xs'>
-                        <p className='text-green-400'>
-                          You'll be referred by{' '}
-                          <span className='font-medium'>
-                            {referralValidation.referrer.name}
-                          </span>
-                        </p>
-                      </div>
-                    )}
-                </div>
-
-                {/* NEW: Terms and Policy Agreement */}
-                <div className='flex items-start space-x-2 mt-4'>
-                  <input
-                    type='checkbox'
-                    id='terms-agreement'
-                    checked={agreedToTerms}
-                    onChange={(e) => setAgreedToTerms(e.target.checked)}
-                    className='mt-1 h-4 w-4 text-[#D4AF37] rounded focus:ring-[#D4AF37] bg-[#0B0B0C] border-[#1E1E21]'
-                  />
-                  <label
-                    htmlFor='terms-agreement'
-                    className='text-sm text-gray-400'
-                  >
-                    I agree to the{' '}
-                    <a
-                      href='/terms'
-                      target='_blank'
-                      rel='noopener noreferrer'
-                      className='text-[#D4AF37] hover:underline'
-                    >
-                      Terms of Service
-                    </a>{' '}
-                    and{' '}
-                    <a
-                      href='/privacy'
-                      target='_blank'
-                      rel='noopener noreferrer'
-                      className='text-[#D4AF37] hover:underline'
-                    >
-                      Privacy Policy
-                    </a>
-                  </label>
-                </div>
-              </>
-            )}
-
-            {/* Signup OTP Verification Form */}
-            {authFlow === 'signup-otp' && (
-              <>
-                <div className='text-center space-y-4'>
-                  <div className='w-16 h-16 bg-[#D4AF37]/10 rounded-full flex items-center justify-center mx-auto'>
-                    <Shield className='w-8 h-8 text-[#D4AF37]' />
-                  </div>
-                  <p className='text-sm text-gray-400'>
-                    We've sent a 6-digit verification code to your email address
-                    to complete your registration
-                  </p>
-                </div>
-                <div className='space-y-4'>
-                  <OTPInput
-                    value={formData.otp}
-                    onChange={(otp) => handleInputChange('otp', otp)}
-                    error={errors.otp}
-                  />
-                  <div className='text-center'>
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      onClick={() => setAuthFlow('signup')}
-                      className='text-sm'
-                    >
-                      Didn't receive the code? Try again
-                    </Button>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* Forgot Password Form */}
-            {authFlow === 'forgot' && (
-              <>
-                <Input
-                  icon={Mail}
-                  type='email'
-                  placeholder='Enter your email address'
-                  value={formData.email}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                  error={errors.email}
-                  autoFocus
-                />
-                <div className='text-center text-sm text-gray-400'>
-                  We'll send you a 6-digit code to reset your password
-                </div>
-              </>
-            )}
-
-            {/* Password Reset OTP Verification Form */}
-            {authFlow === 'otp' && (
-              <>
-                <div className='text-center space-y-4'>
-                  <div className='w-16 h-16 bg-[#D4AF37]/10 rounded-full flex items-center justify-center mx-auto'>
-                    <Shield className='w-8 h-8 text-[#D4AF37]' />
-                  </div>
-                  <p className='text-sm text-gray-400'>
-                    We've sent a 6-digit verification code to your email address
-                  </p>
-                </div>
-                <div className='space-y-4'>
-                  <OTPInput
-                    value={formData.otp}
-                    onChange={(otp) => handleInputChange('otp', otp)}
-                    error={errors.otp}
-                  />
-                  <div className='text-center'>
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      onClick={() => setAuthFlow('forgot')}
-                      className='text-sm'
-                    >
-                      Didn't receive the code? Try again
-                    </Button>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* Reset Password Form */}
-            {authFlow === 'reset' && (
-              <>
-                <div className='text-center space-y-2 mb-4'>
-                  <div className='w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto'>
-                    <CheckCircle className='w-8 h-8 text-green-500' />
-                  </div>
-                  <p className='text-sm text-green-400'>
-                    OTP verified successfully!
-                  </p>
-                </div>
-                <Input
-                  icon={Lock}
-                  type='password'
-                  placeholder='New password'
-                  value={formData.password}
-                  onChange={(e) =>
-                    handleInputChange('password', e.target.value)
-                  }
-                  error={errors.password}
-                  autoFocus
-                />
-                <Input
-                  icon={Lock}
-                  type='password'
-                  placeholder='Confirm new password'
-                  value={formData.confirmPassword}
-                  onChange={(e) =>
-                    handleInputChange('confirmPassword', e.target.value)
-                  }
-                  error={errors.confirmPassword}
-                />
-              </>
-            )}
-
-            {/* Submit Button */}
-            <Button
-              type='submit'
-              loading={
-                isLoading ||
-                sendSignupOTPMutation.isPending ||
-                verifySignupOTPMutation.isPending ||
-                sendExistingUserOTPMutation.isPending ||
-                verifyExistingUserOTPMutation.isPending ||
-                forgotPasswordMutation.isPending ||
-                verifyOTPMutation.isPending ||
-                resetPasswordMutation.isPending
-              }
-              className='w-full'
-              disabled={
-                isLoading ||
-                (authFlow === 'signup' &&
-                  ((formData.referralCode.trim().length >= 3 &&
-                    isValidatingReferral) ||
-                    !agreedToTerms))
-              }
-            >
-              {authFlow === 'signin' && 'Sign In'}
-              {authFlow === 'signup' && 'Send Verification Code'}
-              {authFlow === 'signup-otp' && 'Verify & Create Account'}
-              {authFlow === 'verify-email' && 'Send Verification Code'}
-              {authFlow === 'verify-email-otp' && 'Verify Email'}
-              {authFlow === 'forgot' && 'Send OTP'}
-              {authFlow === 'otp' && 'Verify OTP'}
-              {authFlow === 'reset' && 'Reset Password'}
-              <ArrowRight size={18} />
-            </Button>
-          </form>
-
-          {/* Footer links */}
-          {['signin', 'signup'].includes(authFlow) && (
-            <div className='mt-6 text-center'>
-              <span className='text-gray-400 text-sm'>
-                {authFlow === 'signin'
-                  ? "Don't have an account? "
-                  : 'Already have an account? '}
-              </span>
-              <button
-                onClick={() =>
-                  setAuthFlow(authFlow === 'signin' ? 'signup' : 'signin')
-                }
-                className='text-[#D4AF37] hover:text-[#D4AF37]/80 text-sm font-medium transition-colors'
-                disabled={isLoading}
-              >
-                {authFlow === 'signin' ? 'Sign up' : 'Sign in'}
-              </button>
+            <div className='text-gold bg-gold/10 p-2.5 rounded-2xl'>
+              <CrownLogo size={28} />
             </div>
-          )}
+            <span className='text-3xl font-extrabold tracking-tighter text-white'>Ascnd<span className='text-gold'>Labs</span></span>
+          </motion.div>
+
+          <div className='max-w-md'>
+            <motion.h2 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className='text-5xl font-bold text-white mb-6'
+            >
+              Master the<br />
+              <span className='text-gold'>Digital Economy</span>
+            </motion.h2>
+            <motion.p 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className='text-gray-400 text-lg leading-relaxed'
+            >
+              Empower your vision with the world's most advanced AI infrastructure. Build, scale, and thrive in the new era of intelligent systems.
+            </motion.p>
+          </div>
+
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.4 }}
+            className='flex gap-12'
+          >
+            <div>
+              <div className='flex items-center gap-2 text-gold mb-1'>
+                <Shield size={20} />
+                <span className='text-xl font-bold text-white'>Secure</span>
+              </div>
+              <div className='text-[10px] uppercase tracking-[0.2em] text-gray-500 font-bold'>Infrastructure</div>
+            </div>
+            <div>
+              <div className='flex items-center gap-2 text-gold mb-1'>
+                <Zap size={20} />
+                <span className='text-xl font-bold text-white'>Fast</span>
+              </div>
+              <div className='text-[10px] uppercase tracking-[0.2em] text-gray-500 font-bold'>Deployment</div>
+            </div>
+            <div>
+              <div className='flex items-center gap-2 text-gold mb-1'>
+                <Globe size={20} />
+                <span className='text-xl font-bold text-white'>Global</span>
+              </div>
+              <div className='text-[10px] uppercase tracking-[0.2em] text-gray-500 font-bold'>Availability</div>
+            </div>
+          </motion.div>
         </div>
 
-        {/* Updated footer with links */}
-        {authFlow === 'signup' && (
-          <div className='text-center mt-6 text-xs text-gray-500'>
-            By continuing, you agree to our{' '}
-            <a
-              href='/terms'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-[#D4AF37] hover:underline'
-            >
-              Terms of Service
-            </a>{' '}
-            and{' '}
-            <a
-              href='/privacy'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-[#D4AF37] hover:underline'
-            >
-              Privacy Policy
-            </a>
+        {/* Right Side: Auth Form */}
+        <div className='w-full lg:w-1/2 flex items-center justify-center p-6'>
+          <div className='w-full max-w-md relative'>
+            
+            {/* Logo for Mobile */}
+            <div className='flex lg:hidden justify-center mb-8'>
+              <div className='flex items-center gap-2'>
+                <div className='text-gold bg-gold/10 p-2 rounded-xl'>
+                   <CrownLogo size={20} />
+                </div>
+                <span className='text-xl font-bold text-white'>Ascnd<span className='text-gold'>Labs</span></span>
+              </div>
+            </div>
+
+            <AnimatePresence mode='wait'>
+              <GlassCard key={authFlow}>
+                {/* Back Button */}
+                {['signup-otp', 'verify-email', 'verify-email-otp', 'forgot', 'otp', 'reset'].includes(authFlow) && (
+                  <button onClick={goBack} className='absolute top-8 left-8 text-gray-500 hover:text-white transition-colors'>
+                    <ArrowLeft size={20} />
+                  </button>
+                )}
+
+                <div className='text-center mb-8 mt-2'>
+                  <h1 className='text-3xl font-bold text-white mb-2'>
+                    {authFlow === 'signin' && 'Welcome back'}
+                    {authFlow === 'signup' && 'Create account'}
+                    {authFlow === 'signup-otp' && 'Check your email'}
+                    {authFlow === 'forgot' && 'Reset password'}
+                    {authFlow === 'reset' && 'New password'}
+                  </h1>
+                  <p className='text-gray-500 text-sm'>
+                    {authFlow === 'signin' && 'Sign in to continue your journey'}
+                    {authFlow === 'signup' && 'Start building your empire today'}
+                    {authFlow === 'signup-otp' && `We sent a code to ${formData.email}`}
+                    {authFlow === 'forgot' && 'Enter your email to receive an OTP'}
+                  </p>
+                </div>
+
+                {errors.general && (
+                  <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className='mb-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-start gap-3'>
+                    <AlertTriangle size={18} className='shrink-0' />
+                    {errors.general}
+                  </motion.div>
+                )}
+
+                <form onSubmit={(e) => { e.preventDefault(); handleSubmit() }} className='space-y-4'>
+                  {authFlow === 'signin' && (
+                    <>
+                      <Input icon={Mail} type='email' placeholder='Email address' value={formData.email} onChange={e => handleInputChange('email', e.target.value)} error={errors.email} autoFocus />
+                      <Input icon={Lock} type='password' placeholder='Password' value={formData.password} onChange={e => handleInputChange('password', e.target.value)} error={errors.password} />
+                      <div className='flex justify-end'>
+                        <button type='button' onClick={() => switchMode('forgot')} className='text-sm font-medium text-gold hover:text-gold/80'>Forgot password?</button>
+                      </div>
+                    </>
+                  )}
+
+                  {authFlow === 'signup' && (
+                    <>
+                      <Input icon={User} placeholder='Full name' value={formData.name} onChange={e => handleInputChange('name', e.target.value)} error={errors.name} autoFocus />
+                      <Input icon={Mail} type='email' placeholder='Email address' value={formData.email} onChange={e => handleInputChange('email', e.target.value)} error={errors.email} />
+                      <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
+                        <Input icon={Lock} type='password' placeholder='Password' value={formData.password} onChange={e => handleInputChange('password', e.target.value)} error={errors.password} />
+                        <Input icon={Lock} type='password' placeholder='Confirm' value={formData.confirmPassword} onChange={e => handleInputChange('confirmPassword', e.target.value)} error={errors.confirmPassword} />
+                      </div>
+                      <Input icon={Gift} placeholder='Referral code (optional)' value={formData.referralCode} onChange={e => handleInputChange('referralCode', e.target.value.toUpperCase())} error={errors.referralCode} />
+                      
+                      <div className='flex items-start gap-3 p-2'>
+                        <input type='checkbox' id='terms' checked={agreedToTerms} onChange={e => setAgreedToTerms(e.target.checked)} className='mt-1 accent-gold' />
+                        <label htmlFor='terms' className='text-xs text-gray-500'>
+                          I agree to the <a href='/terms' className='text-gold border-b border-gold/30 hover:border-gold'>Terms</a> and <a href='/privacy' className='text-gold border-b border-gold/30 hover:border-gold'>Privacy Policy</a>
+                        </label>
+                      </div>
+                    </>
+                  )}
+
+                  {(authFlow === 'signup-otp' || authFlow === 'verify-email-otp' || authFlow === 'otp') && (
+                    <OTPInput value={formData.otp} onChange={otp => handleInputChange('otp', otp)} error={errors.otp} />
+                  )}
+
+                  {authFlow === 'forgot' && (
+                    <Input icon={Mail} type='email' placeholder='Email address' value={formData.email} onChange={e => handleInputChange('email', e.target.value)} error={errors.email} autoFocus />
+                  )}
+
+                  {authFlow === 'reset' && (
+                    <>
+                      <Input icon={Lock} type='password' placeholder='New password' value={formData.password} onChange={e => handleInputChange('password', e.target.value)} error={errors.password} />
+                      <Input icon={Lock} type='password' placeholder='Confirm new password' value={formData.confirmPassword} onChange={e => handleInputChange('confirmPassword', e.target.value)} error={errors.confirmPassword} />
+                    </>
+                  )}
+
+                  <Button type='submit' loading={isLoading} className='w-full group'>
+                    {authFlow === 'signin' && 'Sign In'}
+                    {authFlow === 'signup' && 'Create Account'}
+                    {authFlow === 'signup-otp' && 'Verify Email'}
+                    {authFlow === 'forgot' && 'Send Reset Link'}
+                    {authFlow === 'reset' && 'Update Password'}
+                    <ArrowRight size={18} className='group-hover:translate-x-1 transition-transform' />
+                  </Button>
+                </form>
+
+                {['signin', 'signup'].includes(authFlow) && (
+                  <div className='mt-8 pt-8 border-t border-white/5 text-center'>
+                     <p className='text-gray-500 text-sm'>
+                       {authFlow === 'signin' ? "New to Ascnd Labs?" : "Already have an account?"}
+                       <button onClick={() => switchMode(authFlow === 'signin' ? 'signup' : 'signin')} className='ml-2 text-gold font-bold hover:underline underline-offset-4'>
+                          {authFlow === 'signin' ? "Create account" : "Sign in"}
+                       </button>
+                     </p>
+                  </div>
+                )}
+              </GlassCard>
+            </AnimatePresence>
           </div>
-        )}
+        </div>
       </div>
     </div>
   )

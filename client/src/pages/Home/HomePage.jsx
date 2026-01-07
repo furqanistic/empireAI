@@ -1,8 +1,26 @@
 // File: client/src/pages/Home/HomePage.jsx
-import React, { useState } from 'react'
+import { AnimatePresence, motion, useScroll, useTransform } from 'framer-motion'
+import {
+    ArrowRight,
+    BarChart3,
+    Bot,
+    CheckCircle2,
+    Globe,
+    MessageSquare,
+    Play,
+    ShieldCheck,
+    Star,
+    Target,
+    TrendingUp,
+    Trophy,
+    Users,
+    X,
+    Zap
+} from 'lucide-react'
+import React, { useEffect, useState } from 'react'
 
 // Icon component matching Layout style
-const CrownLogo = ({ size = 18 }) => (
+const CrownLogo = ({ size = 24 }) => (
   <svg
     xmlns='http://www.w3.org/2000/svg'
     viewBox='0 0 256 256'
@@ -14,651 +32,589 @@ const CrownLogo = ({ size = 18 }) => (
   </svg>
 )
 
+const PRIMARY_GOLD = '#D4AF37'
+
 const HomePage = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isVideoOpen, setIsVideoOpen] = useState(false)
+  const { scrollY } = useScroll()
+  const navBackground = useTransform(scrollY, [0, 50], ['rgba(0,0,0,0)', 'rgba(0,0,0,0.8)'])
+  const navBorder = useTransform(scrollY, [0, 50], ['rgba(255,255,255,0)', 'rgba(255,255,255,0.1)'])
 
   const handleGetStarted = () => {
     window.location.href = '/auth'
   }
 
-  // Video Modal Component
-  const VideoModal = () => (
-    <div
-      className='fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4'
-      onClick={(e) => {
-        if (e.target === e.currentTarget) setIsVideoOpen(false)
-      }}
+  // Animation variants
+  const fadeIn = {
+    initial: { opacity: 0, y: 20 },
+    whileInView: { opacity: 1, y: 0 },
+    viewport: { once: true },
+    transition: { duration: 0.6 }
+  }
+
+  const staggerContainer = {
+    initial: {},
+    whileInView: {
+      transition: {
+        staggerChildren: 0.1
+      }
+    }
+  }
+
+  // Components
+  const GlassCard = ({ children, className = '', hover = true }) => (
+    <motion.div
+      variants={fadeIn}
+      className={`relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md transition-colors ${hover ? 'hover:border-gold/30 hover:bg-white/10' : ''} ${className}`}
+      style={{ '--gold': PRIMARY_GOLD }}
     >
-      <div className='relative w-full max-w-4xl'>
-        {/* Close Button */}
-        <button
-          onClick={() => setIsVideoOpen(false)}
-          className='absolute -top-12 right-0 text-white hover:text-[#D4AF37] transition-colors duration-300 text-2xl font-bold'
-        >
-          ✕
-        </button>
+      {children}
+    </motion.div>
+  )
 
-        {/* Video Container */}
-        <div className='rounded-lg overflow-hidden border border-[#D4AF37]/30 shadow-2xl shadow-[#D4AF37]/20'>
-          <div className='bg-black aspect-video'>
-            <video className='w-full h-full' controls controlsList='nodownload'>
-              <source src='/demo.mp4' type='video/mp4' />
-              Your browser does not support the video tag.
-            </video>
-          </div>
-        </div>
-
-        {/* Video Info */}
-        <div className='mt-4 text-center'>
-          <p className='text-gray-300 text-sm'>
-            Watch how to build your digital empire in minutes
-          </p>
-        </div>
-      </div>
+  const FeatureIcon = ({ icon: Icon, color = PRIMARY_GOLD }) => (
+    <div className='mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-white/5 shadow-lg' style={{ color }}>
+      <Icon size={24} />
     </div>
   )
 
-  const FeatureCard = ({ icon, title, description }) => (
-    <div className='group relative p-6 rounded-lg border border-gray-800 bg-gray-950/40 backdrop-blur-sm hover:border-[#D4AF37]/50 hover:bg-gray-900/60 transition-all duration-300 cursor-pointer overflow-hidden'>
-      <div className='absolute inset-0 bg-gradient-to-br from-[#D4AF37]/0 to-[#D4AF37]/0 group-hover:from-[#D4AF37]/5 group-hover:to-[#D4AF37]/10 transition-all duration-300' />
-      <div className='relative z-10'>
-        <div className='flex items-center gap-3 mb-4'>
-          <div className='w-12 h-12 rounded-lg bg-[#D4AF37] flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-[#D4AF37]/20 text-lg'>
-            {icon}
-          </div>
-        </div>
-        <h3 className='text-white font-semibold mb-2 text-lg group-hover:text-[#D4AF37] transition-colors duration-300'>
-          {title}
-        </h3>
-        <p className='text-gray-400 text-sm leading-relaxed group-hover:text-gray-300 transition-colors duration-300'>
-          {description}
-        </p>
-      </div>
-    </div>
-  )
-
-  const TestimonialCard = ({ name, role, content, avatar }) => (
-    <div className='p-6 rounded-lg border border-gray-800 bg-gray-950/40 hover:border-[#D4AF37]/30 transition-all duration-300'>
-      <div className='flex items-center gap-2 mb-4'>
-        {[...Array(5)].map((_, i) => (
-          <span key={i} className='text-[#D4AF37]'>
-            ★
-          </span>
-        ))}
-      </div>
-      <p className='text-gray-300 mb-4 leading-relaxed text-sm'>{content}</p>
-      <div className='flex items-center gap-3'>
-        <div className='w-10 h-10 rounded-full bg-[#D4AF37] flex items-center justify-center text-black font-semibold text-sm'>
-          {avatar}
-        </div>
-        <div>
-          <p className='text-white font-semibold text-sm'>{name}</p>
-          <p className='text-gray-400 text-xs'>{role}</p>
-        </div>
-      </div>
-    </div>
-  )
-
-  const PricingCard = ({
-    plan,
-    price,
-    description,
-    features,
-    popular = false,
-    emoji,
-  }) => (
-    <div
-      className={`relative rounded-lg border transition-all duration-300 overflow-hidden ${
-        popular
-          ? 'border-[#D4AF37]/50 bg-gray-900/80 ring-1 ring-[#D4AF37]/20 hover:border-[#D4AF37]/80 hover:ring-[#D4AF37]/40'
-          : 'border-gray-800 bg-gray-950/40 hover:border-gray-700 hover:bg-gray-900/60'
-      }`}
+  const NavItem = ({ href, children }) => (
+    <a 
+      href={href} 
+      className='text-sm font-medium text-gray-400 transition-colors hover:text-white'
     >
-      {popular && (
-        <div className='absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2'>
-          <span className='bg-[#D4AF37] text-black px-4 py-1.5 rounded-full text-xs font-semibold shadow-lg shadow-[#D4AF37]/30'>
-            Most Popular
-          </span>
-        </div>
-      )}
-      <div className='p-8'>
-        <div className='flex items-center gap-3 mb-4'>
-          <div
-            className={`w-12 h-12 rounded-lg flex items-center justify-center text-2xl ${
-              popular ? 'bg-[#D4AF37]' : 'bg-gray-800'
-            }`}
-          >
-            {emoji}
-          </div>
-          <h3 className='text-xl font-semibold text-white'>{plan}</h3>
-        </div>
-        <p className='text-gray-400 text-sm mb-6 leading-relaxed'>
-          {description}
-        </p>
-        <div className='mb-6 pb-6 border-b border-gray-800'>
-          <div className='flex items-baseline gap-1 mb-2'>
-            <span className='text-4xl font-bold text-white'>${price}</span>
-            <span className='text-gray-400'>/month</span>
-          </div>
-          <p className='text-xs text-[#D4AF37]/80 font-medium'>
-            Founder pricing • Limited time
-          </p>
-        </div>
-        <ul className='space-y-3 mb-8'>
-          {features.map((feature, i) => (
-            <li key={i} className='flex items-start gap-3'>
-              <span className='text-[#D4AF37] flex-shrink-0 mt-0.5'>✓</span>
-              <span className='text-sm text-gray-300'>{feature}</span>
-            </li>
-          ))}
-        </ul>
-        <button
-          onClick={handleGetStarted}
-          className={`w-full py-3 rounded-lg font-semibold text-sm transition-all duration-300 hover:scale-105 ${
-            popular
-              ? 'bg-[#D4AF37] text-black hover:shadow-lg hover:shadow-[#D4AF37]/40'
-              : 'border border-gray-700 text-white hover:border-[#D4AF37]/30 hover:bg-gray-900'
-          }`}
-        >
-          Get Started
-        </button>
-      </div>
-    </div>
+      {children}
+    </a>
   )
 
   return (
-    <div className='min-h-screen bg-black text-white'>
-      {/* Video Modal */}
-      {isVideoOpen && <VideoModal />}
+    <div className='min-h-screen bg-black text-white selection:bg-gold/30 selection:text-gold'>
+      {/* Background gradients */}
+      <div className='fixed inset-0 z-0 pointer-events-none'>
+        <div className='absolute top-[-10%] left-[-10%] h-[40%] w-[40%] rounded-full bg-gold/10 blur-[120px]' />
+        <div className='absolute bottom-[-10%] right-[-10%] h-[40%] w-[40%] rounded-full bg-blue-500/5 blur-[120px]' />
+      </div>
 
       {/* Navigation */}
-      <nav className='fixed top-0 left-0 right-0 z-50 border-b border-gray-900 bg-black/95 backdrop-blur-sm'>
-        <div className='max-w-7xl mx-auto px-6 py-4 flex items-center justify-between'>
-          <div className='flex items-center gap-2'>
-            <div className='text-[#D4AF37] p-2 rounded-lg bg-[#D4AF37]/10'>
-              <CrownLogo size={18} />
-            </div>
-            <span className='font-semibold text-lg'>Ascnd Labs</span>
-          </div>
-
-          <div className='hidden md:flex items-center gap-8'>
-            {['Features', 'Pricing', 'Community'].map((item) => (
-              <a
-                key={item}
-                href={`#${item.toLowerCase()}`}
-                className='text-sm text-gray-400 hover:text-[#D4AF37] transition-colors duration-300'
-              >
-                {item}
-              </a>
-            ))}
-            <button
-              onClick={handleGetStarted}
-              className='flex items-center gap-2 px-4 py-2 rounded-lg bg-[#D4AF37] text-black font-medium text-sm hover:shadow-lg hover:shadow-[#D4AF37]/40 transition-all duration-300 hover:scale-105'
-            >
-              Get Started →
-            </button>
-          </div>
-
-          <button
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className='md:hidden text-gray-400 hover:text-white transition-colors'
+      <motion.nav 
+        style={{ backgroundColor: navBackground, borderBottomColor: navBorder }}
+        className='fixed top-0 left-0 right-0 z-50 border-b border-white/0 backdrop-blur-sm transition-all duration-300'
+      >
+        <div className='mx-auto flex max-w-7xl items-center justify-between px-6 py-4'>
+          <motion.div 
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className='flex items-center gap-2'
           >
-            {isMobileMenuOpen ? '✕' : '☰'}
+            <div className='text-gold bg-gold/10 p-2 rounded-xl'>
+              <CrownLogo size={20} />
+            </div>
+            <span className='text-xl font-bold tracking-tight'>Ascnd<span className='text-gold'>Labs</span></span>
+          </motion.div>
+
+          {/* Desktop Nav */}
+          <div className='hidden items-center gap-8 md:flex'>
+            <NavItem href='#features'>Features</NavItem>
+            <NavItem href='#pricing'>Pricing</NavItem>
+            <NavItem href='#community'>Community</NavItem>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={handleGetStarted}
+              className='rounded-full bg-white px-6 py-2 text-sm font-bold text-black transition-all hover:bg-gold hover:text-black cursor-pointer'
+            >
+              Get Started
+            </motion.button>
+          </div>
+
+          {/* Mobile Toggle */}
+          <button 
+            className='md:hidden'
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          >
+            {isMobileMenuOpen ? <X /> : <Zap className='text-gold' />}
           </button>
         </div>
 
-        {isMobileMenuOpen && (
-          <div className='md:hidden border-t border-gray-900 bg-gray-950/50 backdrop-blur-sm'>
-            <div className='max-w-7xl mx-auto px-6 py-4 space-y-4'>
-              {['Features', 'Pricing', 'Community'].map((item) => (
-                <a
-                  key={item}
-                  href={`#${item.toLowerCase()}`}
-                  className='block text-gray-400 hover:text-[#D4AF37] transition-colors py-2'
+        {/* Mobile Menu */}
+        <AnimatePresence>
+          {isMobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className='overflow-hidden bg-black/95 px-6 pb-6 md:hidden'
+            >
+              <div className='flex flex-col gap-4 pt-4'>
+                <NavItem href='#features'>Features</NavItem>
+                <NavItem href='#pricing'>Pricing</NavItem>
+                <NavItem href='#community'>Community</NavItem>
+                <button
+                  onClick={handleGetStarted}
+                  className='w-full rounded-xl bg-gold py-3 font-bold text-black'
                 >
-                  {item}
-                </a>
-              ))}
-              <button
-                onClick={handleGetStarted}
-                className='w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[#D4AF37] text-black font-medium text-sm hover:shadow-lg hover:shadow-[#D4AF37]/40 transition-all duration-300'
-              >
-                Get Started →
-              </button>
-            </div>
-          </div>
-        )}
-      </nav>
+                  Get Started
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.nav>
 
-      {/* Hero Section */}
-      <section className='relative pt-40 pb-24 px-6'>
-        <div className='max-w-4xl mx-auto text-center space-y-8'>
-          <div className='inline-flex items-center gap-2 px-4 py-2 rounded-full border border-gray-800 bg-gray-950/50 hover:border-[#D4AF37]/30 transition-all duration-300'>
-            <div className='w-2 h-2 bg-[#D4AF37] rounded-full animate-pulse' />
-            <span className='text-xs font-medium text-gray-400'>
-              Now accepting early access members
-            </span>
-          </div>
-
-          <h1 className='text-5xl sm:text-6xl lg:text-7xl font-bold leading-tight'>
-            <span className='block text-white mb-2'>Build Your</span>
-            <span className='block bg-gradient-to-r from-[#D4AF37] via-[#E5C158] to-[#D4AF37] bg-clip-text text-transparent'>
-              Digital Empire
-            </span>
-          </h1>
-
-          <p className='text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed'>
-            Transform from creator to mogul with our AI-powered platform. Build
-            digital products, scale automatically, and earn through intelligent
-            systems. Join the next generation of empire builders.
-          </p>
-
-          <div className='flex flex-col sm:flex-row gap-3 justify-center pt-4'>
-            <button
-              onClick={handleGetStarted}
-              className='group flex items-center justify-center gap-2 px-8 py-4 rounded-lg bg-[#D4AF37] text-black font-semibold hover:shadow-xl hover:shadow-[#D4AF37]/40 transition-all duration-300 hover:scale-105'
+      <main className='relative z-10'>
+        {/* Hero Section */}
+        <section className='relative flex flex-col items-center px-6 pt-40 pb-20 text-center overflow-hidden'>
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            className='max-w-4xl relative z-20'
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.2 }}
+              className='mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-sm'
             >
-              Start Building
-              <span className='group-hover:translate-x-1 transition-transform duration-300'>
-                →
+              <span className='flex h-2 w-2 rounded-full bg-gold animate-pulse' />
+              <span className='text-gray-300'>Now accepting early access members</span>
+            </motion.div>
+
+            <h1 className='mb-6 text-5xl font-extrabold tracking-tight sm:text-7xl lg:text-8xl'>
+              Build Your{' '}
+              <span className='bg-gradient-to-r from-gold via-[#F0D58B] to-gold bg-clip-text text-transparent'>
+                Digital Empire
               </span>
-            </button>
-            <button
-              onClick={() => setIsVideoOpen(true)}
-              className='group flex items-center justify-center gap-2 px-8 py-4 rounded-lg border border-[#D4AF37]/50 text-white font-semibold hover:bg-[#D4AF37]/10 hover:border-[#D4AF37] transition-all duration-300 hover:scale-105'
+            </h1>
+
+            <p className='mx-auto mb-10 max-w-2xl text-lg text-gray-400 md:text-xl'>
+              Transform from creator to mogul with our AI-powered platform. Build, scale, and automate your intelligent systems in minutes.
+            </p>
+
+            <div className='flex flex-col items-center justify-center gap-4 sm:flex-row'>
+              <motion.button
+                whileHover={{ scale: 1.05, boxShadow: '0 0 20px rgba(212, 175, 55, 0.4)' }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleGetStarted}
+                className='flex items-center gap-2 rounded-full bg-gold px-8 py-4 text-lg font-bold text-black transition-all cursor-pointer'
+              >
+                Start Building <ArrowRight size={20} />
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05, backgroundColor: 'rgba(255,255,255,0.1)' }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setIsVideoOpen(true)}
+                className='flex items-center gap-2 rounded-full border border-white/20 px-8 py-4 text-lg font-bold text-white transition-all cursor-pointer'
+              >
+                <Play size={20} fill='white' /> Watch Demo
+              </motion.button>
+            </div>
+
+            {/* Trusted By / Stats */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1 }}
+              className='mt-16 flex flex-wrap justify-center gap-12 text-gray-500'
             >
-              <span className='text-lg'>▶</span>
-              Watch Demo
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* Why Choose Us Section */}
-      <section className='py-16 px-6 bg-gray-950/50 border-y border-gray-900'>
-        <div className='max-w-6xl mx-auto'>
-          <h3 className='text-center text-2xl md:text-3xl font-bold mb-12 text-white'>
-            Why Builders Choose{' '}
-            <span className='text-[#D4AF37]'>Ascnd Labs</span>
-          </h3>
-          <div className='grid grid-cols-1 md:grid-cols-3 gap-8'>
-            <div className='text-center'>
-              <div className='w-14 h-14 bg-[#D4AF37]/20 rounded-lg flex items-center justify-center mx-auto mb-4 text-2xl'>
-                ⚡
+              <div className='text-center'>
+                <div className='text-3xl font-bold text-white'>10k+</div>
+                <div className='text-[10px] uppercase tracking-[0.2em]'>Builders</div>
               </div>
-              <h4 className='text-white font-semibold mb-2 text-lg'>
-                Fast Setup
-              </h4>
-              <p className='text-gray-400 text-sm'>
-                Get up and running in minutes with our intuitive interface and
-                pre-built templates.
-              </p>
-            </div>
-            <div className='text-center'>
-              <div className='w-14 h-14 bg-[#D4AF37]/20 rounded-lg flex items-center justify-center mx-auto mb-4 text-2xl'>
-                🤖
+              <div className='text-center'>
+                <div className='text-3xl font-bold text-white'>$2M+</div>
+                <div className='text-[10px] uppercase tracking-[0.2em]'>Generated</div>
               </div>
-              <h4 className='text-white font-semibold mb-2 text-lg'>
-                AI Powered
-              </h4>
-              <p className='text-gray-400 text-sm'>
-                Leverage advanced AI tools to automate tasks and make smarter
-                business decisions.
-              </p>
-            </div>
-            <div className='text-center'>
-              <div className='w-14 h-14 bg-[#D4AF37]/20 rounded-lg flex items-center justify-center mx-auto mb-4 text-2xl'>
-                👥
+              <div className='text-center'>
+                <div className='text-3xl font-bold text-white'>99%</div>
+                <div className='text-[10px] uppercase tracking-[0.2em]'>Uptime</div>
               </div>
-              <h4 className='text-white font-semibold mb-2 text-lg'>
-                Community
-              </h4>
-              <p className='text-gray-400 text-sm'>
-                Connect with fellow creators, share wins, and grow together in
-                our active community.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
+            </motion.div>
+          </motion.div>
 
-      {/* Features Section */}
-      <section id='features' className='relative py-24 px-6'>
-        <div className='max-w-6xl mx-auto'>
-          <div className='text-center mb-16'>
-            <h2 className='text-4xl md:text-5xl font-bold mb-4'>
-              AI Tools for <span className='text-[#D4AF37]'>Every Stage</span>
-            </h2>
-            <p className='text-gray-400 max-w-3xl mx-auto text-lg leading-relaxed'>
-              From ideation to scaling, our comprehensive AI-powered platform
-              provides everything you need to build, launch, and scale your
-              digital business. No coding required.
-            </p>
-          </div>
+          {/* Hero Mockup */}
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 1, delay: 0.5 }}
+            className='mt-16 relative w-full max-w-5xl rounded-t-3xl border-x border-t border-white/10 bg-gradient-to-b from-white/10 to-transparent p-4'
+          >
+             <div className='aspect-video w-full overflow-hidden rounded-t-2xl bg-[#050505] shadow-2xl relative'>
+                 {/* Simulated UI Header */}
+                 <div className='absolute top-0 left-0 right-0 h-12 border-b border-white/5 bg-white/5 backdrop-blur-md flex items-center px-4 gap-2'>
+                    <div className='flex gap-1.5'>
+                        <div className='w-2.5 h-2.5 rounded-full bg-red-500/50' />
+                        <div className='w-2.5 h-2.5 rounded-full bg-yellow-500/50' />
+                        <div className='w-2.5 h-2.5 rounded-full bg-green-500/50' />
+                    </div>
+                    <div className='mx-auto h-5 w-48 rounded-md bg-white/5 border border-white/10' />
+                 </div>
 
-          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
-            <FeatureCard
-              icon='🤖'
-              title='AI Product Builder'
-              description='Create digital products with our advanced AI assistant. From SaaS tools to mobile apps, build anything without coding expertise.'
-            />
-            <FeatureCard
-              icon='🎯'
-              title='Smart Launchpad'
-              description='Launch your products with AI-optimized strategies. Automated marketing, pricing optimization, and customer acquisition tools included.'
-            />
-            <FeatureCard
-              icon='👥'
-              title='Affiliate Empire'
-              description='Build and manage your affiliate network with intelligent recruitment tools and automated commission systems.'
-            />
-            <FeatureCard
-              icon='⚡'
-              title='Automation Suite'
-              description='Automate repetitive tasks with AI workflows. Save time on manual work with intelligent automation that learns from your patterns.'
-            />
-            <FeatureCard
-              icon='📊'
-              title='Analytics & Insights'
-              description='Real-time dashboards show every metric that matters. Track revenue, customer behavior, and market trends.'
-            />
-            <FeatureCard
-              icon='🛡️'
-              title='Enterprise Security'
-              description='Bank-level encryption, SOC 2 certified, GDPR compliant. Your data is protected with military-grade standards.'
-            />
-          </div>
-        </div>
-      </section>
+                 {/* Simulated Dashboard Content */}
+                 <div className='mt-12 p-6 h-full'>
+                    <div className='grid grid-cols-12 gap-4 h-full'>
+                        <div className='col-span-3 space-y-4'>
+                            {[1, 2, 3, 4].map(i => (
+                                <div key={i} className='h-8 rounded-lg bg-white/5 border border-white/5' />
+                            ))}
+                        </div>
+                        <div className='col-span-9 space-y-4'>
+                            <div className='h-32 rounded-xl bg-gradient-to-br from-gold/20 to-transparent border border-gold/10 p-4'>
+                                <div className='flex items-center justify-between mb-4'>
+                                    <div className='h-4 w-24 bg-gold/30 rounded' />
+                                    <div className='h-8 w-8 rounded-full bg-gold/20 animate-pulse' />
+                                </div>
+                                <div className='space-y-2'>
+                                    <div className='h-2 w-full bg-white/10 rounded' />
+                                    <div className='h-2 w-3/4 bg-white/10 rounded' />
+                                </div>
+                            </div>
+                            <div className='grid grid-cols-2 gap-4'>
+                                <div className='h-24 rounded-xl border border-white/5 bg-white/5' />
+                                <div className='h-24 rounded-xl border border-white/5 bg-white/5' />
+                            </div>
+                        </div>
+                    </div>
+                 </div>
 
-      {/* Testimonials Section */}
-      <section className='py-24 px-6 bg-gray-950/30 border-y border-gray-900'>
-        <div className='max-w-6xl mx-auto'>
-          <div className='text-center mb-16'>
-            <h2 className='text-4xl md:text-5xl font-bold mb-4'>
-              Loved by{' '}
-              <span className='text-[#D4AF37]'>Creators & Entrepreneurs</span>
-            </h2>
-            <p className='text-gray-400 max-w-2xl mx-auto text-lg'>
-              See what early adopters are saying about building with Ascnd Labs
-            </p>
-          </div>
+                 {/* Subtle brand overlay */}
+                 <div className='absolute inset-0 flex items-center justify-center pointer-events-none'>
+                    <div className='p-8 rounded-3xl bg-black/40 backdrop-blur-xl border border-white/10 flex flex-col items-center gap-4 group-hover:scale-110 transition-transform duration-700'>
+                        <CrownLogo size={60} className="text-gold" />
+                        <div className='h-px w-12 bg-gold/50' />
+                        <span className='text-sm font-medium tracking-[0.2em] uppercase text-gray-400'>System Active</span>
+                    </div>
+                 </div>
+             </div>
+          </motion.div>
+        </section>
 
-          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
-            <TestimonialCard
-              name='Alex Chen'
-              role='SaaS Founder'
-              avatar='A'
-              content='The speed to market is incredible. I went from idea to launch in less than a month. This is game-changing.'
-            />
-            <TestimonialCard
-              name='Maya Patel'
-              role='Digital Creator'
-              avatar='M'
-              content='The automation tools have freed up so much of my time. I can focus on what I do best instead of admin work.'
-            />
-            <TestimonialCard
-              name='Jordan Lee'
-              role='E-commerce Entrepreneur'
-              avatar='J'
-              content='The affiliate system is elegant and easy to manage. Great for scaling revenue without hiring a team.'
-            />
-            <TestimonialCard
-              name='Sarah Williams'
-              role='Product Manager'
-              avatar='S'
-              content='The analytics dashboard gives me clarity on my business. The insights are actionable and help with strategy.'
-            />
-            <TestimonialCard
-              name='David Martinez'
-              role='Agency Owner'
-              avatar='D'
-              content='Professional-grade tools at an accessible price point. This is exactly what I was looking for.'
-            />
-            <TestimonialCard
-              name='Emma Thompson'
-              role='Startup Founder'
-              avatar='E'
-              content='Great support from the team. They took time to understand my use case and helped me set up everything smoothly.'
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Pricing Section */}
-      <section id='pricing' className='relative py-24 px-6'>
-        <div className='max-w-6xl mx-auto'>
-          <div className='text-center mb-16'>
-            <h2 className='text-4xl md:text-5xl font-bold mb-4'>
-              Simple <span className='text-[#D4AF37]'>Transparent Pricing</span>
-            </h2>
-            <p className='text-gray-400 max-w-2xl mx-auto text-lg'>
-              Lock in founder pricing and build your empire with our AI-powered
-              tools. No hidden fees, cancel anytime.
-            </p>
-          </div>
-
-          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
-            <PricingCard
-              plan='Starter'
-              price='5'
-              description='Perfect for beginners starting their digital journey.'
-              features={[
-                'Viral Hook Factory',
-                'AI Product Generator',
-                'Niche Launchpad',
-                '10 Generations per Month',
-                'Email Support',
-              ]}
-              emoji='🚀'
-              affiliateEarnings={{ l1: '2.00', l2: '0.50' }}
-            />
-            <PricingCard
-              plan='Pro'
-              price='12'
-              description='For serious creators ready to scale and monetize.'
-              features={[
-                'Viral Hook Factory',
-                'AI Product Generator',
-                'Niche Launchpad',
-                '50 Generations per Month',
-                'Priority Support',
-              ]}
-              emoji='👑'
-              popular={true}
-              affiliateEarnings={{ l1: '4.80', l2: '1.20' }}
-            />
-            <PricingCard
-              plan='Empire'
-              price='25'
-              description='For empire builders who want total domination.'
-              features={[
-                'Viral Hook Factory',
-                'AI Product Generator',
-                'Niche Launchpad',
-                'Unlimited Generations',
-                'Priority Support',
-                'Direct Mentor Access',
-              ]}
-              emoji='📈'
-              affiliateEarnings={{ l1: '10.00', l2: '2.50' }}
-            />
-          </div>
-
-          {/* Affiliate Program Section */}
-          <div className='mt-16 bg-gray-950/50 border border-gray-800 rounded-lg p-8'>
-            <div className='text-center mb-10'>
-              <h3 className='text-2xl md:text-3xl font-bold text-white mb-3'>
-                💰 2-Tier Affiliate Program
-              </h3>
-              <p className='text-gray-400 text-lg'>
-                Earn recurring commissions by referring others to Ascnd Labs
-              </p>
-            </div>
-
-            <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
-              <div className='bg-gray-900/40 border border-gray-800 rounded p-5 text-center'>
-                <div className='text-3xl font-bold text-[#D4AF37] mb-2'>
-                  40%
-                </div>
-                <div className='text-sm text-white font-semibold mb-1'>
-                  Level 1 Commission
-                </div>
-                <p className='text-xs text-gray-400'>
-                  Earn 40% recurring on every direct referral you bring
-                </p>
-              </div>
-              <div className='bg-gray-900/40 border border-gray-800 rounded p-5 text-center'>
-                <div className='text-3xl font-bold text-[#D4AF37] mb-2'>
-                  10%
-                </div>
-                <div className='text-sm text-white font-semibold mb-1'>
-                  Level 2 Override
-                </div>
-                <p className='text-xs text-gray-400'>
-                  Earn 10% on referrals your L1 members bring in
-                </p>
-              </div>
-              <div className='bg-gray-900/40 border border-gray-800 rounded p-5 text-center'>
-                <div className='text-3xl font-bold text-[#D4AF37] mb-2'>∞</div>
-                <div className='text-sm text-white font-semibold mb-1'>
-                  Recurring
-                </div>
-                <p className='text-xs text-gray-400'>
-                  Commissions continue as long as they stay subscribed
-                </p>
-              </div>
-            </div>
-
-            <div className='mt-8 p-4 bg-gray-900/60 border border-[#D4AF37]/20 rounded text-center'>
-              <p className='text-sm text-gray-300'>
-                Want to start earning? Join hundreds of affiliates turning Ascnd
-                Labs into a passive income stream.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Community Section */}
-      <section id='community' className='relative py-24 px-6'>
-        <div className='max-w-3xl mx-auto'>
-          <div className='rounded-lg border border-gray-800 bg-gray-950/40 backdrop-blur-sm p-8 md:p-16 text-center hover:border-[#D4AF37]/30 transition-all duration-300'>
-            <div className='w-16 h-16 bg-[#D4AF37] rounded-lg flex items-center justify-center mx-auto mb-8 text-3xl'>
-              💬
-            </div>
-            <h3 className='text-3xl md:text-4xl font-bold mb-4'>
-              Join Our Community
-            </h3>
-            <p className='text-gray-400 text-lg mb-4 leading-relaxed'>
-              Connect with fellow empire builders, share strategies, get
-              feedback, and access exclusive resources and opportunities.
-            </p>
-            <p className='text-gray-400 text-lg mb-8 leading-relaxed'>
-              Our Discord community is where builders gather to discuss ideas,
-              celebrate wins, and collaborate on projects.
-            </p>
-            <a
-              href='https://discord.gg/t7r94BZUXv'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='inline-flex items-center gap-2 px-8 py-4 rounded-lg bg-[#D4AF37] text-black font-semibold hover:shadow-lg hover:shadow-[#D4AF37]/40 transition-all duration-300 hover:scale-105'
+        {/* Features Bento Grid */}
+        <section id='features' className='px-6 py-24'>
+          <div className='mx-auto max-w-7xl'>
+            <motion.div 
+               variants={fadeIn}
+               initial='initial'
+               whileInView='whileInView'
+               viewport={{ once: true }}
+               className='mb-16 text-center'
             >
-              Join Discord Community →
-            </a>
+              <h2 className='mb-4 text-4xl font-bold md:text-5xl'>
+                AI Tools for <span className='text-gold'>Every Stage</span>
+              </h2>
+              <p className='mx-auto max-w-2xl text-gray-400'>
+                From ideation to scaling, our comprehensive AI-powered platform provides everything you need to build, launch, and scale your digital business.
+              </p>
+            </motion.div>
+
+            <motion.div 
+              variants={staggerContainer}
+              initial='initial'
+              whileInView='whileInView'
+              viewport={{ once: true }}
+              className='grid grid-cols-1 gap-6 md:grid-cols-3'
+            >
+              {/* Feature 1: Large */}
+              <GlassCard className='p-8 md:col-span-2'>
+                 <FeatureIcon icon={Bot} />
+                 <h3 className='mb-3 text-2xl font-bold'>AI Product Builder</h3>
+                 <p className='text-gray-400 mb-6'>Create digital products with our advanced AI assistant. From SaaS tools to mobile apps, build anything without coding expertise. Our engine handles the complexity while you focus on the vision.</p>
+                 <div className='flex items-center gap-4'>
+                    <div className='h-32 w-full rounded-xl bg-black/40 border border-white/5 flex items-center justify-center'>
+                        <span className='text-xs text-gray-600'>Live Generation Preview</span>
+                    </div>
+                 </div>
+              </GlassCard>
+
+              {/* Feature 2: Square */}
+              <GlassCard className='p-8'>
+                <FeatureIcon icon={Target} />
+                <h3 className='mb-3 text-xl font-bold'>Smart Launchpad</h3>
+                <p className='text-gray-400 text-sm'>Launch products with AI-optimized strategies. Automated marketing, pricing, and acquisition tools.</p>
+              </GlassCard>
+
+              {/* Feature 3: Small */}
+              <GlassCard className='p-8'>
+                <FeatureIcon icon={Users} color='#60A5FA' />
+                <h3 className='mb-3 text-xl font-bold'>Affiliate Empire</h3>
+                <p className='text-gray-400 text-sm'>Build and manage your affiliate network with intelligent recruitment tools.</p>
+              </GlassCard>
+
+              {/* Feature 4: Large Horizontal */}
+              <GlassCard className='p-8 md:col-span-2'>
+                <div className='flex flex-col md:flex-row gap-8 items-center'>
+                    <div className='flex-1'>
+                        <FeatureIcon icon={BarChart3} color='#34D399' />
+                        <h3 className='mb-3 text-2xl font-bold'>Advanced Analytics</h3>
+                        <p className='text-gray-400'>Real-time dashboards show every metric that matters. Track revenue, customer behavior, and market trends with predictive AI insights.</p>
+                    </div>
+                    <div className='flex-1 w-full'>
+                         <div className='h-40 rounded-xl bg-black/40 border border-white/5 p-4 flex flex-col gap-2'>
+                            {[1,2,3].map(i => (
+                                <div key={i} className='h-3 w-full bg-white/5 rounded-full overflow-hidden'>
+                                    <motion.div 
+                                      initial={{ width: 0 }}
+                                      whileInView={{ width: `${Math.random() * 60 + 20}%` }}
+                                      className='h-full bg-gold/50'
+                                    />
+                                </div>
+                            ))}
+                         </div>
+                    </div>
+                </div>
+              </GlassCard>
+            </motion.div>
           </div>
-        </div>
-      </section>
+        </section>
+
+        {/* Why Choose Us */}
+        <section className='bg-white/5 py-24'>
+           <div className='mx-auto max-w-7xl px-6'>
+              <div className='grid grid-cols-1 gap-12 md:grid-cols-2 items-center'>
+                 <motion.div variants={fadeIn} initial='initial' whileInView='whileInView'>
+                    <h2 className='mb-6 text-4xl font-bold md:text-5xl'>Why Builders Choose <span className='text-gold'>Ascnd Labs</span></h2>
+                    <p className='mb-8 text-gray-400'>We provide more than just tools. We provide the infrastructure for the next generation of digital entrepreneurs.</p>
+                    
+                    <div className='space-y-6'>
+                       {[
+                         { title: 'Lightning Fast Deployment', desc: 'Go from idea to live in under 2 minutes.', icon: Trophy },
+                         { title: 'Military Grade Security', desc: 'Your data and IP are protected by enterprise encryption.', icon: ShieldCheck },
+                         { title: 'Global Infrastructure', desc: 'Scale to millions of users with zero friction.', icon: Globe }
+                       ].map((item, i) => (
+                         <div key={i} className='flex gap-4'>
+                            <div className='flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-gold/10 text-gold shadow-gold/5 shadow-lg'>
+                               <item.icon size={24} />
+                            </div>
+                            <div>
+                               <h4 className='font-bold text-white'>{item.title}</h4>
+                               <p className='text-sm text-gray-400'>{item.desc}</p>
+                            </div>
+                         </div>
+                       ))}
+                    </div>
+                 </motion.div>
+
+                 <motion.div 
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    whileInView={{ opacity: 1, scale: 1 }}
+                    className='relative'
+                 >
+                    <div className='aspect-square rounded-3xl bg-gradient-to-br from-gold/20 to-transparent p-1 shadow-2xl shadow-gold/10'>
+                       <div className='h-full w-full rounded-3xl bg-black flex items-center justify-center border border-white/5'>
+                          <div className='text-center p-8'>
+                             <TrendingUp size={48} className='text-gold mx-auto mb-4' />
+                             <div className='text-5xl font-bold mb-2'>340%</div>
+                             <p className='text-gray-400'>Average Revenue Growth</p>
+                          </div>
+                       </div>
+                    </div>
+                 </motion.div>
+              </div>
+           </div>
+        </section>
+
+        {/* Testimonials */}
+        <section className='px-6 py-24'>
+           <div className='mx-auto max-w-7xl text-center'>
+              <motion.div variants={fadeIn} initial='initial' whileInView='whileInView' className='mb-16'>
+                <h2 className='mb-4 text-4xl font-bold md:text-5xl'>Trusted by <span className='text-gold'>Visionaries</span></h2>
+                <p className='text-gray-400'>Join thousands of entrepreneurs already building their empires.</p>
+              </motion.div>
+
+              <div className='grid grid-cols-1 gap-6 md:grid-cols-3'>
+                 {[
+                   { name: 'Alex Chen', role: 'SaaS Founder', text: 'The speed to market is incredible. I went from idea to launch in less than a month. This is game-changing.' },
+                   { name: 'Maya Patel', role: 'Digital Creator', text: 'The automation tools have freed up so much of my time. I can focus on what I do best instead of admin work.' },
+                   { name: 'Jordan Lee', role: 'E-commerce Entrepreneur', text: 'The affiliate system is elegant and easy to manage. Great for scaling revenue without hiring a team.' }
+                 ].map((t, i) => (
+                   <GlassCard key={i} className='p-8 text-left'>
+                      <div className='mb-6 flex gap-1 text-gold'>
+                        {[1,2,3,4,5].map(j => <Star key={j} size={16} fill='currentColor' />)}
+                      </div>
+                      <p className='mb-8 text-gray-300 italic'>"{t.text}"</p>
+                      <div className='flex items-center gap-4'>
+                         <div className='h-10 w-10 rounded-full bg-gold/20 flex items-center justify-center font-bold text-gold'>
+                            {t.name[0]}
+                         </div>
+                         <div>
+                            <div className='font-bold'>{t.name}</div>
+                            <div className='text-[10px] text-gray-500 uppercase tracking-widest'>{t.role}</div>
+                         </div>
+                      </div>
+                   </GlassCard>
+                 ))}
+              </div>
+           </div>
+        </section>
+
+        {/* Pricing */}
+        <section id='pricing' className='bg-white/5 py-24'>
+           <div className='mx-auto max-w-7xl px-6'>
+              <div className='mb-16 text-center'>
+                <h2 className='mb-4 text-4xl font-bold md:text-5xl'>Simple <span className='text-gold'>Transparent</span> Pricing</h2>
+                <p className='text-gray-400'>Unlock the full potential of your digital empire.</p>
+              </div>
+
+              <div className='grid grid-cols-1 gap-8 md:grid-cols-3'>
+                 {[
+                   { 
+                     name: 'Starter', price: '5', popular: false,
+                     features: ['Viral Hook Factory', 'AI Product Generator', 'Niche Launchpad', '10 Generations/Mo']
+                   },
+                   { 
+                     name: 'Pro', price: '12', popular: true,
+                     features: ['Viral Hook Factory', 'AI Product Generator', 'Niche Launchpad', '50 Generations/Mo', 'Priority Support']
+                   },
+                   { 
+                     name: 'Empire', price: '25', popular: false,
+                     features: ['Everything in Pro', 'Unlimited Generations', 'Whitelabel Options', 'Direct API Access']
+                   }
+                 ].map((plan, i) => (
+                   <motion.div
+                     key={i}
+                     variants={fadeIn}
+                     initial='initial'
+                     whileInView='whileInView'
+                     className={`relative flex flex-col rounded-3xl p-8 transition-all duration-500 ${plan.popular ? 'bg-white text-black scale-105 shadow-2xl shadow-gold/20' : 'bg-white/5 border border-white/10 hover:border-gold/30'}`}
+                   >
+                     {plan.popular && (
+                       <div className='absolute -top-4 right-8 rounded-full bg-gold px-4 py-1 text-[10px] font-bold text-black uppercase tracking-widest'>
+                          Most Popular
+                       </div>
+                     )}
+                     <div className='mb-8'>
+                        <h3 className={`text-xl font-bold ${plan.popular ? 'text-black' : 'text-white'}`}>{plan.name}</h3>
+                        <div className='mt-4 flex items-baseline'>
+                           <span className='text-5xl font-extrabold tracking-tight'>${plan.price}</span>
+                           <span className={plan.popular ? 'text-black/60' : 'text-gray-400'}>/month</span>
+                        </div>
+                     </div>
+                     <div className='mb-10 flex-1 space-y-4'>
+                        {plan.features.map((f, j) => (
+                          <div key={j} className='flex items-center gap-3'>
+                             <CheckCircle2 size={18} className={plan.popular ? 'text-black' : 'text-gold'} />
+                             <span className={`text-sm ${plan.popular ? 'text-black/80' : 'text-gray-400'}`}>{f}</span>
+                          </div>
+                        ))}
+                     </div>
+                     <button
+                        onClick={handleGetStarted}
+                        className={`w-full rounded-xl py-4 font-bold transition-all ${plan.popular ? 'bg-black text-white hover:bg-black/90' : 'bg-white/10 hover:bg-white/20'} cursor-pointer`}
+                     >
+                       Choose Plan
+                     </button>
+                   </motion.div>
+                 ))}
+              </div>
+           </div>
+        </section>
+
+        {/* CTA / Community */}
+        <section id='community' className='px-6 py-24'>
+           <motion.div 
+             initial={{ opacity: 0, y: 50 }}
+             whileInView={{ opacity: 1, y: 0 }}
+             className='mx-auto max-w-5xl overflow-hidden rounded-[3rem] bg-gradient-to-br from-gold to-[#B8860B] p-1'
+           >
+              <div className='flex flex-col items-center justify-between gap-12 bg-black rounded-[2.9rem] p-12 md:flex-row md:p-20'>
+                 <div className='max-w-xl text-center md:text-left'>
+                    <h2 className='mb-6 text-4xl font-bold md:text-5xl'>Ready to <span className='text-gold'>Ascend</span>?</h2>
+                    <p className='text-lg text-gray-400'>Join our Discord and connect with founders building the future. Get exclusive strategies, early access, and feedback on your products.</p>
+                 </div>
+                 <div className='flex flex-col gap-4 w-full md:w-auto'>
+                    <motion.a
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      href='https://discord.gg/t7r94BZUXv'
+                      target='_blank'
+                      className='flex items-center justify-center gap-3 rounded-2xl bg-white px-10 py-5 text-xl font-bold text-black transition-all hover:bg-gold'
+                    >
+                       <MessageSquare /> Join Discord
+                    </motion.a>
+                    <p className='text-center text-xs text-gray-500 uppercase tracking-widest'>Zero Fee Community Access</p>
+                 </div>
+              </div>
+           </motion.div>
+        </section>
+      </main>
 
       {/* Footer */}
-      <footer className='relative py-12 px-6 border-t border-gray-900 bg-gray-950/50'>
-        <div className='max-w-6xl mx-auto'>
-          <div className='grid grid-cols-1 md:grid-cols-3 gap-8 mb-8 pb-8 border-b border-gray-900'>
-            <div>
-              <div className='flex items-center gap-2 mb-4'>
-                <div className='text-[#D4AF37] p-2 rounded-lg bg-[#D4AF37]/10'>
-                  <CrownLogo size={16} />
-                </div>
-                <span className='font-semibold'>Ascnd Labs</span>
-              </div>
-              <p className='text-gray-400 text-sm'>
-                Building empires with AI-powered tools.
-              </p>
+      <footer className='border-t border-white/5 bg-black px-6 py-20'>
+         <div className='mx-auto max-w-7xl'>
+            <div className='grid grid-cols-1 gap-12 md:grid-cols-4'>
+               <div className='md:col-span-1'>
+                  <div className='mb-6 flex items-center gap-2'>
+                    <div className='text-gold'>
+                      <CrownLogo size={24} />
+                    </div>
+                    <span className='text-2xl font-bold'>Ascnd</span>
+                  </div>
+                  <p className='text-sm text-gray-500'>Building the next generation of digital empires with artificial intelligence.</p>
+               </div>
+               <div>
+                  <h4 className='mb-6 font-bold uppercase tracking-widest text-white'>Product</h4>
+                  <ul className='space-y-4 text-sm text-gray-400'>
+                     <li><a href='#features' className='hover:text-gold'>Features</a></li>
+                     <li><a href='#pricing' className='hover:text-gold'>Pricing</a></li>
+                     <li><a href='#' className='hover:text-gold'>Documentation</a></li>
+                  </ul>
+               </div>
+               <div>
+                  <h4 className='mb-6 font-bold uppercase tracking-widest text-white'>Legal</h4>
+                  <ul className='space-y-4 text-sm text-gray-400'>
+                     <li><a href='#' className='hover:text-gold'>Privacy Policy</a></li>
+                     <li><a href='#' className='hover:text-gold'>Terms of Service</a></li>
+                     <li><a href='#' className='hover:text-gold'>Cookie Policy</a></li>
+                  </ul>
+               </div>
+               <div>
+                  <h4 className='mb-6 font-bold uppercase tracking-widest text-white'>Support</h4>
+                  <ul className='space-y-4 text-sm text-gray-400'>
+                     <li><a href='mailto:hello@ascndlabs.com' className='hover:text-gold'>hello@ascndlabs.com</a></li>
+                     <li><a href='#' className='hover:text-gold'>Help Center</a></li>
+                     <li><a href='#' className='hover:text-gold'>Contact Us</a></li>
+                  </ul>
+               </div>
             </div>
-            <div>
-              <h4 className='font-semibold mb-4 text-white'>Product</h4>
-              <ul className='space-y-2 text-sm text-gray-400'>
-                <li>
-                  <a
-                    href='#'
-                    className='hover:text-[#D4AF37] transition-colors'
-                  >
-                    Features
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href='#'
-                    className='hover:text-[#D4AF37] transition-colors'
-                  >
-                    Pricing
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href='#'
-                    className='hover:text-[#D4AF37] transition-colors'
-                  >
-                    Documentation
-                  </a>
-                </li>
-              </ul>
+            <div className='mt-20 border-t border-white/5 pt-10 text-center text-xs text-gray-600 uppercase tracking-tighter'>
+               © 2025 Ascnd Labs. Build with intention.
             </div>
-            <div>
-              <h4 className='font-semibold mb-4 text-white'>Company</h4>
-              <ul className='space-y-2 text-sm text-gray-400'>
-                <li>
-                  <a
-                    href='#'
-                    className='hover:text-[#D4AF37] transition-colors'
-                  >
-                    About
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href='#'
-                    className='hover:text-[#D4AF37] transition-colors'
-                  >
-                    Blog
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href='#'
-                    className='hover:text-[#D4AF37] transition-colors'
-                  >
-                    Contact
-                  </a>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div className='flex flex-col md:flex-row justify-between items-center gap-4'>
-            <p className='text-gray-400 text-sm'>
-              © 2025 Ascnd Labs. All rights reserved.
-            </p>
-            <a
-              href='mailto:hello@ascndlabs.com'
-              className='flex items-center gap-2 text-gray-400 hover:text-[#D4AF37] transition-colors text-sm'
-            >
-              📧 hello@ascndlabs.com
-            </a>
-          </div>
-        </div>
+         </div>
       </footer>
+
+      {/* Video Modal */}
+      <AnimatePresence>
+        {isVideoOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className='fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 backdrop-blur-xl'
+            onClick={() => setIsVideoOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className='relative w-full max-w-4xl overflow-hidden rounded-3xl border border-white/10 bg-gray-950 shadow-2xl'
+              onClick={e => e.stopPropagation()}
+            >
+              <button 
+                className='absolute top-6 right-6 text-white hover:text-gold transition-colors'
+                onClick={() => setIsVideoOpen(false)}
+              >
+                <X size={32} />
+              </button>
+              <div className='aspect-video bg-black'>
+                <video className='h-full w-full' controls autoPlay>
+                  <source src='/demo.mp4' type='video/mp4' />
+                </video>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
