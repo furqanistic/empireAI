@@ -5,6 +5,9 @@ dotenv.config({ quiet: true })
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import express from 'express'
+import mongoSanitize from 'express-mongo-sanitize'
+import rateLimit from 'express-rate-limit'
+import helmet from 'helmet'
 import mongoose from 'mongoose'
 import adminRoutes from './routes/admin.js'
 import authRoute from './routes/auth.js'
@@ -26,9 +29,9 @@ import chatRoute from './routes/chat.js'
 
 // Import middleware for hooks
 import {
-  applySubscriptionLimits,
-  checkSubscriptionAccess,
-  logHookActivity,
+    applySubscriptionLimits,
+    checkSubscriptionAccess,
+    logHookActivity,
 } from './middleware/hookMiddleware.js'
 
 const app = express()
@@ -53,6 +56,33 @@ const corsOptions = {
 }
 
 app.use(cors(corsOptions))
+
+// Security Middleware
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+        'frame-ancestors': ["'self'"],
+      },
+    },
+    frameguard: {
+      action: 'sameorigin',
+    },
+  })
+)
+app.use(mongoSanitize())
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again after 15 minutes',
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+})
+
+// Apply rate limiting to all requests
+app.use('/api/', limiter)
 
 // Webhook routes (before express.json())
 app.use('/api/webhooks/', digitalProductWebhooksRoute)
