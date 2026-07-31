@@ -35,12 +35,6 @@ const TermsOfServicePage = () => {
     }
   }
 
-  const currentDate = new Date().toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
-
   return (
     <div className='min-h-screen bg-[#0A0A0B] text-[#EDEDED]'>
       {/* Header */}
@@ -52,7 +46,7 @@ const TermsOfServicePage = () => {
               className='flex items-center gap-2 text-gray-400 hover:text-[#D4AF37] transition-colors duration-300'
             >
               <ChevronLeft size={20} />
-              <span className='text-sm'>Back to Ascend AI</span>
+              <span className='text-sm'>Back to AscndLabs</span>
             </button>
           </div>
 
@@ -66,7 +60,7 @@ const TermsOfServicePage = () => {
                 Terms of <span className='text-[#D4AF37]'>Service</span>
               </h1>
               <p className='text-gray-400 text-sm sm:text-base'>
-                Your agreement to build and scale with Ascend AI Empire
+                Your agreement to use the AscndLabs affiliate program platform
               </p>
             </div>
           </div>
@@ -86,7 +80,7 @@ const TermsOfServicePage = () => {
           <p className='text-gray-400'>
             These Terms of Service are effective as of{' '}
             <span className='text-[#D4AF37] font-semibold'>Sept 25, 2025</span>{' '}
-            and govern your use of the Ascend AI Empire platform.
+            and govern your use of the AscndLabs affiliate program platform.
           </p>
         </div>
 
@@ -120,7 +114,7 @@ const TermsOfServicePage = () => {
               <h3 className='text-[#D4AF37] font-semibold'>Age Requirement</h3>
             </div>
             <p className='text-gray-400 text-sm leading-relaxed'>
-              You must be at least 18 years old to use Ascend AI Empire. By
+              You must be at least 18 years old to use AscndLabs. By
               using this service, you represent and warrant that you meet this
               age requirement.
             </p>
@@ -327,7 +321,7 @@ const TermsOfServicePage = () => {
               </h3>
               <p className='text-gray-400 text-sm'>
                 All rights to the platform, including code, design, branding,
-                and technology, belong exclusively to Ascend AI Empire.
+                and technology, belong exclusively to AscndLabs.
               </p>
             </div>
 
@@ -394,7 +388,7 @@ const TermsOfServicePage = () => {
                 Indemnification
               </h3>
               <p className='text-gray-400 text-sm leading-relaxed'>
-                You agree to indemnify and hold harmless Ascend AI Empire, its
+                You agree to indemnify and hold harmless AscndLabs, its
                 officers, employees, and affiliates from any claims, damages, or
                 expenses arising from your use of the service, including
                 violations of intellectual property rights or unlawful activity.
@@ -510,7 +504,7 @@ const TermsOfServicePage = () => {
                 className='inline-flex items-center gap-2 bg-[#121214] border border-[#D4AF37]/30 text-[#D4AF37] px-6 py-3 rounded-xl font-semibold hover:bg-[#D4AF37]/5 transition-all duration-300'
               >
                 <Crown size={16} />
-                Back to Ascend AI
+                Back to AscndLabs
               </button>
             </div>
           </div>

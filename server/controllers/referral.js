@@ -3,6 +3,125 @@ import { createError } from '../error.js'
 import User from '../models/User.js'
 import NotificationService from '../services/notificationService.js'
 
+const serializeAffiliateProgram = (program) => {
+  if (!program) return null
+
+  return {
+    name: program.name,
+    commissionRate: program.commissionRate,
+    cookieDays: program.cookieDays,
+    status: program.status,
+    createdAt: program.createdAt,
+    programDescription: program.programDescription || '',
+    idealAffiliateProfile: program.idealAffiliateProfile || '',
+    invitationMessage: program.invitationMessage || '',
+    termsSummary: program.termsSummary || '',
+    faq: program.faq || [],
+    contentAngles: program.contentAngles || [],
+  }
+}
+
+// Get the current account's single affiliate program
+export const getAffiliateProgram = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id).select('affiliateProgram')
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        affiliateProgram: serializeAffiliateProgram(user.affiliateProgram),
+      },
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+// Create or update the current account's single affiliate program
+export const updateAffiliateProgram = async (req, res, next) => {
+  try {
+    const input = req.body || {}
+    const name =
+      typeof input.name === 'string' ? input.name.trim() : ''
+    const commissionRate = Number(input.commissionRate)
+    const cookieDays = Number(input.cookieDays)
+    const status = input.status ?? 'active'
+
+    if (!name) {
+      return next(createError(400, 'Program name is required'))
+    }
+
+    if (name.length > 80) {
+      return next(createError(400, 'Program name cannot exceed 80 characters'))
+    }
+
+    if (
+      input.commissionRate === null ||
+      input.commissionRate === '' ||
+      !Number.isFinite(commissionRate) ||
+      commissionRate < 0 ||
+      commissionRate > 100
+    ) {
+      return next(
+        createError(400, 'Commission rate must be a number from 0 to 100')
+      )
+    }
+
+    if (
+      !Number.isInteger(cookieDays) ||
+      cookieDays < 1 ||
+      cookieDays > 365
+    ) {
+      return next(
+        createError(400, 'Cookie duration must be a whole number from 1 to 365')
+      )
+    }
+
+    if (!['active', 'inactive'].includes(status)) {
+      return next(createError(400, 'Program status must be active or inactive'))
+    }
+
+    const user = await User.findById(req.user._id)
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    const isExistingProgram = Boolean(user.affiliateProgram)
+    const createdAt = user.affiliateProgram?.createdAt || new Date()
+    user.affiliateProgram = {
+      ...(user.affiliateProgram?.toObject?.() || {}),
+      name,
+      commissionRate,
+      cookieDays,
+      status,
+      createdAt,
+    }
+
+    await user.save()
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        affiliateProgram: serializeAffiliateProgram(user.affiliateProgram),
+      },
+      message: isExistingProgram
+        ? 'Affiliate program saved successfully'
+        : 'Affiliate program created successfully',
+    })
+  } catch (error) {
+    if (error.name === 'ValidationError') {
+      const message = Object.values(error.errors)[0]?.message
+      return next(createError(400, message || 'Invalid affiliate program'))
+    }
+    next(error)
+  }
+}
+
 // Get user's referral stats and information
 export const getReferralStats = async (req, res, next) => {
   try {

@@ -1,5 +1,5 @@
 // File: client/src/pages/Auth/AuthPage.jsx
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion as Motion } from 'framer-motion'
 import {
     AlertTriangle,
     ArrowLeft,
@@ -38,14 +38,14 @@ const PRIMARY_GOLD = '#D4AF37'
 
 // Reusable Components
 const GlassCard = ({ children, className = '' }) => (
-  <motion.div
+  <Motion.div
     initial={{ opacity: 0, scale: 0.95, y: 20 }}
     animate={{ opacity: 1, scale: 1, y: 0 }}
     exit={{ opacity: 0, scale: 0.95, y: -20 }}
     className={`relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-8 shadow-2xl ${className}`}
   >
     {children}
-  </motion.div>
+  </Motion.div>
 )
 
 const Input = ({
@@ -68,9 +68,9 @@ const Input = ({
     <div className='group space-y-1 w-full'>
       <div className='relative'>
         <div className={`absolute left-4 transition-all duration-300 z-20 pointer-events-none ${isFloating ? 'top-4 text-gold' : 'top-1/2 -translate-y-1/2 text-gray-500'} ${isFocused ? 'text-gold' : ''}`}>
-          <Icon size={18} />
+          {React.createElement(Icon, { size: 18 })}
         </div>
-        
+
         <input
           type={inputType}
           value={value}
@@ -90,10 +90,10 @@ const Input = ({
           {...props}
         />
 
-        <label 
+        <label
           className={`absolute left-12 pointer-events-none transition-all duration-300 z-20
-            ${isFloating 
-                ? 'top-2 text-gold text-[9px] font-black uppercase tracking-[0.2em]' 
+            ${isFloating
+                ? 'top-2 text-gold text-[9px] font-black uppercase tracking-[0.2em]'
                 : 'top-1/2 -translate-y-1/2 text-gray-500 text-sm'}`}
         >
           {placeholder}
@@ -110,13 +110,13 @@ const Input = ({
         )}
       </div>
       {error && (
-        <motion.p 
-          initial={{ opacity: 0, x: -10 }} 
-          animate={{ opacity: 1, x: 0 }} 
+        <Motion.p
+          initial={{ opacity: 0, x: -10 }}
+          animate={{ opacity: 1, x: 0 }}
           className='text-red-500 text-[10px] font-bold uppercase tracking-wider ml-4'
         >
           {error}
-        </motion.p>
+        </Motion.p>
       )}
     </div>
   )
@@ -141,7 +141,7 @@ const Button = ({
   }
 
   return (
-    <motion.button
+    <Motion.button
       whileTap={{ scale: 0.98 }}
       className={`${baseClasses} ${variants[variant]} ${className}`}
       disabled={loading}
@@ -154,7 +154,7 @@ const Button = ({
           {children}
         </>
       )}
-    </motion.button>
+    </Motion.button>
   )
 }
 
@@ -162,7 +162,7 @@ const OTPInput = ({ value, onChange, length = 6, error }) => {
   const inputRefs = useRef([])
 
   const handleChange = (index, val) => {
-    if (!/^\d*$/.test(val)) return 
+    if (!/^\d*$/.test(val)) return
     const newValue = value.split('')
     newValue[index] = val
     const otpValue = newValue.join('')
@@ -257,7 +257,6 @@ export default function AuthPage() {
 
   const {
     data: referralValidationData,
-    isLoading: isValidatingReferral,
   } = useValidateReferralCode(
     formData.referralCode.trim(),
     authFlow === 'signup' && formData.referralCode.trim().length >= 3
@@ -385,7 +384,7 @@ export default function AuthPage() {
       <div className='relative z-10 w-full flex flex-col lg:flex-row min-h-screen'>
         {/* Left Side: Branding (Hidden on mobile) */}
         <div className='hidden lg:flex lg:w-1/2 flex-col justify-between p-12'>
-          <motion.div 
+          <Motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             className='flex items-center gap-2'
@@ -394,29 +393,30 @@ export default function AuthPage() {
               <CrownLogo size={28} />
             </div>
             <span className='text-3xl font-extrabold tracking-tighter text-white'>Ascnd<span className='text-gold'>Labs</span></span>
-          </motion.div>
+          </Motion.div>
 
           <div className='max-w-md'>
-            <motion.h2 
+            <Motion.h2
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
               className='text-5xl font-bold text-white mb-6'
             >
-              Master the<br />
-              <span className='text-gold'>Digital Economy</span>
-            </motion.h2>
-            <motion.p 
+              Run Your<br />
+              <span className='text-gold'>Affiliate Program</span>
+            </Motion.h2>
+            <Motion.p
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
               className='text-gray-400 text-lg leading-relaxed'
             >
-              Empower your vision with the world's most advanced AI infrastructure. Build, scale, and thrive in the new era of intelligent systems.
-            </motion.p>
+              Invite affiliates, track commissions, review earnings, and manage
+              payout status from one focused workspace.
+            </Motion.p>
           </div>
 
-          <motion.div 
+          <Motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.4 }}
@@ -432,24 +432,24 @@ export default function AuthPage() {
             <div>
               <div className='flex items-center gap-2 text-gold mb-1'>
                 <Zap size={20} />
-                <span className='text-xl font-bold text-white'>Fast</span>
+                <span className='text-xl font-bold text-white'>Clear</span>
               </div>
-              <div className='text-[10px] uppercase tracking-[0.2em] text-gray-500 font-bold'>Deployment</div>
+              <div className='text-[10px] uppercase tracking-[0.2em] text-gray-500 font-bold'>Commission Status</div>
             </div>
             <div>
               <div className='flex items-center gap-2 text-gold mb-1'>
                 <Globe size={20} />
-                <span className='text-xl font-bold text-white'>Global</span>
+                <span className='text-xl font-bold text-white'>Focused</span>
               </div>
-              <div className='text-[10px] uppercase tracking-[0.2em] text-gray-500 font-bold'>Availability</div>
+              <div className='text-[10px] uppercase tracking-[0.2em] text-gray-500 font-bold'>Program Management</div>
             </div>
-          </motion.div>
+          </Motion.div>
         </div>
 
         {/* Right Side: Auth Form */}
         <div className='w-full lg:w-1/2 flex items-center justify-center p-6'>
           <div className='w-full max-w-md relative'>
-            
+
             {/* Logo for Mobile */}
             <div className='flex lg:hidden justify-center mb-8'>
               <div className='flex items-center gap-2'>
@@ -479,17 +479,17 @@ export default function AuthPage() {
                   </h1>
                   <p className='text-gray-500 text-sm'>
                     {authFlow === 'signin' && 'Sign in to continue your journey'}
-                    {authFlow === 'signup' && 'Start building your empire today'}
+                    {authFlow === 'signup' && 'Start your affiliate program today'}
                     {authFlow === 'signup-otp' && `We sent a code to ${formData.email}`}
                     {authFlow === 'forgot' && 'Enter your email to receive an OTP'}
                   </p>
                 </div>
 
                 {errors.general && (
-                  <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className='mb-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-start gap-3'>
+                  <Motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className='mb-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-start gap-3'>
                     <AlertTriangle size={18} className='shrink-0' />
                     {errors.general}
-                  </motion.div>
+                  </Motion.div>
                 )}
 
                 <form onSubmit={(e) => { e.preventDefault(); handleSubmit() }} className='space-y-4'>
@@ -512,7 +512,7 @@ export default function AuthPage() {
                         <Input icon={Lock} type='password' placeholder='Confirm' value={formData.confirmPassword} onChange={e => handleInputChange('confirmPassword', e.target.value)} error={errors.confirmPassword} />
                       </div>
                       <Input icon={Gift} placeholder='Referral code (optional)' value={formData.referralCode} onChange={e => handleInputChange('referralCode', e.target.value.toUpperCase())} error={errors.referralCode} />
-                      
+
                       <div className='flex items-start gap-3 p-2'>
                         <input type='checkbox' id='terms' checked={agreedToTerms} onChange={e => setAgreedToTerms(e.target.checked)} className='mt-1 accent-gold' />
                         <label htmlFor='terms' className='text-xs text-gray-500'>

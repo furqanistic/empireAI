@@ -3,6 +3,108 @@ import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import mongoose from 'mongoose'
 
+const AffiliateProgramContentSchema = new mongoose.Schema(
+  {
+    name: { type: String, trim: true, maxlength: 80 },
+    commissionRate: { type: Number, min: 0, max: 100 },
+    commissionReason: { type: String, trim: true, maxlength: 300 },
+    cookieDays: { type: Number, min: 1, max: 365 },
+    cookieReason: { type: String, trim: true, maxlength: 300 },
+    programDescription: { type: String, trim: true, maxlength: 1500 },
+    idealAffiliateProfile: { type: String, trim: true, maxlength: 1000 },
+    invitationMessage: { type: String, trim: true, maxlength: 2000 },
+    termsSummary: { type: String, trim: true, maxlength: 1500 },
+    faq: [{ type: String, trim: true, maxlength: 500 }],
+    contentAngles: [{ type: String, trim: true, maxlength: 300 }],
+  },
+  { _id: false }
+)
+
+const AffiliateProgramLauncherDraftSchema = new mongoose.Schema(
+  {
+    websiteUrl: { type: String, trim: true, maxlength: 500 },
+    productDescription: { type: String, trim: true, maxlength: 2000 },
+    preferredCommissionModel: {
+      type: String,
+      enum: ['percentage', 'flat', 'unsure'],
+      default: 'percentage',
+    },
+    averageOrderValue: { type: Number, min: 0, max: 100000000 },
+    notes: { type: String, trim: true, maxlength: 2000 },
+    sourceUrls: [{ type: String, trim: true, maxlength: 500 }],
+    rawGenerated: AffiliateProgramContentSchema,
+    editedContent: AffiliateProgramContentSchema,
+    generatedAt: Date,
+    version: { type: Number, min: 1, default: 1 },
+    model: { type: String, trim: true, maxlength: 100 },
+    status: {
+      type: String,
+      enum: ['draft', 'published'],
+      default: 'draft',
+    },
+  },
+  { _id: false }
+)
+
+const AffiliateProgramSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: [true, 'Program name is required'],
+      trim: true,
+      maxlength: [80, 'Program name cannot exceed 80 characters'],
+    },
+    commissionRate: {
+      type: Number,
+      required: [true, 'Commission rate is required'],
+      min: [0, 'Commission rate must be at least 0'],
+      max: [100, 'Commission rate cannot exceed 100'],
+    },
+    cookieDays: {
+      type: Number,
+      required: [true, 'Cookie duration is required'],
+      min: [1, 'Cookie duration must be at least 1 day'],
+      max: [365, 'Cookie duration cannot exceed 365 days'],
+    },
+    status: {
+      type: String,
+      enum: {
+        values: ['active', 'inactive'],
+        message: 'Program status must be active or inactive',
+      },
+      default: 'active',
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+      immutable: true,
+    },
+    programDescription: {
+      type: String,
+      trim: true,
+      maxlength: 1500,
+    },
+    idealAffiliateProfile: {
+      type: String,
+      trim: true,
+      maxlength: 1000,
+    },
+    invitationMessage: {
+      type: String,
+      trim: true,
+      maxlength: 2000,
+    },
+    termsSummary: {
+      type: String,
+      trim: true,
+      maxlength: 1500,
+    },
+    faq: [{ type: String, trim: true, maxlength: 500 }],
+    contentAngles: [{ type: String, trim: true, maxlength: 300 }],
+  },
+  { _id: false }
+)
+
 const UserSchema = new mongoose.Schema(
   {
     // Basic user information
@@ -131,6 +233,17 @@ const UserSchema = new mongoose.Schema(
       default: false,
     },
     referralDiscountUsedAt: Date,
+
+    // One affiliate program per account for the first product version
+    affiliateProgram: {
+      type: AffiliateProgramSchema,
+      default: undefined,
+    },
+    programLauncherDraft: {
+      type: AffiliateProgramLauncherDraftSchema,
+      default: undefined,
+      select: false,
+    },
 
     // Referral statistics
     referralStats: {

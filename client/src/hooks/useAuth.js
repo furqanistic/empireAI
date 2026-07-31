@@ -244,6 +244,72 @@ export const useDeleteUser = () => {
 // REFERRAL HOOKS
 // =============================================================================
 
+export const useAffiliateProgram = () => {
+  const currentUser = useSelector(selectCurrentUser)
+
+  return useQuery({
+    queryKey: ['referral', 'program'],
+    queryFn: referralService.getAffiliateProgram,
+    enabled: !!currentUser,
+    staleTime: 60 * 1000,
+  })
+}
+
+export const useUpdateAffiliateProgram = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: referralService.updateAffiliateProgram,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['referral', 'program'] })
+      queryClient.invalidateQueries({ queryKey: ['user'] })
+    },
+  })
+}
+
+export const useProgramLauncherDraft = () => {
+  const currentUser = useSelector(selectCurrentUser)
+
+  return useQuery({
+    queryKey: ['referral', 'program-launcher'],
+    queryFn: referralService.getProgramLauncherDraft,
+    enabled: !!currentUser,
+    staleTime: 30 * 1000,
+  })
+}
+
+const useProgramLauncherMutation = (mutationFn, invalidateProgram = false) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn,
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ['referral', 'program-launcher'],
+      })
+      if (invalidateProgram) {
+        queryClient.invalidateQueries({ queryKey: ['referral', 'program'] })
+        queryClient.invalidateQueries({ queryKey: ['user'] })
+      }
+    },
+  })
+}
+
+export const useGenerateProgramLauncherDraft = () =>
+  useProgramLauncherMutation(referralService.generateProgramLauncherDraft)
+
+export const useRegenerateProgramLauncherSection = () =>
+  useProgramLauncherMutation(referralService.regenerateProgramLauncherSection)
+
+export const useSaveProgramLauncherDraft = () =>
+  useProgramLauncherMutation(referralService.saveProgramLauncherDraft)
+
+export const usePublishProgramLauncherDraft = () =>
+  useProgramLauncherMutation(
+    referralService.publishProgramLauncherDraft,
+    true
+  )
+
 export const useValidateReferralCode = (code, enabled = true) => {
   return useQuery({
     queryKey: ['referral', 'validate', code],
@@ -384,14 +450,12 @@ export const useClaimDailyPoints = () => {
 
   return useMutation({
     mutationFn: pointsService.claimDailyPoints,
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['points'] })
       queryClient.invalidateQueries({ queryKey: ['user'] })
       queryClient.invalidateQueries({ queryKey: ['notifications'] })
     },
     onError: (error) => {
-      const errorMessage =
-        error.response?.data?.message || 'Failed to claim daily points'
       console.error('Daily points claim error:', error)
     },
   })
@@ -471,8 +535,6 @@ export const useGetSubscription = (enabled = true) => {
 }
 
 export const useCreateCheckoutSession = () => {
-  const queryClient = useQueryClient() // ADD THIS if not already present
-
   return useMutation({
     mutationFn: stripeService.createCheckoutSession,
     onSuccess: (data) => {
@@ -498,7 +560,7 @@ export const useVerifyCheckoutSession = () => {
 
   return useMutation({
     mutationFn: stripeService.verifyCheckoutSession,
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stripe', 'subscription'] })
       queryClient.invalidateQueries({ queryKey: ['stripe'] })
       queryClient.invalidateQueries({ queryKey: ['user'] })
@@ -518,8 +580,6 @@ export const useVerifyCheckoutSession = () => {
       })
     },
     onError: (error) => {
-      const errorMessage =
-        error.response?.data?.message || 'Payment verification failed'
       console.error('Payment verification error:', error)
     },
   })

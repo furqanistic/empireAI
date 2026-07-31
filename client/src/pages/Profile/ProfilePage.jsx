@@ -599,7 +599,10 @@ const ProfilePage = () => {
                                     : 'text-gray-400'
                                 }`}
                               >
-                                {userPlan.toUpperCase()} Plan
+                                {userPlan.toLowerCase() === 'empire'
+                                  ? 'BUSINESS'
+                                  : userPlan.toUpperCase()}{' '}
+                                Plan
                               </h4>
 
                               {subscription?.status &&

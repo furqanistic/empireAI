@@ -1,12 +1,8 @@
 // File: client/src/pages/Layout/Layout.jsx
-import AscendAIChatbot from '@/components/Layout/AscendAIChatbot.jsx'
 import NotificationDrawer from '@/components/Layout/NotificationDrawer.jsx'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion as Motion } from 'framer-motion'
 import {
     Bell,
-    Bot,
-    Box,
-    Cpu,
     CreditCard,
     Crown,
     DollarSign,
@@ -21,6 +17,7 @@ import {
     PanelRight,
     Settings,
     Shield,
+    Sparkles,
     Star,
     User,
     User2,
@@ -28,21 +25,16 @@ import {
     Users,
     Wallet,
     X,
-    Zap,
 } from 'lucide-react'
 import React, { useState } from 'react'
-import { FaDiscord } from 'react-icons/fa'
 import { useSelector } from 'react-redux'
 import { Link, useLocation } from 'react-router-dom'
 import {
     useCurrentUser,
     useLogout,
-    usePointsStatus,
 } from '../../hooks/useAuth.js'
 import { useUnreadCount } from '../../hooks/useNotifications.js'
-import { selectIsAdmin, selectUserPlan } from '../../redux/userSlice.js'
-
-const PRIMARY_GOLD = '#D4AF37'
+import { selectIsAdmin } from '../../redux/userSlice.js'
 
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -53,13 +45,8 @@ const Layout = ({ children }) => {
   const currentUser = useCurrentUser()
   const isAdmin = useSelector(selectIsAdmin)
   const logoutMutation = useLogout()
-  const userPlan = useSelector(selectUserPlan)
-
   const { data: unreadData } = useUnreadCount()
   const unreadCount = unreadData?.data?.unreadCount || 0
-
-  const { data: pointsData, isLoading: pointsLoading } = usePointsStatus()
-  const userPoints = pointsData?.data?.points || 0
 
   const location = useLocation()
 
@@ -77,19 +64,25 @@ const Layout = ({ children }) => {
   )
 
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-    { id: 'ai-builder', label: 'AI Builder', icon: Cpu, path: '/build', badge: 'PRO', badgeColor: 'bg-gold/20 text-gold border border-gold/10' },
-    { id: 'ai-chat', label: 'AI Assistant', icon: Bot, path: '/chat' },
-    { id: 'earnings', label: 'Earnings', icon: Wallet, path: '/earn' },
-    { id: 'affiliate-army', label: 'Affiliate Army', icon: UserPlus, path: '/invite' },
-    { id: 'paid', label: 'Get Paid', icon: CreditCard, path: '/payout' },
+    { id: 'dashboard', label: 'Program Overview', icon: LayoutDashboard, path: '/dashboard' },
+    {
+      id: 'program-launcher',
+      label: 'AI Program Launcher',
+      icon: Sparkles,
+      path: '/program/launcher',
+      badge: 'AI',
+      featured: true,
+    },
+    { id: 'program-setup', label: 'Program Settings', icon: Settings, path: '/program/setup' },
+    { id: 'affiliates', label: 'Invite & Affiliates', icon: UserPlus, path: '/invite' },
+    { id: 'earnings', label: 'Commission Earnings', icon: Wallet, path: '/earn' },
+    { id: 'payouts', label: 'Payout Center', icon: CreditCard, path: '/payout' },
   ]
 
   const advancedItems = [
-    { id: 'products', label: 'Sell Products', icon: Box, path: '/product' },
-    { id: 'profile', label: 'Profile', icon: User, path: '/profile' },
-    { id: 'pricing', label: 'Pricing', icon: Gem, path: '/pricing' },
-    ...(isAdmin ? [{ id: 'admin', label: 'Admin Panel', icon: Shield, path: '/admin', badge: 'ADM' }] : []),
+    { id: 'profile', label: 'My Profile', icon: User, path: '/profile' },
+    { id: 'pricing', label: 'Plans & Billing', icon: Gem, path: '/pricing' },
+    ...(isAdmin ? [{ id: 'admin', label: 'Admin Console', icon: Shield, path: '/admin', badge: 'ADM' }] : []),
   ]
 
   const isActive = (path) => location.pathname === path
@@ -108,7 +101,7 @@ const Layout = ({ children }) => {
     try {
       await logoutMutation.mutateAsync()
       window.location.href = '/auth'
-    } catch (error) {
+    } catch {
       window.location.href = '/auth'
     }
   }
@@ -120,7 +113,13 @@ const Layout = ({ children }) => {
     const content = (
       <div className={`
         group relative flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-300
-        ${active ? 'bg-gold text-black shadow-[0_0_20px_rgba(212,175,55,0.2)]' : 'text-gray-400 hover:text-white hover:bg-white/5'}
+        ${
+          active
+            ? 'bg-gold text-black shadow-[0_0_20px_rgba(212,175,55,0.2)]'
+            : item.featured
+              ? 'border border-gold/25 bg-gold/10 text-gold shadow-[0_0_18px_rgba(212,175,55,0.08)] hover:border-gold/45 hover:bg-gold/15'
+              : 'border border-transparent text-gray-400 hover:bg-white/5 hover:text-white'
+        }
         ${!sidebarOpen ? 'justify-center px-0' : ''}
       `}>
         <Icon size={sidebarOpen ? 18 : 22} className={active ? 'text-black' : 'group-hover:text-gold transition-colors'} />
@@ -129,7 +128,13 @@ const Layout = ({ children }) => {
           <div className='flex-1 flex items-center justify-between whitespace-nowrap overflow-hidden'>
             <span className='font-medium text-[13px] tracking-tight'>{item.label}</span>
             {item.badge && (
-              <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-md ${item.badgeColor || 'bg-white/10 text-white/60'}`}>
+              <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-md ${
+                active
+                  ? 'bg-black/15 text-black/70'
+                  : item.featured
+                    ? 'bg-gold text-black'
+                    : item.badgeColor || 'bg-white/10 text-white/60'
+              }`}>
                 {item.badge}
               </span>
             )}
@@ -167,7 +172,7 @@ const Layout = ({ children }) => {
       {/* Sidebar Overlay */}
       <AnimatePresence>
         {isMobileMenuOpen && (
-          <motion.div
+          <Motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -193,14 +198,14 @@ const Layout = ({ children }) => {
                 <CrownLogo size={24} />
               </div>
               {sidebarOpen && showText && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                <Motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                   <h1 className='text-xl font-bold tracking-tighter text-white leading-none'>
                     Ascnd<span className='text-gold'>Labs</span>
                   </h1>
                   <span className='text-[8px] font-black tracking-[0.3em] text-gray-600 uppercase mt-1 block'>
-                    EMPIRE
+                    AFFILIATE PROGRAMS
                   </span>
-                </motion.div>
+                </Motion.div>
               )}
             </div>
           </div>
@@ -217,7 +222,7 @@ const Layout = ({ children }) => {
               <div>
                 {sidebarOpen && showText && (
                   <p className='text-[9px] font-black tracking-[0.2em] text-gray-600 uppercase mb-3 ml-2'>
-                    Core Systems
+                    Affiliate Program
                   </p>
                 )}
                 <div className='space-y-0.5'>
@@ -229,31 +234,13 @@ const Layout = ({ children }) => {
               <div>
                 {sidebarOpen && showText && (
                   <p className='text-[9px] font-black tracking-[0.2em] text-gray-600 uppercase mb-3 ml-2'>
-                    Extended Module
+                    Account
                   </p>
                 )}
                 <div className='space-y-0.5'>
                   {advancedItems.map(item => <MenuItem key={item.id} item={item} />)}
                 </div>
               </div>
-
-              {/* Discord Link Card */}
-              {sidebarOpen && showText && (
-                <div className='mt-6 px-1'>
-                   <a 
-                     href='https://discord.gg/t7r94BZUXv' 
-                     target='_blank' 
-                     rel='noopener noreferrer'
-                     className='group block p-3 rounded-2xl bg-gradient-to-br from-indigo-500/10 to-transparent border border-indigo-500/10 hover:border-indigo-500/30 transition-all'
-                   >
-                      <div className='flex items-center gap-3 mb-1.5'>
-                         <FaDiscord className='text-indigo-400 group-hover:scale-110 transition-transform' size={16} />
-                         <span className='text-[11px] font-bold'>Alpha Discord</span>
-                      </div>
-                      <p className='text-[9px] text-gray-500 leading-tight font-medium'>Access tactical channels & network.</p>
-                   </a>
-                </div>
-              )}
             </div>
           </div>
 
@@ -266,7 +253,7 @@ const Layout = ({ children }) => {
                   </div>
                   <div className='flex-1 overflow-hidden'>
                      <p className='text-sm font-bold text-white truncate'>{currentUser?.name || 'Agent'}</p>
-                     <p className='text-[10px] font-bold text-gold/60 uppercase tracking-tighter'>{isAdmin ? 'Nexus Admin' : 'Founder'}</p>
+                     <p className='text-[10px] font-bold text-gold/60 uppercase tracking-tighter'>{isAdmin ? 'Admin' : 'Program Owner'}</p>
                   </div>
                   <button onClick={handleLogout} className='p-1.5 hover:text-red-400 transition-colors'>
                      <LogOut size={16} />
@@ -302,18 +289,11 @@ const Layout = ({ children }) => {
             </button>
             <div className='h-6 w-px bg-white/5 hidden md:block' />
             <h2 className='text-sm font-bold text-gray-400 hidden sm:block'>
-               {menuItems.find(i => isActive(i.path))?.label || advancedItems.find(i => isActive(i.path))?.label || 'Nexus Console'}
+               {menuItems.find(i => isActive(i.path))?.label || advancedItems.find(i => isActive(i.path))?.label || 'Affiliate Programs'}
             </h2>
           </div>
 
           <div className='flex items-center gap-3'>
-            {/* Credits/Points Badge */}
-            <div className='flex items-center gap-2 px-3 py-1.5 rounded-full bg-gold/5 border border-gold/20'>
-               <Zap size={14} className='text-gold' />
-               <span className='text-xs font-black text-gold'>{pointsLoading ? '...' : userPoints.toLocaleString()}</span>
-               <span className='text-[10px] font-bold text-gold/40 hidden md:block'>CREDITS</span>
-            </div>
-
             <button 
               onClick={() => setIsNotificationOpen(true)}
               className='relative p-2.5 text-gray-400 hover:text-white rounded-xl bg-white/5 border border-white/5 transition-all'
@@ -352,9 +332,6 @@ const Layout = ({ children }) => {
         isOpen={isNotificationOpen}
         onClose={() => setIsNotificationOpen(false)}
       />
-
-      {/* AI Bot Overlay */}
-      {location.pathname !== '/chat' && <AscendAIChatbot />}
     </div>
   )
 }

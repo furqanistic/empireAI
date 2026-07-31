@@ -14,11 +14,11 @@ export const useGenerateHooks = () => {
       const response = await axiosInstance.post('/hooks/generate', hookData)
       return response.data
     },
-    onMutate: async (variables) => {
+    onMutate: () => {
       // Optimistically update usage stats
       updateUsageStatsOptimistically('viral-hooks')
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ['hooks'] })
       queryClient.invalidateQueries({ queryKey: ['hooks', 'history'] })
@@ -27,7 +27,7 @@ export const useGenerateHooks = () => {
       // Invalidate usage stats to get updated counts
       invalidateUsageStats()
     },
-    onError: (error, variables) => {
+    onError: (error) => {
       console.error('❌ Failed to generate hooks:', error)
       // Revert optimistic update by invalidating
       invalidateUsageStats()
@@ -49,11 +49,11 @@ export const useGenerateProduct = () => {
       )
       return response.data
     },
-    onMutate: async (variables) => {
+    onMutate: () => {
       // Optimistically update usage stats
       updateUsageStatsOptimistically('product-generator')
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ['products'] })
       queryClient.invalidateQueries({ queryKey: ['products', 'history'] })
@@ -62,7 +62,7 @@ export const useGenerateProduct = () => {
       // Invalidate usage stats to get updated counts
       invalidateUsageStats()
     },
-    onError: (error, variables) => {
+    onError: (error) => {
       console.error('❌ Failed to generate product:', error)
       // Revert optimistic update by invalidating
       invalidateUsageStats()
@@ -84,11 +84,11 @@ export const useGenerateBusinessPlan = () => {
       )
       return response.data
     },
-    onMutate: async (variables) => {
+    onMutate: () => {
       // Optimistically update usage stats
       updateUsageStatsOptimistically('niche-launchpad')
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ['businessPlans'] })
       queryClient.invalidateQueries({ queryKey: ['businessPlans', 'history'] })
@@ -97,7 +97,7 @@ export const useGenerateBusinessPlan = () => {
       // Invalidate usage stats to get updated counts
       invalidateUsageStats()
     },
-    onError: (error, variables) => {
+    onError: (error) => {
       console.error('❌ Failed to generate business plan:', error)
       // Revert optimistic update by invalidating
       invalidateUsageStats()
@@ -108,7 +108,7 @@ export const useGenerateBusinessPlan = () => {
 // Copy hook mutation (doesn't affect usage limits)
 export const useCopyHook = () => {
   return useMutation({
-    mutationFn: async (hookContent, generationId, hookIndex) => {
+    mutationFn: async ({ hookContent, generationId, hookIndex }) => {
       try {
         await navigator.clipboard.writeText(hookContent)
 
@@ -126,7 +126,7 @@ export const useCopyHook = () => {
         }
 
         return { success: true }
-      } catch (error) {
+      } catch {
         throw new Error('Failed to copy to clipboard')
       }
     },
@@ -166,7 +166,7 @@ export const useCopyContent = () => {
         }
 
         return { success: true }
-      } catch (error) {
+      } catch {
         throw new Error('Failed to copy to clipboard')
       }
     },

@@ -8,11 +8,9 @@ import {
   useReactivateSubscription,
   useSubscriptionStatus,
   useUpdateSubscription,
-  useValidateReferralCode,
 } from '@/hooks/useAuth'
 import {
   AlertTriangle,
-  Bot,
   Check,
   Crown,
   DollarSign,
@@ -22,35 +20,30 @@ import {
   Rocket,
   Shield,
   Star,
-  Target,
   TrendingUp,
   Users,
   X,
   Zap,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import Layout from '../Layout/Layout'
 
 const PricingPage = () => {
   const navigate = useNavigate()
-  const location = useLocation()
   const [searchParams] = useSearchParams()
   const [billingCycle, setBillingCycle] = useState('monthly')
   const [referralCode, setReferralCode] = useState('')
-  const [showReferralInput, setShowReferralInput] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelType, setCancelType] = useState('end_of_period')
   const currentUser = useCurrentUser()
 
   // Stripe hooks
   const {
-    data: plansData,
     isLoading: plansLoading,
     error: plansError,
   } = useGetPlans()
   const {
-    subscription,
     subscriptionStatus,
     isLoading: subscriptionLoading,
   } = useSubscriptionStatus()
@@ -60,24 +53,16 @@ const PricingPage = () => {
   const reactivateSubscription = useReactivateSubscription()
   const createBillingPortal = useCreateBillingPortalSession()
 
-  // Referral validation
-  const {
-    data: referralValidation,
-    isLoading: validatingReferral,
-    error: referralError,
-  } = useValidateReferralCode(referralCode, referralCode.length >= 3)
-
   // Check for referral code in URL or user's referral status
   useEffect(() => {
     const urlReferralCode = searchParams.get('ref')
     if (urlReferralCode) {
       setReferralCode(urlReferralCode.toUpperCase())
-      setShowReferralInput(true)
     } else if (
       currentUser?.referredBy &&
       !currentUser?.hasUsedReferralDiscount
     ) {
-      setShowReferralInput(true)
+      setReferralCode('')
     }
   }, [searchParams, currentUser])
 
@@ -111,9 +96,13 @@ const PricingPage = () => {
       Starter: 'starter',
       Pro: 'pro',
       Empire: 'empire',
+      Business: 'empire',
     }
     return stripeMapping[localPlan] || localPlan.toLowerCase()
   }
+
+  const getPlanDisplayName = (planName) =>
+    planName?.toLowerCase() === 'empire' ? 'Business' : planName
 
   const handleGetStarted = async (planName) => {
     if (!currentUser) {
@@ -252,7 +241,7 @@ const PricingPage = () => {
   }
 
   const getButtonText = (planName) => {
-    if (!currentUser) return 'Get Started'
+    if (!currentUser) return 'Start your affiliate program'
     if (subscriptionLoading || updateSubscription.isLoading) return 'Loading...'
 
     const stripePlan = mapPlanToStripe(planName)
@@ -275,7 +264,7 @@ const PricingPage = () => {
       }
     }
 
-    return 'Get Started' // CHANGED: Removed "Start Free Trial"
+    return 'Start your affiliate program'
   }
 
   const isCurrentPlan = (planName) => {
@@ -395,9 +384,7 @@ const PricingPage = () => {
     features,
     popular = false,
     icon,
-    buttonText = 'Get Started',
     buttonVariant = 'primary',
-    affiliateEarnings,
   }) => {
     const displayPrice = billingCycle === 'monthly' ? monthlyPrice : yearlyPrice
     const savings =
@@ -447,7 +434,7 @@ const PricingPage = () => {
               className: popular ? 'text-black' : 'text-[#D4AF37]',
             })}
           </div>
-          <h3 className='text-xl font-bold text-[#EDEDED]'>{plan}</h3>
+          <h3 className='text-xl font-bold text-[#EDEDED]'>{getPlanDisplayName(plan)}</h3>
           {isCurrentPlan(plan) && (
             <div className='bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded text-xs font-medium'>
               Active
@@ -526,16 +513,6 @@ const PricingPage = () => {
           ))}
         </div>
 
-        {/* Affiliate Earnings Info */}
-        <div className='bg-[#1A1A1C] border border-[#1E1E21] rounded-lg p-3 mb-4'>
-          <div className='text-center'>
-            <div className='text-xs text-gray-400 mb-1'>Affiliate Earnings</div>
-            <div className='text-sm font-semibold text-[#D4AF37]'>
-              L1: ${affiliateEarnings.l1}/mo • L2: ${affiliateEarnings.l2}/mo
-            </div>
-          </div>
-        </div>
-
         {/* Special referral discount notice */}
         {discountCalculation && (
           <div className='bg-gradient-to-r from-emerald-500/5 to-blue-500/5 border border-emerald-500/20 rounded-lg p-3 mb-4'>
@@ -591,49 +568,44 @@ const PricingPage = () => {
       plan: 'Starter',
       monthlyPrice: 5,
       yearlyPrice: 50,
-      description: 'Perfect for beginners starting their digital journey.',
+      description: 'For a small business launching its first affiliate program.',
       features: [
-        'Viral Hook Factory',
-        'AI Product Generator',
-        'Niche Launchpad',
-        '10 Generations per Month',
-        'Email Support',
+        'Affiliate invitation link',
+        'Affiliate list',
+        'Commission tracking',
+        'Earnings dashboard',
+        'Payout status',
       ],
       icon: <Rocket />,
-      affiliateEarnings: { l1: '2.00', l2: '0.50' },
     },
     {
       plan: 'Pro',
       monthlyPrice: 12,
       yearlyPrice: 120,
-      description: 'For serious creators ready to scale and monetize.',
+      description: 'For businesses growing an active affiliate network.',
       features: [
-        'Viral Hook Factory',
-        'AI Product Generator',
-        'Niche Launchpad',
-        '50 Generations per Month',
-        'Priority Support',
+        'Affiliate invitation link',
+        'Affiliate list',
+        'Commission tracking',
+        'Earnings dashboard',
+        'Payout status',
       ],
       icon: <Crown />,
       popular: true,
-      affiliateEarnings: { l1: '4.80', l2: '1.20' },
     },
     {
-      plan: 'Empire',
+      plan: 'Business',
       monthlyPrice: 25,
       yearlyPrice: 250,
-      description: 'For empire builders who want total domination.',
+      description: 'For established programs that need more support.',
       features: [
-        'Viral Hook Factory',
-        'AI Product Generator',
-        'Niche Launchpad',
-        'Unlimited Generations',
-        'Priority Support',
-        'Direct Mentor Access',
+        'Affiliate invitation link',
+        'Affiliate list',
+        'Commission tracking',
+        'Earnings dashboard',
+        'Payout status',
       ],
       icon: <Star />,
-      buttonText: 'Go Empire',
-      affiliateEarnings: { l1: '10.00', l2: '2.50' },
     },
   ]
 
@@ -688,12 +660,12 @@ const PricingPage = () => {
           </div>
 
           <h1 className='text-3xl sm:text-4xl lg:text-6xl font-bold text-[#EDEDED] leading-tight'>
-            Choose Your <span className='text-[#D4AF37]'>Empire</span> Level
+            Choose Your <span className='text-[#D4AF37]'>Program</span> Plan
           </h1>
 
           <p className='text-gray-400 text-lg sm:text-xl max-w-3xl mx-auto leading-relaxed'>
-            Start building your digital empire today. Lock in founder pricing
-            and scale from creator to mogul with our AI-powered platform.
+            Start your affiliate program today and lock in founder pricing for
+            affiliates, commission tracking, and payouts.
           </p>
 
           {/* Current Subscription Status - UPDATED: REMOVED TRIAL DISPLAY */}
@@ -706,7 +678,7 @@ const PricingPage = () => {
                     <div className='text-[#EDEDED] text-lg font-semibold'>
                       Current Plan:{' '}
                       <span className='text-[#D4AF37] capitalize'>
-                        {subscriptionStatus.plan}
+                        {getPlanDisplayName(subscriptionStatus.plan)}
                       </span>
                     </div>
                     <div className='text-gray-400 text-sm'>
@@ -793,7 +765,7 @@ const PricingPage = () => {
                     </div>
                     <div className='flex items-center gap-2'>
                       <MessageCircle size={14} className='text-[#D4AF37]' />
-                      <span>24/7 Support</span>
+                      <span>Billing support</span>
                     </div>
                     <div className='flex items-center gap-2'>
                       <Check size={14} className='text-[#D4AF37]' />
@@ -871,105 +843,33 @@ const PricingPage = () => {
           ))}
         </div>
 
-        {/* Affiliate Program Highlight */}
-        <div className='bg-gradient-to-r from-[#121214] via-[#1A1A1C] to-[#121214] border border-[#1E1E21] rounded-xl p-6 sm:p-8'>
-          <div className='text-center mb-6'>
-            <h2 className='text-2xl sm:text-3xl font-bold text-[#EDEDED] mb-3'>
-              💰 2-Tier Affiliate Program
-            </h2>
-            <p className='text-gray-400 text-lg mb-4'>
-              Earn recurring commissions by referring others to Ascend AI
-            </p>
-
-            <div className='bg-[#1A1A1C] border border-[#1E1E21] rounded-lg p-4 max-w-2xl mx-auto mb-6'>
-              <h3 className='text-[#D4AF37] font-semibold text-sm mb-3'>
-                How the 2-Tier System Works:
-              </h3>
-              <div className='grid grid-cols-1 md:grid-cols-2 gap-4 text-left'>
-                <div>
-                  <div className='flex items-center gap-2 mb-1'>
-                    <div className='w-6 h-6 bg-[#D4AF37] text-black text-xs font-bold rounded-full flex items-center justify-center'>
-                      L1
-                    </div>
-                    <span className='text-[#EDEDED] font-medium text-sm'>
-                      Level 1 (Direct)
-                    </span>
-                  </div>
-                  <p className='text-gray-400 text-xs'>
-                    People YOU directly refer to Ascend AI. You earn 40%
-                    recurring commission on their subscription.
-                  </p>
-                </div>
-                <div>
-                  <div className='flex items-center gap-2 mb-1'>
-                    <div className='w-6 h-6 bg-[#D4AF37]/70 text-black text-xs font-bold rounded-full flex items-center justify-center'>
-                      L2
-                    </div>
-                    <span className='text-[#EDEDED] font-medium text-sm'>
-                      Level 2 (Sub-Affiliates)
-                    </span>
-                  </div>
-                  <p className='text-gray-400 text-xs'>
-                    People that YOUR referrals bring in. You earn 10% override
-                    commission on their subscriptions too.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
-            <div className='text-center bg-[#1A1A1C] border border-[#1E1E21] rounded-lg p-4'>
-              <div className='text-2xl font-bold text-[#D4AF37] mb-2'>40%</div>
-              <div className='text-sm text-gray-400 mb-2'>
-                Level 1 Commission
-              </div>
-              <div className='text-xs text-gray-500'>On direct referrals</div>
-            </div>
-            <div className='text-center bg-[#1A1A1C] border border-[#1E1E21] rounded-lg p-4'>
-              <div className='text-2xl font-bold text-[#D4AF37] mb-2'>10%</div>
-              <div className='text-sm text-gray-400 mb-2'>Level 2 Override</div>
-              <div className='text-xs text-gray-500'>
-                On sub-affiliate referrals
-              </div>
-            </div>
-            <div className='text-center bg-[#1A1A1C] border border-[#1E1E21] rounded-lg p-4'>
-              <div className='text-2xl font-bold text-[#D4AF37] mb-2'>∞</div>
-              <div className='text-sm text-gray-400 mb-2'>Recurring</div>
-              <div className='text-xs text-gray-500'>
-                As long as they subscribe
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Feature Highlights */}
         <div className='space-y-6 sm:space-y-8'>
           <div className='text-center'>
             <h2 className='text-2xl sm:text-3xl font-bold text-[#EDEDED] mb-3'>
-              Everything You Need to Build Your Empire
+              Everything You Need to Run Your Affiliate Program
             </h2>
             <p className='text-gray-400 text-lg max-w-2xl mx-auto'>
-              Our AI-powered tools and systems are designed to accelerate your
-              journey from startup to empire.
+              Keep affiliates, commissions, earnings, and payouts organized in
+              one focused workspace.
             </p>
           </div>
 
           <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
             <FeatureHighlight
-              icon={<Bot />}
-              title='AI-Powered Creation'
-              description='Generate products, content, and strategies with advanced AI that understands your market and audience.'
+              icon={<Users />}
+              title='Affiliate Management'
+              description='Invite affiliates, share tracking links, and keep your program activity organized.'
             />
             <FeatureHighlight
               icon={<Users />}
-              title='Affiliate Army System'
-              description='Build and manage a powerful affiliate network that scales your reach exponentially across all channels.'
+              title='Commission Tracking'
+              description='Give businesses and affiliates a clear view of attributed earnings and commission status.'
             />
             <FeatureHighlight
               icon={<TrendingUp />}
-              title='Advanced Analytics'
-              description='Deep insights into your performance, revenue streams, and growth opportunities with actionable recommendations.'
+              title='Payout Visibility'
+              description='See what is pending, available, and paid without digging through unrelated tools.'
             />
           </div>
         </div>
@@ -982,13 +882,13 @@ const PricingPage = () => {
                 <MessageCircle size={24} className='text-black' />
               </div>
               <h2 className='text-xl sm:text-2xl lg:text-3xl font-bold text-[#EDEDED]'>
-                Ready to Start Your Empire?
+                Ready to Start Your Affiliate Program?
               </h2>
             </div>
 
             <p className='text-gray-400 text-lg leading-relaxed'>
-              Join thousands of entrepreneurs who are building their digital
-              empires with our AI-powered platform. Lock in founder pricing
+              Start with a focused workspace for affiliates, commissions, and
+              payouts. Lock in founder pricing
               {isEligibleForDiscount()
                 ? ' and get 10% off your first month'
                 : ''}

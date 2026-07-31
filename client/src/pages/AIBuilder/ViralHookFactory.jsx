@@ -1,610 +1,692 @@
-// File: client/src/pages/AIBuilder/ViralHookFactory.jsx
 import {
   AlertCircle,
-  Book,
-  BookOpen,
-  Brain,
-  Briefcase,
-  CheckCircle,
-  ChefHat,
+  ArrowDownToLine,
+  Bookmark,
+  Check,
+  ChevronDown,
+  Clock3,
   Copy,
-  Crown,
-  DollarSign,
-  Dumbbell,
-  Flame,
-  Heart,
-  HelpCircle,
+  FileText,
   Instagram,
-  Laptop,
-  Leaf,
   Linkedin,
-  Mail,
+  LoaderCircle,
   MessageCircle,
-  Music,
-  Plane,
+  Music2,
+  Play,
+  Plus,
   RefreshCw,
-  Rocket,
-  Shirt,
-  Target,
-  TrendingUp,
-  Twitter,
-  Wand2,
+  Sparkles,
+  Volume2,
+  WandSparkles,
   Youtube,
-  Zap,
 } from 'lucide-react'
-import React, { useEffect, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import React, { useMemo, useState } from 'react'
 
-import { useSelector } from 'react-redux'
+import hookStudioImage from '@/assets/ai-builder/viral-hook-studio.webp'
+import PlanGate from '@/components/Layout/PlanGate'
+import { useCopyHook, useGenerateHooks } from '@/hooks/useHooks'
 import Layout from '../Layout/Layout'
 
-import PlanGate from '@/components/Layout/PlanGate'
-import { useCopyHook, useGenerateHooks, useHookStats } from '@/hooks/useHooks'
-import { selectCurrentUser, selectIsAuthenticated } from '@/redux/userSlice'
+const MotionParagraph = motion.p
+
+const platforms = [
+  { id: 'tiktok', name: 'TikTok', icon: Music2 },
+  { id: 'instagram', name: 'Instagram', icon: Instagram },
+  { id: 'youtube', name: 'YouTube', icon: Youtube },
+  { id: 'linkedin', name: 'LinkedIn', icon: Linkedin },
+]
+
+const directions = [
+  {
+    name: 'Pattern interrupt',
+    tone: 'controversial',
+    description: 'Break the expected pattern.',
+    demo: 'Stop posting random. Start posting with intent.',
+  },
+  {
+    name: 'Confession',
+    tone: 'emotional',
+    description: 'Lead with a relatable admission.',
+    demo: 'I wasted a year creating content nobody remembered.',
+  },
+  {
+    name: 'Hard truth',
+    tone: 'authority',
+    description: 'Say what your audience avoids.',
+    demo: 'Your content is not inconsistent. It is forgettable.',
+  },
+  {
+    name: 'Before / after',
+    tone: 'storytelling',
+    description: 'Make the transformation tangible.',
+    demo: 'From invisible creator to daily inbound leads in 30 days.',
+  },
+  {
+    name: 'Open loop',
+    tone: 'curiosity',
+    description: 'Create a question they need answered.',
+    demo: 'The smallest change doubled my watch time overnight.',
+  },
+]
+
+const nicheOptions = [
+  ['marketing', 'Marketing'],
+  ['entrepreneurship', 'Entrepreneurship'],
+  ['technology', 'Technology'],
+  ['self-improvement', 'Self-improvement'],
+  ['finance', 'Personal finance'],
+  ['fitness', 'Fitness'],
+  ['education', 'Education'],
+  ['health', 'Health & wellness'],
+]
+
+const SelectField = ({ icon: Icon, label, value, onChange, children }) => (
+  <label className='block'>
+    <span className='mb-2 block text-[11px] font-semibold uppercase tracking-[0.16em] text-white/45'>
+      {label}
+    </span>
+    <div className='relative'>
+      {Icon && (
+        <Icon
+          size={15}
+          className='pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-white/35'
+        />
+      )}
+      <select
+        value={value}
+        onChange={onChange}
+        className={`h-11 w-full appearance-none rounded-lg border border-white/[0.08] bg-[#101011] pr-10 text-sm text-white/80 outline-none transition focus:border-[#D4AF37]/60 ${
+          Icon ? 'pl-10' : 'pl-3.5'
+        }`}
+      >
+        {children}
+      </select>
+      <ChevronDown
+        size={14}
+        className='pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-white/35'
+      />
+    </div>
+  </label>
+)
 
 const ViralHookFactory = () => {
-  const [selectedNiche, setSelectedNiche] = useState('')
-  const [selectedPlatform, setSelectedPlatform] = useState('')
-  const [selectedTone, setSelectedTone] = useState('')
-  const [customPrompt, setCustomPrompt] = useState('')
+  const [platform, setPlatform] = useState('tiktok')
+  const [niche, setNiche] = useState('marketing')
+  const [audience, setAudience] = useState('Creators & solopreneurs (20–35)')
+  const [objective, setObjective] = useState('Grow audience')
+  const [voice, setVoice] = useState('Bold & direct')
+  const [premise, setPremise] = useState(
+    'I help creators turn ideas into scroll-stopping shorts that grow their audience.'
+  )
+  const [referenceVoice, setReferenceVoice] = useState(
+    'Stop posting random. Start posting with intent.'
+  )
+  const [mustInclude, setMustInclude] = useState('audience growth')
+  const [mustAvoid, setMustAvoid] = useState('buzzwords')
   const [generatedHooks, setGeneratedHooks] = useState([])
   const [generationId, setGenerationId] = useState(null)
-  const [copyFeedback, setCopyFeedback] = useState({})
+  const [activeDirection, setActiveDirection] = useState(0)
+  const [copyFeedback, setCopyFeedback] = useState('')
+  const [savedHooks, setSavedHooks] = useState([])
+  const [versions, setVersions] = useState([])
 
-  // Hooks
   const generateHooksMutation = useGenerateHooks()
-  const { copyHook, isLoading: isCopying } = useCopyHook()
-  const { data: userStats } = useHookStats()
+  const copyHookMutation = useCopyHook()
 
-  // Redux selectors
-  const currentUser = useSelector(selectCurrentUser)
-  const isAuthenticated = useSelector(selectIsAuthenticated)
+  const visibleHooks = useMemo(
+    () =>
+      directions.map((direction, index) => ({
+        ...direction,
+        content: generatedHooks[index] || direction.demo,
+      })),
+    [generatedHooks]
+  )
 
-  const platforms = [
-    { id: 'instagram', name: 'Instagram', icon: Instagram },
-    { id: 'tiktok', name: 'TikTok', icon: Music },
-    { id: 'twitter', name: 'Twitter', icon: Twitter },
-    { id: 'linkedin', name: 'LinkedIn', icon: Linkedin },
-    { id: 'email', name: 'Email', icon: Mail },
-    { id: 'youtube', name: 'YouTube', icon: Youtube },
+  const currentHook = visibleHooks[activeDirection]
+  const isGenerating = generateHooksMutation.isPending
+  const canGenerate = premise.trim().length >= 12
+
+  const combinedPrompt = [
+    premise.trim(),
+    `Target audience: ${audience}.`,
+    `Objective: ${objective}. Voice: ${voice}.`,
+    referenceVoice.trim() && `Reference voice: "${referenceVoice.trim()}".`,
+    mustInclude.trim() && `Must include: ${mustInclude.trim()}.`,
+    mustAvoid.trim() && `Avoid: ${mustAvoid.trim()}.`,
   ]
+    .filter(Boolean)
+    .join(' ')
 
-  const niches = [
-    { id: 'entrepreneurship', name: 'Entrepreneurship', icon: Briefcase },
-    { id: 'fitness', name: 'Fitness', icon: Dumbbell },
-    { id: 'relationships', name: 'Relationships', icon: Heart },
-    { id: 'finance', name: 'Personal Finance', icon: DollarSign },
-    { id: 'self-improvement', name: 'Self-Improvement', icon: Rocket },
-    { id: 'technology', name: 'Technology', icon: Laptop },
-    { id: 'marketing', name: 'Marketing', icon: TrendingUp },
-    { id: 'health', name: 'Health & Wellness', icon: Leaf },
-    { id: 'travel', name: 'Travel', icon: Plane },
-    { id: 'education', name: 'Education', icon: BookOpen },
-    { id: 'fashion', name: 'Fashion', icon: Shirt },
-    { id: 'food', name: 'Food & Cooking', icon: ChefHat },
-  ]
-
-  const tones = [
-    {
-      id: 'urgent',
-      name: 'Urgent',
-      description: 'Creates FOMO and immediate action',
-      icon: Zap,
-    },
-    {
-      id: 'controversial',
-      name: 'Controversial',
-      description: 'Sparks debate and engagement',
-      icon: Flame,
-    },
-    {
-      id: 'curiosity',
-      name: 'Curiosity Gap',
-      description: 'Makes people want to know more',
-      icon: HelpCircle,
-    },
-    {
-      id: 'emotional',
-      name: 'Emotional',
-      description: 'Triggers emotional responses',
-      icon: Brain,
-    },
-    {
-      id: 'authority',
-      name: 'Authority',
-      description: 'Positions you as the expert',
-      icon: Crown,
-    },
-    {
-      id: 'storytelling',
-      name: 'Story-driven',
-      description: 'Hooks through narrative',
-      icon: Book,
-    },
-  ]
-
-  const generateHooks = async () => {
-    if (!selectedPlatform || !selectedNiche || !selectedTone) return
-
-    const hookData = {
-      platform: selectedPlatform,
-      niche: selectedNiche,
-      tone: selectedTone,
-      customPrompt: customPrompt.trim() || undefined,
-    }
+  const generateHooks = async (toneOverride) => {
+    if (!canGenerate) return
 
     try {
-      const result = await generateHooksMutation.mutateAsync(hookData)
+      const result = await generateHooksMutation.mutateAsync({
+        platform,
+        niche,
+        tone: toneOverride || directions[activeDirection].tone,
+        customPrompt: combinedPrompt,
+      })
 
       if (result.status === 'success' && result.data) {
-        setGeneratedHooks(result.data.hooks || [])
+        const hooks = result.data.hooks || []
+        setGeneratedHooks(hooks)
         setGenerationId(result.data.id)
+        setActiveDirection(0)
+        setVersions((previous) =>
+          [
+            {
+              id: result.data.id || Date.now(),
+              label: `v${previous.length + 1}`,
+              direction: directions[activeDirection].name,
+              time: new Date().toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              }),
+              hook: hooks[0],
+            },
+            ...previous,
+          ].slice(0, 3)
+        )
       }
     } catch (error) {
       console.error('Generation failed:', error)
-      // Error is handled by the mutation's onError
     }
   }
 
-  const handleCopyHook = async (hookContent, hookIndex) => {
+  const copyText = async (text, hookIndex = activeDirection) => {
     try {
-      const result = await copyHook(hookContent, generationId, hookIndex)
-
-      if (result.success) {
-        // Show success feedback
-        setCopyFeedback((prev) => ({
-          ...prev,
-          [hookIndex]: { type: 'success', message: 'Copied!' },
-        }))
-
-        // Clear feedback after 2 seconds
-        setTimeout(() => {
-          setCopyFeedback((prev) => ({
-            ...prev,
-            [hookIndex]: null,
-          }))
-        }, 2000)
-      }
-    } catch (error) {
-      setCopyFeedback((prev) => ({
-        ...prev,
-        [hookIndex]: { type: 'error', message: 'Failed to copy' },
-      }))
-
-      setTimeout(() => {
-        setCopyFeedback((prev) => ({
-          ...prev,
-          [hookIndex]: null,
-        }))
-      }, 2000)
-    }
-  }
-
-  const copyAllHooks = async () => {
-    const allHooksText = generatedHooks.join('\n\n')
-    try {
-      await navigator.clipboard.writeText(allHooksText)
-      setCopyFeedback({
-        all: { type: 'success', message: 'All hooks copied!' },
+      await copyHookMutation.mutateAsync({
+        hookContent: text,
+        generationId,
+        hookIndex,
       })
-      setTimeout(() => setCopyFeedback({}), 2000)
-    } catch (error) {
-      setCopyFeedback({ all: { type: 'error', message: 'Failed to copy all' } })
-      setTimeout(() => setCopyFeedback({}), 2000)
+      setCopyFeedback('Copied')
+      window.setTimeout(() => setCopyFeedback(''), 1800)
+    } catch {
+      setCopyFeedback('Copy failed')
+      window.setTimeout(() => setCopyFeedback(''), 1800)
     }
   }
 
-  const canGenerate = selectedPlatform && selectedNiche && selectedTone
-  const isGenerating = generateHooksMutation.isPending
+  const toggleSavedHook = () => {
+    setSavedHooks((previous) =>
+      previous.includes(currentHook.content)
+        ? previous.filter((hook) => hook !== currentHook.content)
+        : [...previous, currentHook.content]
+    )
+  }
+
+  const exportScript = () => {
+    const script = [
+      'ASCNDLABS — VIRAL HOOK SCRIPT',
+      '',
+      `Platform: ${platform}`,
+      `Audience: ${audience}`,
+      `Objective: ${objective}`,
+      '',
+      `HOOK`,
+      currentHook.content,
+      '',
+      `CONTENT PREMISE`,
+      premise,
+      '',
+      `CREATIVE DIRECTION`,
+      currentHook.name,
+    ].join('\n')
+    const blob = new Blob([script], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = 'ascndlabs-viral-hook-script.txt'
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <Layout>
       <PlanGate requiredFeature='viral-hooks'>
-        <div className='max-w-7xl mx-auto p-4 sm:p-6 space-y-6'>
-          {/* Header */}
-          <div className='text-center space-y-4'>
-            <div className='inline-flex items-center gap-2 bg-[#D4AF37]/10 border border-[#D4AF37]/20 rounded-full px-4 py-2 text-[#D4AF37] text-sm font-medium'>
-              <MessageCircle size={14} />
-              Viral Hook Factory
-            </div>
-
-            <h1 className='text-3xl sm:text-4xl font-bold text-[#EDEDED] mb-2'>
-              Generate Viral Hooks
-            </h1>
-            <p className='text-gray-400 max-w-2xl mx-auto'>
-              Create scroll-stopping hooks that grab attention and drive
-              engagement. Get 5 professional hooks tailored to your niche and
-              platform.
-            </p>
-          </div>
-
-          {/* Error Display */}
-          {generateHooksMutation.isError && (
-            <div className='max-w-2xl mx-auto'>
-              <div className='bg-red-500/10 border border-red-500/20 rounded-lg p-4 flex items-center gap-3'>
-                <AlertCircle size={20} className='text-red-400 flex-shrink-0' />
-                <div>
-                  <p className='text-red-400 font-medium'>Generation Failed</p>
-                  <p className='text-red-300 text-sm'>
-                    {generateHooksMutation.error?.response?.data?.message ||
-                      generateHooksMutation.error?.message ||
-                      'Something went wrong. Please try again.'}
-                  </p>
+        <div className='min-h-full bg-[#050505] text-white'>
+          <header className='flex min-h-[78px] flex-col justify-center gap-3 border-b border-white/[0.07] px-5 py-4 sm:px-7 lg:flex-row lg:items-center lg:justify-between lg:py-0'>
+            <div className='flex items-center gap-3'>
+              <div className='flex h-9 w-9 items-center justify-center rounded-full border border-[#D4AF37]/40 bg-[#D4AF37]/[0.08] text-[#D4AF37]'>
+                <MessageCircle size={17} />
+              </div>
+              <div>
+                <div className='flex items-center gap-2'>
+                  <h1 className='text-lg font-black tracking-[-0.025em]'>
+                    Viral Hook Factory
+                  </h1>
+                  <span className='rounded border border-[#D4AF37]/30 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-[#D4AF37]'>
+                    Pro
+                  </span>
                 </div>
+                <p className='text-xs text-white/35'>
+                  Build the line they can’t scroll past
+                </p>
+              </div>
+            </div>
+            <div className='flex items-center gap-2 text-xs text-white/45'>
+              <span className='h-1.5 w-1.5 rounded-full bg-[#D4AF37]' />
+              Live creative workspace
+              {savedHooks.length > 0 && (
+                <span className='ml-2 border-l border-white/10 pl-3 text-[#D4AF37]'>
+                  {savedHooks.length} saved
+                </span>
+              )}
+            </div>
+          </header>
+
+          {generateHooksMutation.isError && (
+            <div className='mx-5 mt-5 flex items-start gap-3 border border-red-500/20 bg-red-500/[0.07] px-4 py-3 text-sm text-red-200 sm:mx-7'>
+              <AlertCircle size={18} className='mt-0.5 shrink-0 text-red-400' />
+              <div>
+                <p className='font-semibold'>Generation failed</p>
+                <p className='mt-0.5 text-xs text-red-200/65'>
+                  {generateHooksMutation.error?.response?.data?.message ||
+                    generateHooksMutation.error?.message ||
+                    'Please try again in a moment.'}
+                </p>
               </div>
             </div>
           )}
 
-          {/* Configuration Steps */}
-          <div className='space-y-6'>
-            {/* Step 1: Platform */}
-            <div className='space-y-3'>
-              <div className='flex items-center gap-2'>
-                <div
-                  className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs font-bold ${
-                    selectedPlatform
-                      ? 'border-[#D4AF37] bg-[#D4AF37] text-black'
-                      : 'border-gray-600 text-gray-400'
-                  }`}
-                >
-                  1
-                </div>
-                <h2 className='text-lg font-semibold text-[#EDEDED]'>
-                  Choose Platform
-                </h2>
-              </div>
-
-              <div className='grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 ml-8'>
-                {platforms.map((platform) => {
-                  const IconComponent = platform.icon
-                  return (
-                    <button
-                      key={platform.id}
-                      onClick={() => setSelectedPlatform(platform.id)}
-                      disabled={isGenerating}
-                      className={`h-10 px-3 rounded-lg border transition-all duration-200 text-sm font-medium disabled:opacity-50 ${
-                        selectedPlatform === platform.id
-                          ? 'border-[#D4AF37] bg-[#D4AF37]/10 text-[#D4AF37]'
-                          : 'border-[#1E1E21] bg-gradient-to-br from-[#121214] to-[#0A0A0C] text-gray-400 hover:border-[#D4AF37]/30 hover:text-[#EDEDED]'
-                      }`}
-                    >
-                      <div className='flex items-center gap-1.5'>
-                        <IconComponent size={14} />
-                        <span className='hidden sm:inline'>
-                          {platform.name}
-                        </span>
-                        <span className='sm:hidden'>
-                          {platform.name.slice(0, 4)}
-                        </span>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Step 2: Niche */}
-            <div className='space-y-3'>
-              <div className='flex items-center gap-2'>
-                <div
-                  className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs font-bold ${
-                    selectedNiche
-                      ? 'border-[#D4AF37] bg-[#D4AF37] text-black'
-                      : 'border-gray-600 text-gray-400'
-                  }`}
-                >
-                  2
-                </div>
-                <h2 className='text-lg font-semibold text-[#EDEDED]'>
-                  Select Niche
-                </h2>
-              </div>
-
-              <div className='grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 ml-8'>
-                {niches.map((niche) => {
-                  const IconComponent = niche.icon
-                  return (
-                    <button
-                      key={niche.id}
-                      onClick={() => setSelectedNiche(niche.id)}
-                      disabled={isGenerating}
-                      className={`h-10 px-3 rounded-lg border transition-all duration-200 text-sm font-medium disabled:opacity-50 ${
-                        selectedNiche === niche.id
-                          ? 'border-[#D4AF37] bg-[#D4AF37]/10 text-[#D4AF37]'
-                          : 'border-[#1E1E21] bg-gradient-to-br from-[#121214] to-[#0A0A0C] text-gray-400 hover:border-[#D4AF37]/30 hover:text-[#EDEDED]'
-                      }`}
-                    >
-                      <div className='flex items-center gap-1.5'>
-                        <IconComponent size={14} />
-                        <span className='truncate'>{niche.name}</span>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Step 3: Hook Style */}
-            <div className='space-y-3'>
-              <div className='flex items-center gap-2'>
-                <div
-                  className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs font-bold ${
-                    selectedTone
-                      ? 'border-[#D4AF37] bg-[#D4AF37] text-black'
-                      : 'border-gray-600 text-gray-400'
-                  }`}
-                >
-                  3
-                </div>
-                <h2 className='text-lg font-semibold text-[#EDEDED]'>
-                  Hook Style
-                </h2>
-              </div>
-
-              <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 ml-8'>
-                {tones.map((tone) => {
-                  const IconComponent = tone.icon
-                  return (
-                    <button
-                      key={tone.id}
-                      onClick={() => setSelectedTone(tone.id)}
-                      disabled={isGenerating}
-                      className={`p-3 rounded-lg border transition-all duration-200 text-left disabled:opacity-50 ${
-                        selectedTone === tone.id
-                          ? 'border-[#D4AF37] bg-[#D4AF37]/10'
-                          : 'border-[#1E1E21] bg-gradient-to-br from-[#121214] to-[#0A0A0C] hover:border-[#D4AF37]/30'
-                      }`}
-                    >
-                      <div className='flex items-center gap-2 mb-1'>
-                        <IconComponent size={16} />
-                        <div
-                          className={`font-medium text-sm ${
-                            selectedTone === tone.id
-                              ? 'text-[#D4AF37]'
-                              : 'text-[#EDEDED]'
-                          }`}
-                        >
-                          {tone.name}
-                        </div>
-                      </div>
-                      <div className='text-xs text-gray-400'>
-                        {tone.description}
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Step 4: Context */}
-            <div className='space-y-3'>
-              <div className='flex items-center gap-2'>
-                <div className='w-6 h-6 rounded-full border-2 border-gray-600 text-gray-400 flex items-center justify-center text-xs font-bold'>
-                  4
-                </div>
-                <h2 className='text-lg font-semibold text-[#EDEDED]'>
-                  Context (Optional)
-                </h2>
-              </div>
-
-              <div className='ml-8'>
-                <textarea
-                  value={customPrompt}
-                  onChange={(e) => setCustomPrompt(e.target.value)}
-                  disabled={isGenerating}
-                  placeholder='Add specific details about your content or target audience...'
-                  className='w-full max-w-2xl bg-gradient-to-br from-[#121214] to-[#0A0A0C] border border-[#1E1E21] rounded-lg px-4 py-3 text-[#EDEDED] placeholder-gray-400 focus:outline-none focus:border-[#D4AF37]/40 h-20 resize-none text-sm disabled:opacity-50'
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Generate Button */}
-          <div className='text-center space-y-4'>
-            <button
-              onClick={generateHooks}
-              disabled={!canGenerate || isGenerating}
-              className={`h-10 px-8 rounded-xl font-semibold transition-all duration-300 flex items-center justify-center gap-2 mx-auto ${
-                canGenerate && !isGenerating
-                  ? 'bg-[#D4AF37] text-black hover:bg-[#D4AF37]/90'
-                  : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-              }`}
-            >
-              {isGenerating ? (
-                <>
-                  <RefreshCw size={16} className='animate-spin' />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Wand2 size={16} />
-                  Generate 5 Hooks
-                </>
-              )}
-            </button>
-
-            {!canGenerate && (
-              <p className='text-gray-400 text-sm'>
-                Complete steps 1-3 to generate hooks
-              </p>
-            )}
-          </div>
-
-          {/* Results */}
-          {generatedHooks.length > 0 && (
-            <div className='space-y-8'>
-              {/* Success Header */}
-              <div className='text-center space-y-4'>
-                <div className='inline-flex items-center gap-2 bg-gradient-to-r from-[#D4AF37]/20 to-[#D4AF37]/10 border border-[#D4AF37]/30 rounded-full px-4 py-2 text-[#D4AF37] text-sm font-medium'>
-                  <Target size={14} />
-                  Generation Complete
-                </div>
-                <h2 className='text-2xl font-bold text-[#EDEDED]'>
-                  Your Viral Hooks Are Ready!
-                </h2>
-                <p className='text-gray-400'>
-                  5 scroll-stopping hooks tailored for {selectedPlatform} •{' '}
-                  {niches.find((n) => n.id === selectedNiche)?.name} •{' '}
-                  {tones.find((t) => t.id === selectedTone)?.name} style
+          <main className='grid min-h-[calc(100vh-142px)] grid-cols-1 xl:grid-cols-[minmax(310px,0.82fr)_minmax(420px,1fr)_minmax(250px,0.58fr)]'>
+            <section className='border-b border-white/[0.07] px-5 py-5 sm:px-7 xl:border-b-0 xl:border-r'>
+              <div className='mb-4'>
+                <p className='text-2xl font-black leading-tight tracking-[-0.035em] sm:text-[28px]'>
+                  Write the line{' '}
+                  <em className='font-black text-[#D4AF37]'>
+                    they can’t ignore.
+                  </em>
+                </p>
+                <p className='mt-1.5 max-w-md text-xs leading-relaxed text-white/40'>
+                  Give the AI context, a voice, and a clear creative boundary.
+                  Better inputs create sharper hooks.
                 </p>
               </div>
 
-              {/* Hooks Grid */}
-              <div className='max-w-5xl mx-auto'>
-                <div className='grid gap-4'>
-                  {generatedHooks.map((hook, index) => (
-                    <div key={index} className='relative group'>
-                      <div className='bg-gradient-to-br from-[#121214] to-[#0A0A0C] border border-[#1E1E21] rounded-xl p-6 hover:border-[#D4AF37]/40 hover:shadow-lg hover:shadow-[#D4AF37]/5 transition-all duration-300'>
-                        <div className='flex items-start gap-4'>
-                          <div className='flex-shrink-0'>
-                            <div className='w-10 h-10 bg-gradient-to-br from-[#D4AF37] to-[#DAB543] text-black rounded-lg flex items-center justify-center font-bold'>
-                              {index + 1}
-                            </div>
-                          </div>
+              <label className='block'>
+                <span className='mb-2 block text-[11px] font-semibold uppercase tracking-[0.16em] text-white/45'>
+                  Content premise
+                </span>
+                <textarea
+                  value={premise}
+                  onChange={(event) => setPremise(event.target.value)}
+                  maxLength={300}
+                  className='h-20 w-full resize-none rounded-xl border border-white/[0.09] bg-[#101011] px-4 py-3 text-sm leading-relaxed text-white/85 outline-none transition placeholder:text-white/20 focus:border-[#D4AF37]/60'
+                  placeholder='What are you creating and why should people care?'
+                />
+                <span className='mt-1.5 block text-right text-[10px] text-white/25'>
+                  {premise.length} / 300
+                </span>
+              </label>
 
-                          <div className='flex-1 min-w-0'>
-                            <div className='mb-4'>
-                              <p className='text-[#EDEDED] leading-relaxed text-lg'>
-                                {hook}
-                              </p>
-                            </div>
-
-                            <div className='flex items-center gap-4 text-xs'>
-                              <div className='flex items-center gap-1 text-gray-400'>
-                                <div className='w-2 h-2 bg-green-400 rounded-full'></div>
-                                <span>High Impact</span>
-                              </div>
-                              <div className='flex items-center gap-1 text-gray-400'>
-                                <div className='w-2 h-2 bg-blue-400 rounded-full'></div>
-                                <span>Engaging</span>
-                              </div>
-                              <div className='flex items-center gap-1 text-gray-400'>
-                                <div className='w-2 h-2 bg-purple-400 rounded-full'></div>
-                                <span>Shareable</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className='flex-shrink-0'>
-                            <button
-                              onClick={() => handleCopyHook(hook, index)}
-                              disabled={isCopying}
-                              className='opacity-0 group-hover:opacity-100 transition-all duration-200 bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 text-[#D4AF37] h-8 px-3 rounded-lg flex items-center gap-2 text-sm font-medium disabled:opacity-50'
-                            >
-                              {copyFeedback[index]?.type === 'success' ? (
-                                <>
-                                  <CheckCircle size={14} />
-                                  {copyFeedback[index].message}
-                                </>
-                              ) : (
-                                <>
-                                  <Copy size={14} />
-                                  Copy
-                                </>
-                              )}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+              <div className='mt-3'>
+                <p className='mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/45'>
+                  Platform
+                </p>
+                <div className='grid grid-cols-2 gap-2'>
+                  {platforms.map(({ id, name, icon: Icon }) => (
+                    <button
+                      key={id}
+                      onClick={() => setPlatform(id)}
+                      className={`flex h-10 items-center justify-center gap-2 rounded-lg border text-xs font-semibold transition ${
+                        platform === id
+                          ? 'border-[#D4AF37] bg-[#D4AF37]/10 text-[#D4AF37]'
+                          : 'border-white/[0.08] bg-[#0C0C0D] text-white/45 hover:border-white/20 hover:text-white/80'
+                      }`}
+                    >
+                      {React.createElement(Icon, { size: 14 })}
+                      {name}
+                    </button>
                   ))}
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className='space-y-4'>
-                <div className='flex flex-col sm:flex-row gap-4 max-w-2xl mx-auto'>
-                  <button
-                    onClick={copyAllHooks}
-                    className='flex-1 bg-[#D4AF37] text-black h-10 rounded-xl font-semibold hover:bg-[#D4AF37]/90 transition-all duration-200 flex items-center justify-center gap-2'
-                  >
-                    {copyFeedback.all?.type === 'success' ? (
-                      <>
-                        <CheckCircle size={16} />
-                        {copyFeedback.all.message}
-                      </>
-                    ) : (
-                      <>
-                        <Copy size={16} />
-                        Copy All Hooks
-                      </>
-                    )}
-                  </button>
-                  <button
-                    onClick={generateHooks}
-                    disabled={isGenerating || !canGenerate}
-                    className='flex-1 bg-gradient-to-br from-[#121214] to-[#0A0A0C] border border-[#D4AF37] text-[#D4AF37] h-10 rounded-xl font-semibold hover:bg-[#D4AF37]/10 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50'
-                  >
-                    <RefreshCw size={16} />
-                    Generate New Set
-                  </button>
-                </div>
+              <div className='mt-3 grid grid-cols-2 gap-3'>
+                <SelectField
+                  label='Target audience'
+                  value={audience}
+                  onChange={(event) => setAudience(event.target.value)}
+                >
+                  <option>Creators & solopreneurs (20–35)</option>
+                  <option>Coaches & consultants</option>
+                  <option>Small business owners</option>
+                  <option>First-time founders</option>
+                </SelectField>
+                <SelectField
+                  label='Objective'
+                  value={objective}
+                  onChange={(event) => setObjective(event.target.value)}
+                >
+                  <option>Grow audience</option>
+                  <option>Drive engagement</option>
+                  <option>Generate leads</option>
+                  <option>Sell an offer</option>
+                </SelectField>
+                <SelectField
+                  label='Voice'
+                  value={voice}
+                  onChange={(event) => setVoice(event.target.value)}
+                >
+                  <option>Bold & direct</option>
+                  <option>Warm & candid</option>
+                  <option>Sharp & contrarian</option>
+                  <option>Expert & composed</option>
+                </SelectField>
+                <SelectField
+                  label='Niche'
+                  value={niche}
+                  onChange={(event) => setNiche(event.target.value)}
+                >
+                  {nicheOptions.map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </SelectField>
+              </div>
 
-                <div className='text-center'>
-                  <p className='text-gray-400 text-sm mb-3'>
-                    Want to try different settings?
+              <label className='mt-3 block'>
+                <span className='mb-2 block text-[11px] font-semibold uppercase tracking-[0.16em] text-white/45'>
+                  Reference voice
+                </span>
+                <input
+                  value={referenceVoice}
+                  onChange={(event) => setReferenceVoice(event.target.value)}
+                  className='h-11 w-full rounded-lg border border-white/[0.08] bg-[#101011] px-3.5 text-sm text-white/75 outline-none transition focus:border-[#D4AF37]/60'
+                  placeholder='Paste one example line'
+                />
+              </label>
+
+              <div className='mt-3 grid grid-cols-2 gap-3'>
+                <label>
+                  <span className='mb-2 block text-[11px] font-semibold uppercase tracking-[0.16em] text-white/45'>
+                    Must include
+                  </span>
+                  <input
+                    value={mustInclude}
+                    onChange={(event) => setMustInclude(event.target.value)}
+                    className='h-11 w-full rounded-lg border border-white/[0.08] bg-[#101011] px-3.5 text-sm text-white/75 outline-none transition focus:border-[#D4AF37]/60'
+                  />
+                </label>
+                <label>
+                  <span className='mb-2 block text-[11px] font-semibold uppercase tracking-[0.16em] text-white/45'>
+                    Must avoid
+                  </span>
+                  <input
+                    value={mustAvoid}
+                    onChange={(event) => setMustAvoid(event.target.value)}
+                    className='h-11 w-full rounded-lg border border-white/[0.08] bg-[#101011] px-3.5 text-sm text-white/75 outline-none transition focus:border-[#D4AF37]/60'
+                  />
+                </label>
+              </div>
+
+              <button
+                onClick={() => generateHooks()}
+                disabled={!canGenerate || isGenerating}
+                className='mt-4 flex h-12 w-full items-center justify-center gap-2.5 rounded-lg bg-[#D4AF37] text-sm font-black text-black shadow-[0_12px_40px_rgba(212,175,55,0.12)] transition hover:bg-[#E4C455] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/30'
+              >
+                {isGenerating ? (
+                  <>
+                    <LoaderCircle size={17} className='animate-spin' />
+                    Building directions...
+                  </>
+                ) : (
+                  <>
+                    <WandSparkles size={17} />
+                    Generate 5 directions
+                  </>
+                )}
+              </button>
+            </section>
+
+            <section className='border-b border-white/[0.07] px-5 py-7 sm:px-7 xl:border-b-0 xl:border-r'>
+              <div className='mb-4 flex items-center justify-between'>
+                <div className='flex items-center gap-2 text-xs font-semibold text-white/65'>
+                  <span className='h-1.5 w-1.5 rounded-full bg-[#D4AF37]' />
+                  Live preview
+                </div>
+                <span className='text-[10px] uppercase tracking-[0.15em] text-white/25'>
+                  00:03 / 00:15
+                </span>
+              </div>
+
+              <div className='mx-auto max-w-[500px] overflow-hidden rounded-xl border border-white/10 bg-[#0C0C0C]'>
+                <div className='relative aspect-[4/5] min-h-[430px] overflow-hidden'>
+                  <img
+                    src={hookStudioImage}
+                    alt='Creator working in a dark studio'
+                    className='absolute inset-0 h-full w-full object-cover object-center'
+                  />
+                  <div className='absolute inset-0 bg-gradient-to-b from-black/5 via-black/5 to-black/85' />
+                  <div className='absolute inset-x-0 bottom-0 p-6 sm:p-8'>
+                    <AnimatePresence mode='wait'>
+                      <MotionParagraph
+                        key={currentHook.content}
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        className='max-w-[12ch] text-[34px] font-black uppercase leading-[0.96] tracking-[-0.045em] text-white drop-shadow-2xl sm:text-[44px]'
+                      >
+                        {currentHook.content}
+                      </MotionParagraph>
+                    </AnimatePresence>
+                    <div className='mt-6 flex items-center gap-3'>
+                      <button
+                        aria-label='Play preview'
+                        className='flex h-8 w-8 items-center justify-center rounded-full bg-white text-black'
+                      >
+                        <Play size={13} fill='currentColor' />
+                      </button>
+                      <div className='h-0.5 flex-1 bg-white/20'>
+                        <div className='h-full w-[38%] bg-[#D4AF37]' />
+                      </div>
+                      <Volume2 size={15} className='text-white/70' />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className='mx-auto mt-6 max-w-[540px]'>
+                <div className='mb-2 flex items-center justify-between'>
+                  <p className='text-xs font-semibold text-white/55'>
+                    Hook editor · {currentHook.name}
                   </p>
+                  <span className='text-[10px] text-white/25'>
+                    {currentHook.content.length} characters
+                  </span>
+                </div>
+                <textarea
+                  value={currentHook.content}
+                  onChange={(event) =>
+                    setGeneratedHooks((previous) => {
+                      const next = visibleHooks.map((hook) => hook.content)
+                      next[activeDirection] = event.target.value
+                      return previous.length ? next : next
+                    })
+                  }
+                  className='h-24 w-full resize-none rounded-lg border border-white/[0.09] bg-[#0E0E0F] px-4 py-3 text-lg font-semibold leading-snug text-white/85 outline-none transition focus:border-[#D4AF37]/60'
+                />
+
+                <div className='mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4'>
                   <button
-                    onClick={() => setGeneratedHooks([])}
-                    className='text-[#D4AF37] hover:underline text-sm'
+                    onClick={() => generateHooks(currentHook.tone)}
+                    disabled={isGenerating}
+                    className='flex h-10 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] text-xs font-semibold text-white/65 transition hover:border-[#D4AF37]/40 hover:text-[#D4AF37]'
                   >
-                    Start Over
+                    <Sparkles size={14} />
+                    3 variants
+                  </button>
+                  <button
+                    onClick={() =>
+                      copyText(`${currentHook.content}\n\n${premise}`)
+                    }
+                    className='flex h-10 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] text-xs font-semibold text-white/65 transition hover:border-[#D4AF37]/40 hover:text-[#D4AF37]'
+                  >
+                    <FileText size={14} />
+                    Caption
+                  </button>
+                  <button
+                    onClick={() => copyText(currentHook.content)}
+                    className='flex h-10 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] text-xs font-semibold text-white/65 transition hover:border-[#D4AF37]/40 hover:text-[#D4AF37]'
+                  >
+                    {copyFeedback === 'Copied' ? (
+                      <Check size={14} />
+                    ) : (
+                      <Copy size={14} />
+                    )}
+                    {copyFeedback || 'Copy'}
+                  </button>
+                  <button
+                    onClick={exportScript}
+                    className='flex h-10 items-center justify-center gap-2 rounded-lg border border-[#D4AF37]/45 bg-[#D4AF37]/[0.06] text-xs font-semibold text-[#D4AF37] transition hover:bg-[#D4AF37]/15'
+                  >
+                    <ArrowDownToLine size={14} />
+                    Export
                   </button>
                 </div>
               </div>
-            </div>
-          )}
+            </section>
 
-          {/* Empty State */}
-          {generatedHooks.length === 0 && !isGenerating && (
-            <div className='text-center space-y-4 py-8'>
-              <div className='bg-[#D4AF37]/10 rounded-full p-4 w-fit mx-auto'>
-                <Target size={24} className='text-[#D4AF37]' />
+            <aside className='px-5 py-7 sm:px-7'>
+              <div className='flex items-center justify-between'>
+                <div>
+                  <p className='text-lg font-black'>5 directions</p>
+                  <p className='mt-1 text-xs text-white/35'>
+                    Explore the same idea from a new angle.
+                  </p>
+                </div>
+                <button
+                  onClick={toggleSavedHook}
+                  aria-label='Save current hook'
+                  className={`flex h-9 w-9 items-center justify-center rounded-lg border transition ${
+                    savedHooks.includes(currentHook.content)
+                      ? 'border-[#D4AF37]/50 bg-[#D4AF37]/10 text-[#D4AF37]'
+                      : 'border-white/10 text-white/35 hover:text-white'
+                  }`}
+                >
+                  <Bookmark
+                    size={15}
+                    fill={
+                      savedHooks.includes(currentHook.content)
+                        ? 'currentColor'
+                        : 'none'
+                    }
+                  />
+                </button>
               </div>
-              <div className='space-y-2'>
-                <h3 className='text-lg font-semibold text-[#EDEDED]'>
-                  Ready to Go Viral?
-                </h3>
-                <p className='text-gray-400 text-sm max-w-md mx-auto'>
-                  Follow the steps above to generate hooks that will stop the
-                  scroll.
+
+              <div className='mt-5 divide-y divide-white/[0.07] border-y border-white/[0.07]'>
+                {visibleHooks.map((direction, index) => (
+                  <button
+                    key={direction.name}
+                    onClick={() => setActiveDirection(index)}
+                    className={`group flex w-full items-start gap-4 py-4 text-left transition ${
+                      activeDirection === index
+                        ? 'text-white'
+                        : 'text-white/40 hover:text-white/75'
+                    }`}
+                  >
+                    <span
+                      className={`mt-0.5 text-sm font-black ${
+                        activeDirection === index
+                          ? 'text-[#D4AF37]'
+                          : 'text-white/20'
+                      }`}
+                    >
+                      0{index + 1}
+                    </span>
+                    <span className='min-w-0 flex-1'>
+                      <span className='flex items-center justify-between'>
+                        <span className='text-sm font-bold'>
+                          {direction.name}
+                        </span>
+                        {activeDirection === index && (
+                          <span className='h-1.5 w-1.5 rounded-full bg-[#D4AF37]' />
+                        )}
+                      </span>
+                      <span className='mt-1 block text-xs leading-relaxed text-white/30'>
+                        {direction.description}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              <div className='mt-8'>
+                <div className='mb-3 flex items-center justify-between'>
+                  <p className='text-sm font-black text-[#D4AF37]'>
+                    Version history
+                  </p>
+                  {versions.length > 0 && (
+                    <button
+                      onClick={() => setVersions([])}
+                      className='text-[10px] text-white/30 hover:text-white/60'
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                {versions.length ? (
+                  <div className='divide-y divide-white/[0.07] border-y border-white/[0.07]'>
+                    {versions.map((version) => (
+                      <button
+                        key={version.id}
+                        onClick={() => {
+                          const next = [...generatedHooks]
+                          next[0] = version.hook
+                          setGeneratedHooks(next)
+                          setActiveDirection(0)
+                        }}
+                        className='flex w-full items-center gap-3 py-3 text-left text-xs'
+                      >
+                        <span className='font-black text-[#D4AF37]'>
+                          {version.label}
+                        </span>
+                        <span className='min-w-0 flex-1 truncate text-white/55'>
+                          {version.direction}
+                        </span>
+                        <span className='text-[10px] text-white/25'>
+                          {version.time}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className='border-y border-white/[0.07] py-5 text-center'>
+                    <Clock3 size={17} className='mx-auto text-white/20' />
+                    <p className='mt-2 text-xs text-white/30'>
+                      New generations appear here.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className='mt-8 border-t border-white/[0.07] pt-5'>
+                <p className='text-[11px] leading-relaxed text-white/30'>
+                  <span className='font-semibold text-white/55'>Pro tip:</span>{' '}
+                  Specific outcomes and unexpected contrast usually create the
+                  strongest opening line.
                 </p>
+                <button
+                  onClick={() => generateHooks()}
+                  disabled={isGenerating}
+                  className='mt-4 flex items-center gap-2 text-xs font-bold text-[#D4AF37] transition hover:text-[#E4C455]'
+                >
+                  <RefreshCw
+                    size={13}
+                    className={isGenerating ? 'animate-spin' : ''}
+                  />
+                  Regenerate set
+                  <Plus size={12} />
+                </button>
               </div>
-
-              <div className='bg-gradient-to-br from-[#121214] to-[#0A0A0C] border border-[#1E1E21] rounded-lg p-4 max-w-md mx-auto'>
-                <div className='text-xs text-[#D4AF37] mb-2 text-left'>
-                  Example:
-                </div>
-                <div className='text-[#EDEDED] text-left text-sm'>
-                  "Stop scrolling if you've ever felt like giving up on your
-                  dreams..."
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* User Stats */}
-          {userStats?.data?.stats && (
-            <div className='grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto'>
-              <div className='bg-gradient-to-br from-[#121214] to-[#0A0A0C] border border-[#1E1E21] rounded-lg p-4 text-center'>
-                <div className='text-xl font-bold text-[#D4AF37] mb-1'>
-                  {userStats.data.stats.totalGenerations || 0}
-                </div>
-                <div className='text-gray-400 text-sm'>Generations</div>
-              </div>
-              <div className='bg-gradient-to-br from-[#121214] to-[#0A0A0C] border border-[#1E1E21] rounded-lg p-4 text-center'>
-                <div className='text-xl font-bold text-[#D4AF37] mb-1'>
-                  {userStats.data.stats.totalHooks || 0}
-                </div>
-                <div className='text-gray-400 text-sm'>Total Hooks</div>
-              </div>
-              <div className='bg-gradient-to-br from-[#121214] to-[#0A0A0C] border border-[#1E1E21] rounded-lg p-4 text-center'>
-                <div className='text-xl font-bold text-[#D4AF37] mb-1'>
-                  {userStats.data.stats.copyRate || 0}%
-                </div>
-                <div className='text-gray-400 text-sm'>Copy Rate</div>
-              </div>
-            </div>
-          )}
+            </aside>
+          </main>
         </div>
       </PlanGate>
     </Layout>

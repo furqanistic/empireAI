@@ -1,15 +1,17 @@
 // File: client/src/pages/Home/HomePage.jsx
-import { AnimatePresence, motion, useScroll, useTransform } from 'framer-motion'
+import {
+  AnimatePresence,
+  motion as Motion,
+  useScroll,
+  useTransform,
+} from 'framer-motion'
 import {
     ArrowRight,
     BarChart3,
-    Bot,
     CheckCircle2,
     Globe,
-    MessageSquare,
     Play,
     ShieldCheck,
-    Star,
     Target,
     TrendingUp,
     Trophy,
@@ -17,7 +19,7 @@ import {
     X,
     Zap
 } from 'lucide-react'
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 
 // Icon component matching Layout style
 const CrownLogo = ({ size = 24 }) => (
@@ -64,24 +66,24 @@ const HomePage = () => {
 
   // Components
   const GlassCard = ({ children, className = '', hover = true }) => (
-    <motion.div
+    <Motion.div
       variants={fadeIn}
       className={`relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md transition-colors ${hover ? 'hover:border-gold/30 hover:bg-white/10' : ''} ${className}`}
       style={{ '--gold': PRIMARY_GOLD }}
     >
       {children}
-    </motion.div>
+    </Motion.div>
   )
 
   const FeatureIcon = ({ icon: Icon, color = PRIMARY_GOLD }) => (
     <div className='mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-white/5 shadow-lg' style={{ color }}>
-      <Icon size={24} />
+      {React.createElement(Icon, { size: 24 })}
     </div>
   )
 
   const NavItem = ({ href, children }) => (
-    <a 
-      href={href} 
+    <a
+      href={href}
       className='text-sm font-medium text-gray-400 transition-colors hover:text-white'
     >
       {children}
@@ -97,12 +99,12 @@ const HomePage = () => {
       </div>
 
       {/* Navigation */}
-      <motion.nav 
+      <Motion.nav
         style={{ backgroundColor: navBackground, borderBottomColor: navBorder }}
         className='fixed top-0 left-0 right-0 z-50 border-b border-white/0 backdrop-blur-sm transition-all duration-300'
       >
         <div className='mx-auto flex max-w-7xl items-center justify-between px-6 py-4'>
-          <motion.div 
+          <Motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             className='flex items-center gap-2'
@@ -111,25 +113,24 @@ const HomePage = () => {
               <CrownLogo size={20} />
             </div>
             <span className='text-xl font-bold tracking-tight'>Ascnd<span className='text-gold'>Labs</span></span>
-          </motion.div>
+          </Motion.div>
 
           {/* Desktop Nav */}
           <div className='hidden items-center gap-8 md:flex'>
             <NavItem href='#features'>Features</NavItem>
             <NavItem href='#pricing'>Pricing</NavItem>
-            <NavItem href='#community'>Community</NavItem>
-            <motion.button
+            <Motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={handleGetStarted}
               className='rounded-full bg-white px-6 py-2 text-sm font-bold text-black transition-all hover:bg-gold hover:text-black cursor-pointer'
             >
-              Get Started
-            </motion.button>
+              Start your affiliate program
+            </Motion.button>
           </div>
 
           {/* Mobile Toggle */}
-          <button 
+          <button
             className='md:hidden'
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           >
@@ -140,7 +141,7 @@ const HomePage = () => {
         {/* Mobile Menu */}
         <AnimatePresence>
           {isMobileMenuOpen && (
-            <motion.div
+            <Motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
@@ -149,29 +150,28 @@ const HomePage = () => {
               <div className='flex flex-col gap-4 pt-4'>
                 <NavItem href='#features'>Features</NavItem>
                 <NavItem href='#pricing'>Pricing</NavItem>
-                <NavItem href='#community'>Community</NavItem>
                 <button
                   onClick={handleGetStarted}
                   className='w-full rounded-xl bg-gold py-3 font-bold text-black'
                 >
-                  Get Started
+                  Start your affiliate program
                 </button>
               </div>
-            </motion.div>
+            </Motion.div>
           )}
         </AnimatePresence>
-      </motion.nav>
+      </Motion.nav>
 
       <main className='relative z-10'>
         {/* Hero Section */}
         <section className='relative flex flex-col items-center px-6 pt-40 pb-20 text-center overflow-hidden'>
-          <motion.div
+          <Motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8 }}
             className='max-w-4xl relative z-20'
           >
-            <motion.div
+            <Motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.2 }}
@@ -179,62 +179,62 @@ const HomePage = () => {
             >
               <span className='flex h-2 w-2 rounded-full bg-gold animate-pulse' />
               <span className='text-gray-300'>Now accepting early access members</span>
-            </motion.div>
+            </Motion.div>
 
             <h1 className='mb-6 text-5xl font-extrabold tracking-tight sm:text-7xl lg:text-8xl'>
-              Build Your{' '}
+              Run Your{' '}
               <span className='bg-gradient-to-r from-gold via-[#F0D58B] to-gold bg-clip-text text-transparent'>
-                Digital Empire
+                Affiliate Program
               </span>
             </h1>
 
             <p className='mx-auto mb-10 max-w-2xl text-lg text-gray-400 md:text-xl'>
-              Transform from creator to mogul with our AI-powered platform. Build, scale, and automate your intelligent systems in minutes.
+              Invite affiliates, track commissions, and manage payouts from one focused workspace.
             </p>
 
             <div className='flex flex-col items-center justify-center gap-4 sm:flex-row'>
-              <motion.button
+              <Motion.button
                 whileHover={{ scale: 1.05, boxShadow: '0 0 20px rgba(212, 175, 55, 0.4)' }}
                 whileTap={{ scale: 0.95 }}
                 onClick={handleGetStarted}
                 className='flex items-center gap-2 rounded-full bg-gold px-8 py-4 text-lg font-bold text-black transition-all cursor-pointer'
               >
-                Start Building <ArrowRight size={20} />
-              </motion.button>
-              <motion.button
+                Start your affiliate program <ArrowRight size={20} />
+              </Motion.button>
+              <Motion.button
                 whileHover={{ scale: 1.05, backgroundColor: 'rgba(255,255,255,0.1)' }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setIsVideoOpen(true)}
                 className='flex items-center gap-2 rounded-full border border-white/20 px-8 py-4 text-lg font-bold text-white transition-all cursor-pointer'
               >
                 <Play size={20} fill='white' /> Watch Demo
-              </motion.button>
+              </Motion.button>
             </div>
 
-            {/* Trusted By / Stats */}
-            <motion.div 
+            {/* Product scope */}
+            <Motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 1 }}
               className='mt-16 flex flex-wrap justify-center gap-12 text-gray-500'
             >
               <div className='text-center'>
-                <div className='text-3xl font-bold text-white'>10k+</div>
-                <div className='text-[10px] uppercase tracking-[0.2em]'>Builders</div>
+                <div className='text-3xl font-bold text-white'>1</div>
+                <div className='text-[10px] uppercase tracking-[0.2em]'>Program</div>
               </div>
               <div className='text-center'>
-                <div className='text-3xl font-bold text-white'>$2M+</div>
-                <div className='text-[10px] uppercase tracking-[0.2em]'>Generated</div>
+                <div className='text-3xl font-bold text-white'>1</div>
+                <div className='text-[10px] uppercase tracking-[0.2em]'>Invite Link</div>
               </div>
               <div className='text-center'>
-                <div className='text-3xl font-bold text-white'>99%</div>
-                <div className='text-[10px] uppercase tracking-[0.2em]'>Uptime</div>
+                <div className='text-3xl font-bold text-white'>4</div>
+                <div className='text-[10px] uppercase tracking-[0.2em]'>Clear Money States</div>
               </div>
-            </motion.div>
-          </motion.div>
+            </Motion.div>
+          </Motion.div>
 
           {/* Hero Mockup */}
-          <motion.div
+          <Motion.div
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1, delay: 0.5 }}
@@ -287,13 +287,13 @@ const HomePage = () => {
                     </div>
                  </div>
              </div>
-          </motion.div>
+          </Motion.div>
         </section>
 
         {/* Features Bento Grid */}
         <section id='features' className='px-6 py-24'>
           <div className='mx-auto max-w-7xl'>
-            <motion.div 
+            <Motion.div
                variants={fadeIn}
                initial='initial'
                whileInView='whileInView'
@@ -301,14 +301,14 @@ const HomePage = () => {
                className='mb-16 text-center'
             >
               <h2 className='mb-4 text-4xl font-bold md:text-5xl'>
-                AI Tools for <span className='text-gold'>Every Stage</span>
+                Everything for Your <span className='text-gold'>Affiliate Program</span>
               </h2>
               <p className='mx-auto max-w-2xl text-gray-400'>
-                From ideation to scaling, our comprehensive AI-powered platform provides everything you need to build, launch, and scale your digital business.
+                Keep affiliate invitations, commissions, earnings, and payouts clear for your business.
               </p>
-            </motion.div>
+            </Motion.div>
 
-            <motion.div 
+            <Motion.div
               variants={staggerContainer}
               initial='initial'
               whileInView='whileInView'
@@ -317,12 +317,12 @@ const HomePage = () => {
             >
               {/* Feature 1: Large */}
               <GlassCard className='p-8 md:col-span-2'>
-                 <FeatureIcon icon={Bot} />
-                 <h3 className='mb-3 text-2xl font-bold'>AI Product Builder</h3>
-                 <p className='text-gray-400 mb-6'>Create digital products with our advanced AI assistant. From SaaS tools to mobile apps, build anything without coding expertise. Our engine handles the complexity while you focus on the vision.</p>
+                 <FeatureIcon icon={Users} />
+                 <h3 className='mb-3 text-2xl font-bold'>Affiliate Management</h3>
+                 <p className='text-gray-400 mb-6'>Invite affiliates, give them a clear referral link, and keep program activity organized in one place.</p>
                  <div className='flex items-center gap-4'>
                     <div className='h-32 w-full rounded-xl bg-black/40 border border-white/5 flex items-center justify-center'>
-                        <span className='text-xs text-gray-600'>Live Generation Preview</span>
+                        <span className='text-xs text-gray-600'>Affiliate activity overview</span>
                     </div>
                  </div>
               </GlassCard>
@@ -330,15 +330,15 @@ const HomePage = () => {
               {/* Feature 2: Square */}
               <GlassCard className='p-8'>
                 <FeatureIcon icon={Target} />
-                <h3 className='mb-3 text-xl font-bold'>Smart Launchpad</h3>
-                <p className='text-gray-400 text-sm'>Launch products with AI-optimized strategies. Automated marketing, pricing, and acquisition tools.</p>
+                <h3 className='mb-3 text-xl font-bold'>Commission Setup</h3>
+                <p className='text-gray-400 text-sm'>Keep commission terms and affiliate earnings easy to understand.</p>
               </GlassCard>
 
               {/* Feature 3: Small */}
               <GlassCard className='p-8'>
                 <FeatureIcon icon={Users} color='#60A5FA' />
-                <h3 className='mb-3 text-xl font-bold'>Affiliate Empire</h3>
-                <p className='text-gray-400 text-sm'>Build and manage your affiliate network with intelligent recruitment tools.</p>
+                <h3 className='mb-3 text-xl font-bold'>Affiliate List</h3>
+                <p className='text-gray-400 text-sm'>Find the people promoting your business and review the referral details already available.</p>
               </GlassCard>
 
               {/* Feature 4: Large Horizontal */}
@@ -346,14 +346,14 @@ const HomePage = () => {
                 <div className='flex flex-col md:flex-row gap-8 items-center'>
                     <div className='flex-1'>
                         <FeatureIcon icon={BarChart3} color='#34D399' />
-                        <h3 className='mb-3 text-2xl font-bold'>Advanced Analytics</h3>
-                        <p className='text-gray-400'>Real-time dashboards show every metric that matters. Track revenue, customer behavior, and market trends with predictive AI insights.</p>
+                        <h3 className='mb-3 text-2xl font-bold'>Earnings and Payout Status</h3>
+                        <p className='text-gray-400'>See earnings and payout status without digging through unrelated tools.</p>
                     </div>
                     <div className='flex-1 w-full'>
                          <div className='h-40 rounded-xl bg-black/40 border border-white/5 p-4 flex flex-col gap-2'>
                             {[1,2,3].map(i => (
                                 <div key={i} className='h-3 w-full bg-white/5 rounded-full overflow-hidden'>
-                                    <motion.div 
+                                    <Motion.div
                                       initial={{ width: 0 }}
                                       whileInView={{ width: `${Math.random() * 60 + 20}%` }}
                                       className='h-full bg-gold/50'
@@ -364,7 +364,7 @@ const HomePage = () => {
                     </div>
                 </div>
               </GlassCard>
-            </motion.div>
+            </Motion.div>
           </div>
         </section>
 
@@ -372,15 +372,15 @@ const HomePage = () => {
         <section className='bg-white/5 py-24'>
            <div className='mx-auto max-w-7xl px-6'>
               <div className='grid grid-cols-1 gap-12 md:grid-cols-2 items-center'>
-                 <motion.div variants={fadeIn} initial='initial' whileInView='whileInView'>
-                    <h2 className='mb-6 text-4xl font-bold md:text-5xl'>Why Builders Choose <span className='text-gold'>Ascnd Labs</span></h2>
-                    <p className='mb-8 text-gray-400'>We provide more than just tools. We provide the infrastructure for the next generation of digital entrepreneurs.</p>
-                    
+                 <Motion.div variants={fadeIn} initial='initial' whileInView='whileInView'>
+                    <h2 className='mb-6 text-4xl font-bold md:text-5xl'>Why Businesses Choose <span className='text-gold'>AscndLabs</span></h2>
+                    <p className='mb-8 text-gray-400'>A focused workflow for launching a program, inviting affiliates, and understanding commission status.</p>
+
                     <div className='space-y-6'>
                        {[
-                         { title: 'Lightning Fast Deployment', desc: 'Go from idea to live in under 2 minutes.', icon: Trophy },
-                         { title: 'Military Grade Security', desc: 'Your data and IP are protected by enterprise encryption.', icon: ShieldCheck },
-                         { title: 'Global Infrastructure', desc: 'Scale to millions of users with zero friction.', icon: Globe }
+                         { title: 'Simple Program Setup', desc: 'Set your program name, commission rate, cookie duration, and active status.', icon: Trophy },
+                         { title: 'Clear Affiliate Invites', desc: 'Copy one referral link and invitation message from the same screen.', icon: ShieldCheck },
+                         { title: 'Understandable Payouts', desc: 'See commission that is pending, payable, requested, or paid.', icon: Globe }
                        ].map((item, i) => (
                          <div key={i} className='flex gap-4'>
                             <div className='flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-gold/10 text-gold shadow-gold/5 shadow-lg'>
@@ -393,9 +393,9 @@ const HomePage = () => {
                          </div>
                        ))}
                     </div>
-                 </motion.div>
+                 </Motion.div>
 
-                 <motion.div 
+                 <Motion.div
                     initial={{ opacity: 0, scale: 0.8 }}
                     whileInView={{ opacity: 1, scale: 1 }}
                     className='relative'
@@ -404,46 +404,12 @@ const HomePage = () => {
                        <div className='h-full w-full rounded-3xl bg-black flex items-center justify-center border border-white/5'>
                           <div className='text-center p-8'>
                              <TrendingUp size={48} className='text-gold mx-auto mb-4' />
-                             <div className='text-5xl font-bold mb-2'>340%</div>
-                             <p className='text-gray-400'>Average Revenue Growth</p>
+                             <div className='text-5xl font-bold mb-2'>30 days</div>
+                             <p className='text-gray-400'>Commission hold shown clearly before payout</p>
                           </div>
                        </div>
                     </div>
-                 </motion.div>
-              </div>
-           </div>
-        </section>
-
-        {/* Testimonials */}
-        <section className='px-6 py-24'>
-           <div className='mx-auto max-w-7xl text-center'>
-              <motion.div variants={fadeIn} initial='initial' whileInView='whileInView' className='mb-16'>
-                <h2 className='mb-4 text-4xl font-bold md:text-5xl'>Trusted by <span className='text-gold'>Visionaries</span></h2>
-                <p className='text-gray-400'>Join thousands of entrepreneurs already building their empires.</p>
-              </motion.div>
-
-              <div className='grid grid-cols-1 gap-6 md:grid-cols-3'>
-                 {[
-                   { name: 'Alex Chen', role: 'SaaS Founder', text: 'The speed to market is incredible. I went from idea to launch in less than a month. This is game-changing.' },
-                   { name: 'Maya Patel', role: 'Digital Creator', text: 'The automation tools have freed up so much of my time. I can focus on what I do best instead of admin work.' },
-                   { name: 'Jordan Lee', role: 'E-commerce Entrepreneur', text: 'The affiliate system is elegant and easy to manage. Great for scaling revenue without hiring a team.' }
-                 ].map((t, i) => (
-                   <GlassCard key={i} className='p-8 text-left'>
-                      <div className='mb-6 flex gap-1 text-gold'>
-                        {[1,2,3,4,5].map(j => <Star key={j} size={16} fill='currentColor' />)}
-                      </div>
-                      <p className='mb-8 text-gray-300 italic'>"{t.text}"</p>
-                      <div className='flex items-center gap-4'>
-                         <div className='h-10 w-10 rounded-full bg-gold/20 flex items-center justify-center font-bold text-gold'>
-                            {t.name[0]}
-                         </div>
-                         <div>
-                            <div className='font-bold'>{t.name}</div>
-                            <div className='text-[10px] text-gray-500 uppercase tracking-widest'>{t.role}</div>
-                         </div>
-                      </div>
-                   </GlassCard>
-                 ))}
+                 </Motion.div>
               </div>
            </div>
         </section>
@@ -453,25 +419,25 @@ const HomePage = () => {
            <div className='mx-auto max-w-7xl px-6'>
               <div className='mb-16 text-center'>
                 <h2 className='mb-4 text-4xl font-bold md:text-5xl'>Simple <span className='text-gold'>Transparent</span> Pricing</h2>
-                <p className='text-gray-400'>Unlock the full potential of your digital empire.</p>
+                <p className='text-gray-400'>Choose a simple plan for your affiliate program.</p>
               </div>
 
               <div className='grid grid-cols-1 gap-8 md:grid-cols-3'>
                  {[
-                   { 
+                   {
                      name: 'Starter', price: '5', popular: false,
-                     features: ['Viral Hook Factory', 'AI Product Generator', 'Niche Launchpad', '10 Generations/Mo']
+                     features: ['Affiliate invite link', 'Affiliate list', 'Commission tracking', 'Earnings dashboard', 'Payout status']
                    },
-                   { 
+                   {
                      name: 'Pro', price: '12', popular: true,
-                     features: ['Viral Hook Factory', 'AI Product Generator', 'Niche Launchpad', '50 Generations/Mo', 'Priority Support']
+                     features: ['Affiliate invite link', 'Affiliate list', 'Commission tracking', 'Earnings dashboard', 'Payout status']
                    },
-                   { 
-                     name: 'Empire', price: '25', popular: false,
-                     features: ['Everything in Pro', 'Unlimited Generations', 'Whitelabel Options', 'Direct API Access']
+                   {
+                     name: 'Business', price: '25', popular: false,
+                     features: ['Affiliate invite link', 'Affiliate list', 'Commission tracking', 'Earnings dashboard', 'Payout status']
                    }
                  ].map((plan, i) => (
-                   <motion.div
+                   <Motion.div
                      key={i}
                      variants={fadeIn}
                      initial='initial'
@@ -502,41 +468,14 @@ const HomePage = () => {
                         onClick={handleGetStarted}
                         className={`w-full rounded-xl py-4 font-bold transition-all ${plan.popular ? 'bg-black text-white hover:bg-black/90' : 'bg-white/10 hover:bg-white/20'} cursor-pointer`}
                      >
-                       Choose Plan
+                       Start your affiliate program
                      </button>
-                   </motion.div>
+                   </Motion.div>
                  ))}
               </div>
            </div>
         </section>
 
-        {/* CTA / Community */}
-        <section id='community' className='px-6 py-24'>
-           <motion.div 
-             initial={{ opacity: 0, y: 50 }}
-             whileInView={{ opacity: 1, y: 0 }}
-             className='mx-auto max-w-5xl overflow-hidden rounded-[3rem] bg-gradient-to-br from-gold to-[#B8860B] p-1'
-           >
-              <div className='flex flex-col items-center justify-between gap-12 bg-black rounded-[2.9rem] p-12 md:flex-row md:p-20'>
-                 <div className='max-w-xl text-center md:text-left'>
-                    <h2 className='mb-6 text-4xl font-bold md:text-5xl'>Ready to <span className='text-gold'>Ascend</span>?</h2>
-                    <p className='text-lg text-gray-400'>Join our Discord and connect with founders building the future. Get exclusive strategies, early access, and feedback on your products.</p>
-                 </div>
-                 <div className='flex flex-col gap-4 w-full md:w-auto'>
-                    <motion.a
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      href='https://discord.gg/t7r94BZUXv'
-                      target='_blank'
-                      className='flex items-center justify-center gap-3 rounded-2xl bg-white px-10 py-5 text-xl font-bold text-black transition-all hover:bg-gold'
-                    >
-                       <MessageSquare /> Join Discord
-                    </motion.a>
-                    <p className='text-center text-xs text-gray-500 uppercase tracking-widest'>Zero Fee Community Access</p>
-                 </div>
-              </div>
-           </motion.div>
-        </section>
       </main>
 
       {/* Footer */}
@@ -550,35 +489,33 @@ const HomePage = () => {
                     </div>
                     <span className='text-2xl font-bold'>Ascnd</span>
                   </div>
-                  <p className='text-sm text-gray-500'>Building the next generation of digital empires with artificial intelligence.</p>
+                  <p className='text-sm text-gray-500'>A focused workspace for affiliates, commissions, and payouts.</p>
                </div>
                <div>
                   <h4 className='mb-6 font-bold uppercase tracking-widest text-white'>Product</h4>
                   <ul className='space-y-4 text-sm text-gray-400'>
                      <li><a href='#features' className='hover:text-gold'>Features</a></li>
                      <li><a href='#pricing' className='hover:text-gold'>Pricing</a></li>
-                     <li><a href='#' className='hover:text-gold'>Documentation</a></li>
+                     <li><a href='/auth' className='hover:text-gold'>Start your affiliate program</a></li>
                   </ul>
                </div>
                <div>
                   <h4 className='mb-6 font-bold uppercase tracking-widest text-white'>Legal</h4>
                   <ul className='space-y-4 text-sm text-gray-400'>
-                     <li><a href='#' className='hover:text-gold'>Privacy Policy</a></li>
-                     <li><a href='#' className='hover:text-gold'>Terms of Service</a></li>
-                     <li><a href='#' className='hover:text-gold'>Cookie Policy</a></li>
+                     <li><a href='/privacy' className='hover:text-gold'>Privacy Policy</a></li>
+                     <li><a href='/terms' className='hover:text-gold'>Terms of Service</a></li>
                   </ul>
                </div>
                <div>
                   <h4 className='mb-6 font-bold uppercase tracking-widest text-white'>Support</h4>
                   <ul className='space-y-4 text-sm text-gray-400'>
                      <li><a href='mailto:hello@ascndlabs.com' className='hover:text-gold'>hello@ascndlabs.com</a></li>
-                     <li><a href='#' className='hover:text-gold'>Help Center</a></li>
-                     <li><a href='#' className='hover:text-gold'>Contact Us</a></li>
+                     <li><a href='mailto:hello@ascndlabs.com' className='hover:text-gold'>Contact Us</a></li>
                   </ul>
                </div>
             </div>
             <div className='mt-20 border-t border-white/5 pt-10 text-center text-xs text-gray-600 uppercase tracking-tighter'>
-               © 2025 Ascnd Labs. Build with intention.
+               © {new Date().getFullYear()} AscndLabs. Affiliate Program Manager.
             </div>
          </div>
       </footer>
@@ -586,21 +523,21 @@ const HomePage = () => {
       {/* Video Modal */}
       <AnimatePresence>
         {isVideoOpen && (
-          <motion.div
+          <Motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className='fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 backdrop-blur-xl'
             onClick={() => setIsVideoOpen(false)}
           >
-            <motion.div
+            <Motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               className='relative w-full max-w-4xl overflow-hidden rounded-3xl border border-white/10 bg-gray-950 shadow-2xl'
               onClick={e => e.stopPropagation()}
             >
-              <button 
+              <button
                 className='absolute top-6 right-6 text-white hover:text-gold transition-colors'
                 onClick={() => setIsVideoOpen(false)}
               >
@@ -611,8 +548,8 @@ const HomePage = () => {
                   <source src='/demo.mp4' type='video/mp4' />
                 </video>
               </div>
-            </motion.div>
-          </motion.div>
+            </Motion.div>
+          </Motion.div>
         )}
       </AnimatePresence>
     </div>

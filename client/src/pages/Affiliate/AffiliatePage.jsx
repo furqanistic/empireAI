@@ -1,533 +1,288 @@
-// File: client/src/pages/Affiliate/AffiliatePage.jsx
 import {
   Check,
-  ChevronDown,
-  ChevronUp,
   Copy,
   DollarSign,
+  ExternalLink,
   Link2,
   Loader2,
+  Mail,
   RefreshCw,
+  UserPlus,
   Users,
 } from 'lucide-react'
-import React, { useState } from 'react'
+import { createElement, useState } from 'react'
 import {
+  useAffiliateProgram,
   useCurrentUser,
   useGenerateReferralCode,
   useReferralStats,
 } from '../../hooks/useAuth.js'
-import Layout from '../Layout/Layout'
+import AffiliatesTable from '../../components/Affiliate/AffiliatesTable.jsx'
+import Layout from '../Layout/Layout.jsx'
 
-// Skeleton component (shadcn-style)
-const Skeleton = ({ className = '', ...props }) => {
-  return (
-    <div
-      className={`animate-pulse rounded-md bg-[#1A1A1C] ${className}`}
-      {...props}
-    />
-  )
-}
+const DEFAULT_COMMISSION_RATE = 40
+
+const Skeleton = ({ className = '' }) => (
+  <div className={`animate-pulse rounded-md bg-white/[0.08] ${className}`} />
+)
+
+const StatCard = ({ label, value, icon, color, isLoading }) => (
+  <div className='rounded-2xl border border-white/[0.06] bg-white/[0.025] p-5'>
+    <div className='mb-4 flex items-center justify-between gap-3'>
+      <span className='text-xs font-bold uppercase tracking-[0.1em] text-gray-500'>
+        {label}
+      </span>
+      <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${color}`}>
+        {createElement(icon, { size: 16 })}
+      </span>
+    </div>
+    {isLoading ? (
+      <Skeleton className='h-8 w-20' />
+    ) : (
+      <p className='text-2xl font-black tracking-tight text-white'>{value}</p>
+    )}
+  </div>
+)
 
 const AffiliatePage = () => {
-  const [copiedLink, setCopiedLink] = useState(false)
-  const [copiedCode, setCopiedCode] = useState(false)
-  const [copiedRefCode, setCopiedRefCode] = useState(false)
-  const [showAllReferrals, setShowAllReferrals] = useState(false)
-  const [showEmbedCode, setShowEmbedCode] = useState(false)
-  const [showCommission, setShowCommission] = useState(false)
+  const [copied, setCopied] = useState(null)
+  const [copyError, setCopyError] = useState('')
 
-  // Get current user and referral data
   const currentUser = useCurrentUser()
-  const {
-    data: referralData,
-    isLoading: isLoadingStats,
-    error: statsError,
-    refetch: refetchStats,
-  } = useReferralStats()
+  const referralQuery = useReferralStats()
+  const programQuery = useAffiliateProgram()
+  const generateCode = useGenerateReferralCode()
 
-  const generateCodeMutation = useGenerateReferralCode()
-
-  // Extract referral information with fallbacks
-  const referralStats = referralData?.data?.referralStats
-  const referralCode = currentUser?.referralCode || 'LOADING'
+  const referralStats = referralQuery.data?.data?.referralStats
+  const program = programQuery.data?.data?.affiliateProgram
+  const referralCode =
+    referralStats?.referralCode || currentUser?.referralCode || ''
   const referralLink =
     referralStats?.referralUrl?.replace('/signup', '/auth') ||
-    `${window.location.origin}/auth?ref=${referralCode}`
+    (referralCode
+      ? `${window.location.origin}/auth?ref=${encodeURIComponent(referralCode)}`
+      : '')
+  const commissionRate =
+    Number.isFinite(Number(program?.commissionRate))
+      ? Number(program.commissionRate)
+      : DEFAULT_COMMISSION_RATE
+  const programName = program?.name || 'AscndLabs Affiliate Program'
+  const invitationMessage = referralLink
+    ? `Join ${programName} and earn ${commissionRate}% commission when your referrals become customers. Get started here: ${referralLink}`
+    : ''
 
-  // Create embed code with correct URL
-  const embedCode = `<a href="${referralLink}" target="_blank" style="display: inline-block; background: #D4AF37; color: #000; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600;">Try Ascend AI</a>`
-
-  const copyToClipboard = async (text, type) => {
-    try {
-      await navigator.clipboard.writeText(text)
-      if (type === 'link') {
-        setCopiedLink(true)
-        setTimeout(() => setCopiedLink(false), 2000)
-      } else if (type === 'code') {
-        setCopiedCode(true)
-        setTimeout(() => setCopiedCode(false), 2000)
-      } else if (type === 'refcode') {
-        setCopiedRefCode(true)
-        setTimeout(() => setCopiedRefCode(false), 2000)
-      }
-    } catch (err) {
-      console.error('Failed to copy:', err)
-    }
-  }
-
-  const handleGenerateNewCode = async () => {
-    try {
-      await generateCodeMutation.mutateAsync()
-      refetchStats()
-    } catch (error) {
-      console.error('Error generating new code:', error)
-    }
-  }
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
+  const formatCurrency = (amount) =>
+    new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
-    }).format(amount || 0)
+    }).format(Number(amount) || 0)
+
+  const copyToClipboard = async (text, type) => {
+    if (!text) return
+
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopyError('')
+      setCopied(type)
+      window.setTimeout(() => setCopied(null), 2000)
+    } catch {
+      setCopyError('Copy failed. Select the text and copy it manually.')
+    }
   }
+
+  const handleGenerateCode = async () => {
+    try {
+      setCopyError('')
+      await generateCode.mutateAsync()
+      await referralQuery.refetch()
+    } catch (error) {
+      setCopyError(
+        error.response?.data?.message ||
+          'We could not create a referral code. Please try again.'
+      )
+    }
+  }
+
+  const stats = [
+    {
+      label: 'Commission rate',
+      value: `${commissionRate}%`,
+      icon: DollarSign,
+      color: 'bg-gold/15 text-gold',
+      isLoading: programQuery.isLoading,
+    },
+    {
+      label: 'Total affiliates',
+      value: referralStats?.summary?.totalReferrals || 0,
+      icon: Users,
+      color: 'bg-blue-400/15 text-blue-300',
+      isLoading: referralQuery.isLoading,
+    },
+    {
+      label: 'Total earned',
+      value: formatCurrency(
+        Number(referralStats?.summary?.totalRewards || 0) / 100
+      ),
+      icon: DollarSign,
+      color: 'bg-emerald-400/15 text-emerald-300',
+      isLoading: referralQuery.isLoading,
+    },
+    {
+      label: 'This month',
+      value: referralStats?.summary?.thisMonthReferrals || 0,
+      icon: UserPlus,
+      color: 'bg-purple-400/15 text-purple-300',
+      isLoading: referralQuery.isLoading,
+    },
+  ]
 
   return (
     <Layout>
-      <div className='max-w-6xl mx-auto p-4 sm:p-6 space-y-6'>
-        {/* Header */}
-        <div className='text-left'>
-          <h1 className='text-2xl sm:text-3xl font-bold text-[#EDEDED] mb-2'>
-            Affiliate Program
+      <div className='mx-auto max-w-6xl space-y-6 p-2 sm:p-6'>
+        <div>
+          <p className='mb-3 text-[10px] font-black uppercase tracking-[0.22em] text-gold'>
+            Affiliate program
+          </p>
+          <h1 className='text-3xl font-black tracking-tight text-white sm:text-4xl'>
+            Affiliates
           </h1>
-          <p className='text-gray-400'>
-            Share Ascend AI and earn recurring commissions
+          <p className='mt-2 text-sm text-gray-500'>
+            Share your invitation link and track the people joining your program.
           </p>
         </div>
 
-        {statsError && (
-          <div className='bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-center'>
-            <p className='text-red-400 text-sm mb-2'>
-              Failed to load referral data
+        {referralQuery.isError && (
+          <div className='flex flex-col gap-3 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 sm:flex-row sm:items-center sm:justify-between'>
+            <p className='text-sm text-red-300'>
+              {referralQuery.error?.response?.data?.message ||
+                'We could not load your affiliate details.'}
             </p>
             <button
-              onClick={() => refetchStats()}
-              className='bg-red-500 text-white px-3 py-1.5 rounded-md text-sm hover:bg-red-600 transition-colors'
+              type='button'
+              onClick={() => referralQuery.refetch()}
+              className='inline-flex items-center justify-center gap-2 rounded-xl bg-red-400 px-4 py-2 text-sm font-bold text-black'
             >
-              Retry
+              <RefreshCw size={15} />
+              Try again
             </button>
           </div>
         )}
 
-        {/* Quick Stats Cards */}
-        <div className='grid grid-cols-2 lg:grid-cols-4 gap-3'>
-          <div className='bg-[#121214] border border-[#1E1E21] rounded-lg p-4 text-center'>
-            <div className='text-xl font-bold text-[#EDEDED] mb-1'>
-              {isLoadingStats ? (
-                <Skeleton className='h-6 w-8 mx-auto' />
-              ) : (
-                referralStats?.summary?.totalReferrals || 0
-              )}
+        <section className='rounded-3xl border border-gold/15 bg-gradient-to-br from-gold/[0.08] via-white/[0.025] to-transparent p-5 sm:p-7'>
+          <div className='mb-5 flex items-start gap-3'>
+            <div className='flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gold text-black'>
+              <Link2 size={19} />
             </div>
-            <div className='text-gray-400 text-xs'>Total Referrals</div>
-          </div>
-          <div className='bg-[#121214] border border-[#1E1E21] rounded-lg p-4 text-center'>
-            <div className='text-xl font-bold text-[#D4AF37] mb-1'>
-              {isLoadingStats ? (
-                <Skeleton className='h-6 w-12 mx-auto' />
-              ) : (
-                formatCurrency(referralStats?.summary?.totalRewards)
-              )}
+            <div>
+              <h2 className='text-xl font-bold text-white'>Your affiliate link</h2>
+              <p className='mt-1 text-xs text-gray-500'>
+                Anyone who registers through this link will be attributed to you.
+              </p>
             </div>
-            <div className='text-gray-400 text-xs'>Total Earned</div>
           </div>
-          <div className='bg-[#121214] border border-[#1E1E21] rounded-lg p-4 text-center'>
-            <div className='text-xl font-bold text-blue-400 mb-1'>
-              {isLoadingStats ? (
-                <Skeleton className='h-6 w-10 mx-auto' />
-              ) : (
-                referralStats?.summary?.conversionRate || '0%'
-              )}
-            </div>
-            <div className='text-gray-400 text-xs'>Conversion</div>
-          </div>
-          <div className='bg-[#121214] border border-[#1E1E21] rounded-lg p-4 text-center'>
-            <div className='text-xl font-bold text-emerald-400 mb-1'>
-              {isLoadingStats ? (
-                <Skeleton className='h-6 w-6 mx-auto' />
-              ) : (
-                referralStats?.summary?.thisMonthReferrals || 0
-              )}
-            </div>
-            <div className='text-gray-400 text-xs'>This Month</div>
-          </div>
-        </div>
 
-        {/* Referral Tools */}
-        <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
-          {/* Referral Code */}
-          <div className='bg-[#121214] border border-[#1E1E21] rounded-xl p-4'>
-            <div className='flex items-center justify-between mb-3'>
-              <div className='flex items-center gap-3'>
-                <div className='bg-purple-500/10 p-2 rounded-lg text-purple-400'>
-                  <Copy size={18} />
-                </div>
-                <div>
-                  <h3 className='text-lg font-bold text-[#EDEDED]'>
-                    Referral Code
-                  </h3>
-                  <p className='text-gray-400 text-xs'>
-                    Manual entry during signup
-                  </p>
-                </div>
+          {referralQuery.isLoading ? (
+            <Skeleton className='h-14 w-full' />
+          ) : referralLink ? (
+            <div className='flex flex-col gap-3 sm:flex-row'>
+              <div className='min-w-0 flex-1 rounded-xl border border-white/[0.08] bg-black/40 px-4 py-3.5 font-mono text-sm text-gray-300'>
+                <span className='block truncate'>{referralLink}</span>
               </div>
               <button
-                onClick={handleGenerateNewCode}
-                disabled={generateCodeMutation.isPending || isLoadingStats}
-                className='bg-[#1A1A1C] border border-[#1E1E21] text-gray-400 hover:text-[#EDEDED] hover:border-[#D4AF37]/40 p-2 rounded-lg transition-colors disabled:opacity-50'
-                title='Generate new code'
+                type='button'
+                onClick={() => copyToClipboard(referralLink, 'link')}
+                className='inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-gold px-5 text-sm font-bold text-black transition-transform hover:scale-[1.02]'
               >
-                <RefreshCw
-                  size={14}
-                  className={
-                    generateCodeMutation.isPending ? 'animate-spin' : ''
-                  }
-                />
+                {copied === 'link' ? <Check size={17} /> : <Copy size={17} />}
+                {copied === 'link' ? 'Link copied' : 'Copy link'}
+              </button>
+              <a
+                href={referralLink}
+                target='_blank'
+                rel='noopener noreferrer'
+                aria-label='Open affiliate link'
+                className='inline-flex h-12 w-full items-center justify-center rounded-xl border border-white/[0.08] text-gray-300 hover:border-gold/30 hover:text-white sm:w-12'
+              >
+                <ExternalLink size={17} />
+              </a>
+            </div>
+          ) : (
+            <div className='rounded-2xl border border-white/[0.08] bg-black/30 p-5'>
+              <p className='text-sm text-gray-400'>
+                Create your referral code to generate a shareable link.
+              </p>
+              <button
+                type='button'
+                onClick={handleGenerateCode}
+                disabled={generateCode.isPending}
+                className='mt-4 inline-flex items-center gap-2 rounded-xl bg-gold px-4 py-2.5 text-sm font-bold text-black disabled:opacity-60'
+              >
+                {generateCode.isPending ? (
+                  <Loader2 size={16} className='animate-spin' />
+                ) : (
+                  <Link2 size={16} />
+                )}
+                Create referral code
               </button>
             </div>
+          )}
 
-            <div className='bg-[#1A1A1C] border border-[#1E1E21] rounded-lg p-3'>
-              <div className='flex items-center gap-2'>
-                <div className='bg-[#121214] border border-[#1E1E21] rounded-md px-3 py-2.5 font-mono text-sm font-bold text-[#D4AF37] tracking-wider flex-1 text-center min-h-[38px] flex items-center justify-center'>
-                  {isLoadingStats ? (
-                    <Skeleton className='h-5 w-20' />
-                  ) : (
-                    referralCode
-                  )}
-                </div>
-                <button
-                  onClick={() => copyToClipboard(referralCode, 'refcode')}
-                  disabled={isLoadingStats || referralCode === 'LOADING'}
-                  className='bg-[#D4AF37] text-black px-3 py-2.5 rounded-md font-semibold text-sm hover:bg-[#D4AF37]/90 transition-all duration-300 flex items-center gap-2 disabled:opacity-50 whitespace-nowrap'
-                >
-                  {copiedRefCode ? <Check size={14} /> : <Copy size={14} />}
-                  <span className='hidden sm:inline'>
-                    {copiedRefCode ? 'Copied!' : 'Copy'}
-                  </span>
-                </button>
-              </div>
+          {copyError && <p className='mt-3 text-xs text-red-300'>{copyError}</p>}
+        </section>
+
+        <div className='grid grid-cols-2 gap-3 lg:grid-cols-4'>
+          {stats.map((stat) => (
+            <StatCard key={stat.label} {...stat} />
+          ))}
+        </div>
+
+        <AffiliatesTable
+          referrals={referralStats?.referrals || []}
+          isLoading={referralQuery.isLoading}
+          isError={referralQuery.isError}
+          referralLink={referralLink}
+          copiedLink={copied === 'link'}
+          onCopyLink={() => copyToClipboard(referralLink, 'link')}
+        />
+
+        <section className='rounded-3xl border border-white/[0.06] bg-white/[0.025] p-5 sm:p-7'>
+          <div className='mb-5 flex items-start gap-3'>
+            <div className='flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-400/15 text-blue-300'>
+              <Mail size={19} />
+            </div>
+            <div>
+              <h2 className='text-xl font-bold text-white'>Invitation message</h2>
+              <p className='mt-1 text-xs text-gray-500'>
+                Send this message directly to a prospective affiliate.
+              </p>
             </div>
           </div>
 
-          {/* Referral Link */}
-          <div className='bg-[#121214] border border-[#1E1E21] rounded-xl p-4'>
-            <div className='flex items-center gap-3 mb-3'>
-              <div className='bg-blue-500/10 p-2 rounded-lg text-blue-400'>
-                <Link2 size={18} />
+          <div className='rounded-2xl border border-white/[0.08] bg-black/30 p-4 text-sm leading-relaxed text-gray-300'>
+            {referralQuery.isLoading || programQuery.isLoading ? (
+              <div className='space-y-2'>
+                <Skeleton className='h-4 w-full' />
+                <Skeleton className='h-4 w-4/5' />
               </div>
-              <div>
-                <h3 className='text-lg font-bold text-[#EDEDED]'>
-                  Referral Link
-                </h3>
-                <p className='text-gray-400 text-xs'>Direct link for sharing</p>
-              </div>
-            </div>
-
-            <div className='bg-[#1A1A1C] border border-[#1E1E21] rounded-lg p-3'>
-              <div className='flex items-center gap-2'>
-                <div className='bg-[#121214] border border-[#1E1E21] rounded-md px-3 py-2.5 font-mono text-xs text-[#EDEDED] flex-1 overflow-x-auto min-h-[38px] flex items-center'>
-                  {isLoadingStats ? (
-                    <Skeleton className='h-4 w-full max-w-xs' />
-                  ) : (
-                    referralLink
-                  )}
-                </div>
-                <button
-                  onClick={() => copyToClipboard(referralLink, 'link')}
-                  disabled={isLoadingStats}
-                  className='bg-[#D4AF37] text-black px-3 py-2.5 rounded-md font-semibold text-sm hover:bg-[#D4AF37]/90 transition-all duration-300 flex items-center gap-2 disabled:opacity-50 whitespace-nowrap'
-                >
-                  {copiedLink ? <Check size={14} /> : <Copy size={14} />}
-                  <span className='hidden sm:inline'>
-                    {copiedLink ? 'Copied!' : 'Copy'}
-                  </span>
-                </button>
-              </div>
-            </div>
+            ) : invitationMessage ? (
+              invitationMessage
+            ) : (
+              'Your invitation message will appear after your referral link is ready.'
+            )}
           </div>
-        </div>
 
-        {/* Commission Structure - Collapsible */}
-        <div className='bg-[#121214] border border-[#1E1E21] rounded-xl p-4'>
           <button
-            onClick={() => setShowCommission(!showCommission)}
-            className='w-full flex items-center justify-between text-left'
+            type='button'
+            onClick={() => copyToClipboard(invitationMessage, 'invitation')}
+            disabled={!invitationMessage}
+            className='mt-4 inline-flex items-center justify-center gap-2 rounded-xl border border-white/[0.10] px-4 py-2.5 text-sm font-bold text-white transition-colors hover:border-gold/40 hover:text-gold disabled:cursor-not-allowed disabled:opacity-40'
           >
-            <div className='flex items-center gap-3'>
-              <div className='bg-[#D4AF37] p-2 rounded-lg text-black'>
-                <DollarSign size={18} />
-              </div>
-              <div>
-                <h3 className='text-lg font-bold text-[#EDEDED]'>
-                  Commission Structure
-                </h3>
-                <p className='text-gray-400 text-sm'>
-                  Recurring earnings on all plans
-                </p>
-              </div>
-            </div>
-            {showCommission ? (
-              <ChevronUp size={20} className='text-gray-400' />
-            ) : (
-              <ChevronDown size={20} className='text-gray-400' />
-            )}
+            {copied === 'invitation' ? <Check size={16} /> : <Copy size={16} />}
+            {copied === 'invitation'
+              ? 'Invitation copied'
+              : 'Copy invitation'}
           </button>
-          {showCommission && (
-            <div className='mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4'>
-              {/* Starter Plan */}
-              <div className='bg-[#1A1A1C] border border-[#1E1E21] rounded-lg p-5 text-center transition-all duration-300 hover:shadow-lg hover:shadow-[#D4AF37]/10 hover:border-[#D4AF37]/30'>
-                <div className='text-2xl font-extrabold text-blue-400 mb-2'>
-                  40%
-                </div>
-                <div className='text-[#EDEDED] text-base font-semibold mb-1'>
-                  Starter Plan
-                </div>
-                <div className='text-gray-400 text-sm mb-3'>
-                  Standard features
-                </div>
-                <div className='text-xs text-gray-500'>
-                  Direct referral commission
-                </div>
-              </div>
-
-              {/* Pro Plan (Popular) */}
-              <div className='bg-gradient-to-br from-[#D4AF37]/10 to-[#B8941F]/5 border border-[#D4AF37]/30 rounded-lg p-6 text-center relative transform scale-105 hover:scale-100 transition-all duration-300 shadow-lg shadow-[#D4AF37]/10'>
-                <div className='absolute top-2 right-2'>
-                  <span className='bg-[#D4AF37] text-black text-xs font-bold px-2 py-1 rounded-full'>
-                    Popular
-                  </span>
-                </div>
-                <div className='text-2xl font-extrabold text-[#D4AF37] mb-2'>
-                  40%
-                </div>
-                <div className='text-[#EDEDED] text-base font-semibold mb-1'>
-                  Pro Plan
-                </div>
-                <div className='text-gray-400 text-sm mb-3'>
-                  Best value for users
-                </div>
-                <div className='text-xs text-gray-500'>
-                  Direct referral commission
-                </div>
-              </div>
-
-              {/* Empire Plan */}
-              <div className='bg-[#1A1A1C] border border-[#1E1E21] rounded-lg p-5 text-center transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 hover:border-purple-500/30'>
-                <div className='text-2xl font-extrabold text-purple-400 mb-2'>
-                  40%
-                </div>
-                <div className='text-[#EDEDED] text-base font-semibold mb-1'>
-                  Empire Plan
-                </div>
-                <div className='text-gray-400 text-sm mb-3'>
-                  Premium features
-                </div>
-                <div className='text-xs text-gray-500'>
-                  Direct referral commission
-                </div>
-              </div>
-
-              {/* Optional: Add note about sub-affiliate commission */}
-              <div className='col-span-full mt-2'>
-                <div className='bg-[#1A1A1C]/50 border border-[#1E1E21] rounded-lg p-3 text-center'>
-                  <p className='text-xs text-gray-400'>
-                    Plus{' '}
-                    <span className='text-[#D4AF37] font-semibold'>10%</span>{' '}
-                    commission on sub-affiliate referrals
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Embed Code - Collapsible */}
-        <div className='bg-[#121214] border border-[#1E1E21] rounded-xl p-4'>
-          <button
-            onClick={() => setShowEmbedCode(!showEmbedCode)}
-            className='w-full flex items-center justify-between text-left'
-          >
-            <div className='flex items-center gap-3'>
-              <div className='bg-emerald-500/10 p-2 rounded-lg text-emerald-400'>
-                <Copy size={18} />
-              </div>
-              <div>
-                <h3 className='text-lg font-bold text-[#EDEDED]'>Embed Code</h3>
-                <p className='text-gray-400 text-sm'>
-                  Website button integration
-                </p>
-              </div>
-            </div>
-            {showEmbedCode ? (
-              <ChevronUp size={20} className='text-gray-400' />
-            ) : (
-              <ChevronDown size={20} className='text-gray-400' />
-            )}
-          </button>
-
-          {showEmbedCode && (
-            <div className='mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4'>
-              <div className='space-y-3'>
-                <div className='bg-[#1A1A1C] border border-[#1E1E21] rounded-lg p-3'>
-                  <div className='text-sm text-gray-400 mb-2'>Preview:</div>
-                  <div className='bg-[#121214] border border-[#1E1E21] rounded-md p-3 text-center'>
-                    <a
-                      href={referralLink}
-                      target='_blank'
-                      rel='noopener noreferrer'
-                      className='inline-block bg-[#D4AF37] text-black px-4 py-2 rounded-md font-semibold text-sm hover:bg-[#D4AF37]/90 transition-all duration-300 no-underline'
-                    >
-                      Try Ascend AI
-                    </a>
-                  </div>
-                </div>
-                <button
-                  onClick={() => copyToClipboard(embedCode, 'code')}
-                  disabled={isLoadingStats}
-                  className='w-full bg-emerald-500 text-white px-4 py-2 rounded-md font-semibold text-sm hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50'
-                >
-                  {copiedCode ? <Check size={14} /> : <Copy size={14} />}
-                  {copiedCode ? 'Code Copied!' : 'Copy Embed Code'}
-                </button>
-              </div>
-              <div className='bg-[#1A1A1C] border border-[#1E1E21] rounded-lg p-3'>
-                <div className='text-sm text-gray-400 mb-2'>Code:</div>
-                <div className='bg-[#0A0A0C] border border-[#1E1E21] rounded-md p-3 max-h-32 overflow-y-auto'>
-                  <code className='text-xs text-emerald-400 font-mono whitespace-pre-wrap break-all'>
-                    {embedCode}
-                  </code>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* All Referrals - Collapsible */}
-        <div className='bg-[#121214] border border-[#1E1E21] rounded-xl p-4'>
-          <button
-            onClick={() => setShowAllReferrals(!showAllReferrals)}
-            className='w-full flex items-center justify-between text-left'
-          >
-            <div className='flex items-center gap-3'>
-              <div className='bg-blue-500/10 p-2 rounded-lg text-blue-400'>
-                <Users size={18} />
-              </div>
-              <div>
-                <h3 className='text-lg font-bold text-[#EDEDED]'>
-                  All Referrals ({referralStats?.referrals?.length || 0})
-                </h3>
-                <p className='text-gray-400 text-sm'>
-                  Complete referral network overview
-                </p>
-              </div>
-            </div>
-            {showAllReferrals ? (
-              <ChevronUp size={20} className='text-gray-400' />
-            ) : (
-              <ChevronDown size={20} className='text-gray-400' />
-            )}
-          </button>
-
-          {showAllReferrals && (
-            <div className='mt-4'>
-              {isLoadingStats ? (
-                <div className='space-y-2'>
-                  {/* Skeleton for referrals list */}
-                  {[1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className='flex items-center justify-between p-3 bg-[#1A1A1C] border border-[#1E1E21] rounded-lg'
-                    >
-                      <div className='flex items-center gap-3'>
-                        <Skeleton className='w-8 h-8 rounded-full' />
-                        <div className='space-y-2'>
-                          <Skeleton className='h-4 w-24' />
-                          <Skeleton className='h-3 w-32' />
-                        </div>
-                      </div>
-                      <Skeleton className='h-6 w-16 rounded-full' />
-                    </div>
-                  ))}
-                </div>
-              ) : referralStats?.referrals &&
-                referralStats.referrals.length > 0 ? (
-                <div className='space-y-2 max-h-64 overflow-y-auto'>
-                  {referralStats.referrals
-                    .sort((a, b) => new Date(b.joinedAt) - new Date(a.joinedAt))
-                    .map((referral, index) => {
-                      const joinDate = new Date(referral.joinedAt)
-                      const daysActive = Math.floor(
-                        (new Date() - joinDate) / (1000 * 60 * 60 * 24)
-                      )
-
-                      return (
-                        <div
-                          key={referral.user._id || index}
-                          className='flex items-center justify-between p-3 bg-[#1A1A1C] border border-[#1E1E21] rounded-lg hover:bg-[#1A1A1C]/70 transition-colors'
-                        >
-                          <div className='flex items-center gap-3'>
-                            <div className='w-8 h-8 bg-gradient-to-br from-[#D4AF37] to-[#B8941F] rounded-full flex items-center justify-center'>
-                              <span className='text-black font-bold text-sm'>
-                                {referral.user.name
-                                  ? referral.user.name.charAt(0).toUpperCase()
-                                  : 'U'}
-                              </span>
-                            </div>
-                            <div>
-                              <p className='text-[#EDEDED] font-medium text-sm'>
-                                {referral.user.name || 'Anonymous User'}
-                              </p>
-                              <p className='text-gray-400 text-xs'>
-                                {joinDate.toLocaleDateString()} • {daysActive}{' '}
-                                days active
-                              </p>
-                            </div>
-                          </div>
-                          <div
-                            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                              referral.status === 'active'
-                                ? 'bg-green-500/10 text-green-400'
-                                : 'bg-gray-500/10 text-gray-400'
-                            }`}
-                          >
-                            <div
-                              className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
-                                referral.status === 'active'
-                                  ? 'bg-green-400'
-                                  : 'bg-gray-400'
-                              }`}
-                            ></div>
-                            {referral.status}
-                          </div>
-                        </div>
-                      )
-                    })}
-                </div>
-              ) : (
-                <div className='text-center py-8'>
-                  <div className='bg-[#1A1A1C] border border-[#1E1E21] rounded-full p-3 w-12 h-12 mx-auto mb-3 flex items-center justify-center'>
-                    <Users size={20} className='text-gray-400' />
-                  </div>
-                  <h4 className='text-[#EDEDED] font-bold mb-1'>
-                    No Referrals Yet
-                  </h4>
-                  <p className='text-gray-400 text-sm'>
-                    Start sharing to build your network
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        </section>
       </div>
     </Layout>
   )

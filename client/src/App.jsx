@@ -1,15 +1,11 @@
 // File: client/src/App.jsx
 import { useSelector } from 'react-redux'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { useEffect } from 'react'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import AdminPage from './pages/Admin/AdminPage'
 import PayoutDashboard from './pages/Admin/PayoutDashboard'
 import AffiliatePage from './pages/Affiliate/AffiliatePage'
-import AIBuilderPage from './pages/AIBuilder/AIBuilderPage'
-import NicheLaunchpad from './pages/AIBuilder/NicheLaunchpad'
-import ProductGenerator from './pages/AIBuilder/ProductGenerator'
-import ViralHookFactory from './pages/AIBuilder/ViralHookFactory'
 import AuthPage from './pages/Auth/AuthPage'
-import ChatPage from './pages/Chat/ChatPage'
 import DashboardPage from './pages/Dashboard/DashboardPage'
 import EarningsPage from './pages/Earnings/EarningsPage'
 import HomePage from './pages/Home/HomePage'
@@ -17,12 +13,36 @@ import PrivacyPolicyPage from './pages/Layout/PrivacyPolicyPage'
 import TermsOfServicePage from './pages/Layout/TermsOfServicePage'
 import PricingPage from './pages/Pricing/PricingPage'
 import SubscriptionSuccess from './pages/Pricing/SubscriptionSuccess'
-import ProductCheckoutPage from './pages/Product/ProductCheckoutPage'
-import ProductPage from './pages/Product/ProductPage'
-import ProductSuccessPage from './pages/Product/ProductSuccessPage'
-import PurchasesPage from './pages/Product/PurchasesPage'
+import ProgramSetupPage from './pages/Program/ProgramSetupPage'
+import ProgramLauncherPage from './pages/Program/ProgramLauncherPage'
 import ProfilePage from './pages/Profile/ProfilePage'
 import { selectCurrentUser, selectIsAdmin } from './redux/userSlice.js'
+
+const routeTitles = {
+  '/': 'AscndLabs | Affiliate Program Manager',
+  '/auth': 'Sign In | AscndLabs',
+  '/dashboard': 'Program Overview | AscndLabs',
+  '/invite': 'Invite & Affiliates | AscndLabs',
+  '/earn': 'Commission Earnings | AscndLabs',
+  '/payout': 'Payout Center | AscndLabs',
+  '/profile': 'My Profile | AscndLabs',
+  '/pricing': 'Plans & Billing | AscndLabs',
+  '/program/setup': 'Program Settings | AscndLabs',
+  '/program/launcher': 'AI Program Launcher | AscndLabs',
+  '/admin': 'Admin | AscndLabs',
+  '/privacy': 'Privacy Policy | AscndLabs',
+  '/terms': 'Terms of Service | AscndLabs',
+}
+
+const RouteTitle = () => {
+  const { pathname } = useLocation()
+
+  useEffect(() => {
+    document.title = routeTitles[pathname] || 'AscndLabs | Affiliate Program Manager'
+  }, [pathname])
+
+  return null
+}
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -66,6 +86,7 @@ const PublicRoute = ({ children }) => {
 const App = () => {
   return (
     <BrowserRouter>
+      <RouteTitle />
       <Routes>
         {/* Public Homepage - Always accessible */}
         <Route path='/' element={<HomePage />} />
@@ -90,34 +111,18 @@ const App = () => {
           }
         />
         <Route
-          path='/build'
+          path='/program/setup'
           element={
             <ProtectedRoute>
-              <AIBuilderPage />
+              <ProgramSetupPage />
             </ProtectedRoute>
           }
         />
         <Route
-          path='/build/viral-hooks-factory'
+          path='/program/launcher'
           element={
             <ProtectedRoute>
-              <ViralHookFactory />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path='/build/product-generator'
-          element={
-            <ProtectedRoute>
-              <ProductGenerator />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path='/build/niche-launchpad'
-          element={
-            <ProtectedRoute>
-              <NicheLaunchpad />
+              <ProgramLauncherPage />
             </ProtectedRoute>
           }
         />
@@ -137,25 +142,6 @@ const App = () => {
             </ProtectedRoute>
           }
         />
-        <Route
-          path='/product'
-          element={
-            <ProtectedRoute>
-              <ProductPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path='/chat'
-          element={
-            <ProtectedRoute>
-              <ChatPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route path='/product/checkout/:id' element={<ProductCheckoutPage />} />
-        <Route path='/product/success' element={<ProductSuccessPage />} />
-        <Route path='/purchases' element={<PurchasesPage />} />
         <Route
           path='/profile'
           element={

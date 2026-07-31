@@ -43,7 +43,7 @@ const PrivacyPolicyPage = () => {
                 className='flex items-center gap-2 text-gray-400 hover:text-[#D4AF37] transition-colors duration-300'
               >
                 <ChevronLeft size={20} />
-                <span className='text-sm'>Back to Ascend AI</span>
+                <span className='text-sm'>Back to AscndLabs</span>
               </button>
             </div>
 
@@ -57,7 +57,7 @@ const PrivacyPolicyPage = () => {
                   Privacy <span className='text-[#D4AF37]'>Policy</span>
                 </h1>
                 <p className='text-gray-400 text-sm sm:text-base'>
-                  Your privacy and data security in the digital empire
+                  Your privacy and data security in AscndLabs
                 </p>
               </div>
             </div>
@@ -77,7 +77,7 @@ const PrivacyPolicyPage = () => {
             <p className='text-gray-400'>
               This Privacy Policy is effective as of{' '}
               <span className='text-[#D4AF37] font-semibold'>Sept 25,2025</span>{' '}
-              and applies to all users of the Ascend AI Empire platform.
+              and applies to all users of the AscndLabs affiliate program platform.
             </p>
           </div>
 
@@ -415,18 +415,18 @@ const PrivacyPolicyPage = () => {
           <div className='bg-gradient-to-r from-[#D4AF37]/10 via-[#D4AF37]/5 to-transparent border border-[#D4AF37]/20 rounded-xl p-6 text-center'>
             <h3 className='text-xl font-bold text-[#EDEDED] mb-2'>
               Ready to Build Your{' '}
-              <span className='text-[#D4AF37]'>Digital Empire?</span>
+              <span className='text-[#D4AF37]'>Affiliate Program?</span>
             </h3>
             <p className='text-gray-400 mb-4'>
-              Your privacy is protected while you scale your business with
-              AI-powered tools.
+              Your privacy is protected while you manage affiliates,
+              commissions, earnings, and payout status.
             </p>
             <button
               onClick={handleGoBack}
               className='inline-flex items-center gap-2 bg-[#D4AF37] text-black px-6 py-3 rounded-xl font-semibold hover:bg-[#D4AF37]/90 transition-all duration-300'
             >
               <Crown size={16} />
-              Back to Ascend AI
+              Back to AscndLabs
             </button>
           </div>
         </div>

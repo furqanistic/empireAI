@@ -138,6 +138,48 @@ export const authService = {
 }
 
 export const referralService = {
+  // Get the signed-in account's affiliate program settings
+  getAffiliateProgram: async () => {
+    const response = await axiosInstance.get('/referral/program')
+    return response.data
+  },
+  // Create or update the signed-in account's affiliate program settings
+  updateAffiliateProgram: async (programData) => {
+    const response = await axiosInstance.put('/referral/program', programData)
+    return response.data
+  },
+  getProgramLauncherDraft: async () => {
+    const response = await axiosInstance.get('/referral/program/launcher')
+    return response.data
+  },
+  generateProgramLauncherDraft: async (input) => {
+    const response = await axiosInstance.post(
+      '/referral/program/launcher/generate',
+      input
+    )
+    return response.data
+  },
+  regenerateProgramLauncherSection: async (section) => {
+    const response = await axiosInstance.post(
+      '/referral/program/launcher/regenerate',
+      { section }
+    )
+    return response.data
+  },
+  saveProgramLauncherDraft: async (content) => {
+    const response = await axiosInstance.put(
+      '/referral/program/launcher/draft',
+      { content }
+    )
+    return response.data
+  },
+  publishProgramLauncherDraft: async (content) => {
+    const response = await axiosInstance.post(
+      '/referral/program/launcher/publish',
+      { content }
+    )
+    return response.data
+  },
   // Validate referral code
   validateReferralCode: async (code) => {
     const response = await axiosInstance.get(`/referral/validate/${code}`)

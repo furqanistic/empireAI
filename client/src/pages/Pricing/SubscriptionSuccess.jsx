@@ -211,13 +211,13 @@ const SubscriptionSuccess = () => {
                     <div className='flex items-center gap-3'>
                       <div className='w-2 h-2 bg-emerald-500 rounded-full'></div>
                       <span className='text-[#EDEDED] text-sm'>
-                        Start building your affiliate empire
+                        Open your affiliate program
                       </span>
                     </div>
                     <div className='flex items-center gap-3'>
                       <div className='w-2 h-2 bg-emerald-500 rounded-full'></div>
                       <span className='text-[#EDEDED] text-sm'>
-                        Access to all AI tools and templates
+                        Affiliate, earnings, and payout status tools
                       </span>
                     </div>
                   </div>

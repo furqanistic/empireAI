@@ -42,7 +42,6 @@ const EarningsPage = () => {
   const {
     summary,
     analytics,
-    recentEarnings,
     isLoading: dashboardLoading,
     error: dashboardError,
     refetchAll, // ADD THIS
@@ -100,8 +99,7 @@ const EarningsPage = () => {
         month: 'short',
         day: 'numeric',
       }),
-      revenue: Math.round(parseFloat(item.formatted) * 100), // Convert back to cents for consistency
-      commissions: Math.round(parseFloat(item.formatted) * 100), // Using same value for demo
+      commission: Math.round(parseFloat(item.formatted) * 100),
       referrals: item.count,
     }))
   }, [analytics?.earningsOverTime])
@@ -111,25 +109,25 @@ const EarningsPage = () => {
     if (!summary) {
       return [
         {
-          title: 'Total Earnings',
+          title: 'Commission Earned',
           value: '$0.00',
           icon: <DollarSign size={18} />,
           color: 'bg-[#D4AF37]',
         },
         {
-          title: 'This Month',
+          title: 'Commission Paid',
           value: '$0.00',
           icon: <TrendingUp size={18} />,
           color: 'bg-emerald-500',
         },
         {
-          title: 'Pending Earnings',
+          title: 'Commission Pending',
           value: '$0.00',
           icon: <Users size={18} />,
           color: 'bg-blue-500',
         },
         {
-          title: 'Paid Earnings',
+          title: 'Available for Payout',
           value: '$0.00',
           icon: <Target size={18} />,
           color: 'bg-purple-500',
@@ -150,25 +148,25 @@ const EarningsPage = () => {
 
     return [
       {
-        title: 'Total Earnings',
+        title: 'Commission Earned',
         value: `$${allTotal.toFixed(2)}`,
         icon: <DollarSign size={18} />,
         color: 'bg-[#D4AF37]',
       },
       {
-        title: 'Paid Out',
+        title: 'Commission Paid',
         value: `$${totalEarnings}`,
         icon: <TrendingUp size={18} />,
         color: 'bg-emerald-500',
       },
       {
-        title: 'Pending',
+        title: 'Commission Pending',
         value: `$${pendingEarnings}`,
         icon: <Users size={18} />,
         color: 'bg-blue-500',
       },
       {
-        title: 'Available',
+        title: 'Available for Payout',
         value: `$${approvedEarnings}`,
         icon: <Target size={18} />,
         color: 'bg-purple-500',
@@ -255,7 +253,7 @@ const EarningsPage = () => {
     const statusConfig = {
       paid: { color: 'bg-emerald-500/10 text-emerald-400', label: 'Paid' },
       pending: { color: 'bg-yellow-500/10 text-yellow-400', label: 'Pending' },
-      approved: { color: 'bg-blue-500/10 text-blue-400', label: 'Approved' },
+      approved: { color: 'bg-blue-500/10 text-blue-400', label: 'Payable' },
       disputed: { color: 'bg-red-500/10 text-red-400', label: 'Disputed' },
       cancelled: { color: 'bg-gray-500/10 text-gray-400', label: 'Cancelled' },
     }
@@ -357,16 +355,6 @@ const EarningsPage = () => {
     setCurrentPage(page)
   }
 
-  // Error handling with shadcn toast
-  if (dashboardError || earningsError) {
-    // Show error toast but still render the page
-    const errorMessage =
-      dashboardError?.message ||
-      earningsError?.message ||
-      'Unable to load earnings data'
-    toast.error(errorMessage)
-  }
-
   return (
     <Layout>
       <div className='max-w-7xl mx-auto p-4 sm:p-6 space-y-6 sm:space-y-8'>
@@ -374,10 +362,10 @@ const EarningsPage = () => {
         <div className='flex items-center justify-between'>
           <div>
             <h1 className='text-2xl sm:text-3xl font-bold text-[#EDEDED] mb-2'>
-              Earnings Dashboard
+              Commission Earnings
             </h1>
             <p className='text-gray-400'>
-              Track your affiliate performance and commission earnings
+              See what is pending, payable, and already paid.
             </p>
           </div>
 
@@ -395,11 +383,40 @@ const EarningsPage = () => {
           </button>
         </div>
 
+        {(dashboardError || earningsError) && (
+          <div className='rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300'>
+            {dashboardError?.response?.data?.message ||
+              earningsError?.response?.data?.message ||
+              'Some earnings data could not be loaded. Refresh to try again.'}
+          </div>
+        )}
+
         {/* Stats Grid */}
         <div className='grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4'>
           {statsCards.map((stat, index) => (
             <StatCard key={index} {...stat} />
           ))}
+        </div>
+
+        <div className='grid grid-cols-1 gap-3 rounded-xl border border-blue-500/15 bg-blue-500/[0.06] p-4 text-xs leading-relaxed sm:grid-cols-3'>
+          <div>
+            <p className='font-bold text-yellow-300'>Pending</p>
+            <p className='mt-1 text-gray-400'>
+              Commission is in the 30-day hold period.
+            </p>
+          </div>
+          <div>
+            <p className='font-bold text-blue-300'>Payable</p>
+            <p className='mt-1 text-gray-400'>
+              The hold is complete and the commission can be included in a payout.
+            </p>
+          </div>
+          <div>
+            <p className='font-bold text-emerald-300'>Paid</p>
+            <p className='mt-1 text-gray-400'>
+              The commission has been included in a completed payout.
+            </p>
+          </div>
         </div>
 
         {/* Quick Insights */}
@@ -408,7 +425,7 @@ const EarningsPage = () => {
           <div className='lg:col-span-2 bg-[#121214] border border-[#1E1E21] rounded-xl p-6'>
             <div className='flex items-center justify-between mb-6'>
               <h2 className='text-lg font-bold text-[#EDEDED]'>
-                Revenue Trend
+                Commission Trend
               </h2>
               <div className='flex items-center gap-2'>
                 <div className='relative'>
@@ -457,24 +474,6 @@ const EarningsPage = () => {
                           stopOpacity={0}
                         />
                       </linearGradient>
-                      <linearGradient
-                        id='commissionsGradient'
-                        x1='0'
-                        y1='0'
-                        x2='0'
-                        y2='1'
-                      >
-                        <stop
-                          offset='5%'
-                          stopColor='#10B981'
-                          stopOpacity={0.3}
-                        />
-                        <stop
-                          offset='95%'
-                          stopColor='#10B981'
-                          stopOpacity={0}
-                        />
-                      </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray='3 3' stroke='#1E1E21' />
                     <XAxis
@@ -494,7 +493,7 @@ const EarningsPage = () => {
                     <Tooltip content={<CustomTooltip />} />
                     <Area
                       type='monotone'
-                      dataKey='revenue'
+                      dataKey='commission'
                       stroke='#D4AF37'
                       strokeWidth={2}
                       fill='url(#revenueGradient)'
@@ -508,7 +507,7 @@ const EarningsPage = () => {
             <div className='flex items-center gap-6 mt-4'>
               <div className='flex items-center gap-2'>
                 <div className='w-3 h-2 rounded bg-[#D4AF37]'></div>
-                <span className='text-gray-400 text-sm'>Revenue</span>
+                <span className='text-gray-400 text-sm'>Commission earned</span>
               </div>
             </div>
           </div>
@@ -592,7 +591,7 @@ const EarningsPage = () => {
                     value={statusFilter}
                     options={[
                       { value: 'pending', label: 'Pending' },
-                      { value: 'approved', label: 'Approved' },
+                      { value: 'approved', label: 'Payable' },
                       { value: 'paid', label: 'Paid' },
                       { value: 'disputed', label: 'Disputed' },
                       { value: 'cancelled', label: 'Cancelled' },
@@ -695,7 +694,9 @@ const EarningsPage = () => {
                               : 'bg-gray-500/10 text-gray-400'
                           }`}
                         >
-                          {earning.subscription?.plan || 'N/A'}
+                          {earning.subscription?.plan?.toLowerCase() === 'empire'
+                            ? 'Business'
+                            : earning.subscription?.plan || 'N/A'}
                         </span>
                       </td>
                       <td className='px-6 py-4 text-[#EDEDED] font-medium'>
@@ -719,13 +720,18 @@ const EarningsPage = () => {
               </table>
             ) : (
               <div className='text-center py-12'>
-                <p className='text-gray-400'>No earnings found</p>
+                <p className='font-semibold text-gray-300'>
+                  No commission earnings yet
+                </p>
+                <p className='mt-2 text-sm text-gray-600'>
+                  New earnings will appear after an attributed customer payment.
+                </p>
               </div>
             )}
           </div>
 
           {/* Table Footer */}
-          {earningsData?.data && (
+          {earningsData?.data && earningsData.totalResults > 0 && (
             <div className='px-4 sm:px-6 py-4 border-t border-[#1E1E21] flex flex-col sm:flex-row sm:items-center justify-between gap-4'>
               <div className='text-gray-400 text-sm text-center sm:text-left'>
                 Showing {(currentPage - 1) * pageLimit + 1} to{' '}

@@ -31,6 +31,61 @@ import {
 } from '../../hooks/usePayouts'
 import Layout from '../Layout/Layout'
 
+const STATUS_CONFIG = {
+  earning: {
+    pending: {
+      label: 'Pending',
+      classes: 'bg-yellow-500/10 text-yellow-400',
+    },
+    approved: {
+      label: 'Payable',
+      classes: 'bg-blue-500/10 text-blue-400',
+    },
+    paid: {
+      label: 'Paid',
+      classes: 'bg-green-500/10 text-green-400',
+    },
+    disputed: {
+      label: 'Disputed',
+      classes: 'bg-red-500/10 text-red-400',
+    },
+    cancelled: {
+      label: 'Cancelled',
+      classes: 'bg-gray-500/10 text-gray-400',
+    },
+  },
+  payout: {
+    pending: {
+      label: 'Requested',
+      classes: 'bg-yellow-500/10 text-yellow-400',
+    },
+    processing: {
+      label: 'Processing',
+      classes: 'bg-blue-500/10 text-blue-400',
+    },
+    in_transit: {
+      label: 'On the way',
+      classes: 'bg-purple-500/10 text-purple-400',
+    },
+    paid: {
+      label: 'Paid',
+      classes: 'bg-green-500/10 text-green-400',
+    },
+    failed: {
+      label: 'Failed',
+      classes: 'bg-red-500/10 text-red-400',
+    },
+    cancelled: {
+      label: 'Cancelled',
+      classes: 'bg-gray-500/10 text-gray-400',
+    },
+    returned: {
+      label: 'Returned',
+      classes: 'bg-red-500/10 text-red-400',
+    },
+  },
+}
+
 // Enhanced Loading Component (Mobile Optimized)
 const PayoutDashboardLoader = () => {
   const [loadingStep, setLoadingStep] = React.useState(0)
@@ -238,8 +293,8 @@ const NoEarningsState = ({ user, onGetLink }) => {
           No earnings yet
         </h3>
         <p className='text-sm sm:text-base text-gray-400 mb-4 sm:mb-6 px-2'>
-          Invite users or affiliates to start earning commission. Share your
-          referral link and earn from every successful signup.
+          Share your referral link to start earning commission from eligible
+          purchases.
         </p>
 
         {/* Referral Link Display */}
@@ -269,10 +324,6 @@ const NoEarningsState = ({ user, onGetLink }) => {
           {copied ? 'Link Copied!' : 'Get Your Link'}
         </button>
 
-        <div className='mt-4 sm:mt-6 text-xs text-gray-500 space-y-1'>
-          <p>Direct referrals earn 40% commission</p>
-          <p>Indirect referrals earn 10% commission</p>
-        </div>
       </div>
     </div>
   )
@@ -280,60 +331,34 @@ const NoEarningsState = ({ user, onGetLink }) => {
 
 // Enhanced Earnings Stats (Mobile Optimized)
 const EarningsStatsGrid = ({ earningsSummary }) => {
-  const currentMonth = new Date().getMonth()
-  const currentYear = new Date().getFullYear()
-
-  const calculateMTD = (earnings) => {
-    if (!earnings || !Array.isArray(earnings)) return 0
-    return earnings
-      .filter((earning) => {
-        const earningDate = new Date(earning.createdAt)
-        return (
-          earningDate.getMonth() === currentMonth &&
-          earningDate.getFullYear() === currentYear
-        )
-      })
-      .reduce((sum, earning) => sum + earning.commissionAmount, 0)
-  }
-
-  const totalEarned = parseFloat(
-    earningsSummary?.userEarningsInfo?.totalEarned || '0'
-  )
-  const mtdEarnings = calculateMTD(earningsSummary?.recentEarnings || [])
-  const directEarnings = totalEarned * 0.8
-  const indirectEarnings = totalEarned * 0.2
-
   const stats = [
     {
-      title: 'All-time Total',
+      title: 'Commission Earned',
       value: earningsSummary?.userEarningsInfo?.totalEarned || '0.00',
-      subtitle: `${
-        (earningsSummary?.summary?.pending?.count || 0) +
-        (earningsSummary?.summary?.approved?.count || 0) +
-        (earningsSummary?.summary?.paid?.count || 0)
-      } total referrals`,
+      subtitle: 'All recorded commission',
       icon: TrendingUp,
       iconColor: 'text-green-400',
     },
     {
-      title: 'This Month',
-      value: (mtdEarnings / 100).toFixed(2),
-      subtitle: 'Month-to-date earnings',
+      title: 'Commission Pending',
+      value: earningsSummary?.userEarningsInfo?.pendingEarnings || '0.00',
+      subtitle: 'Currently in the hold period',
       icon: Clock,
       iconColor: 'text-blue-400',
     },
     {
-      title: 'Direct (40%)',
-      value: directEarnings.toFixed(2),
-      subtitle: 'Direct referral commissions',
-      icon: Users,
+      title: 'Available for Payout',
+      value:
+        earningsSummary?.userEarningsInfo?.availableForPayout || '0.00',
+      subtitle: 'Payable commission',
+      icon: Wallet,
       iconColor: 'text-purple-400',
     },
     {
-      title: 'Indirect (10%)',
-      value: indirectEarnings.toFixed(2),
-      subtitle: 'Indirect referral commissions',
-      icon: ArrowUpRight,
+      title: 'Paid',
+      value: earningsSummary?.userEarningsInfo?.totalPaidOut || '0.00',
+      subtitle: 'Completed payouts',
+      icon: CheckCircle2,
       iconColor: 'text-orange-400',
     },
   ]
@@ -382,8 +407,8 @@ const AvailablePayoutCard = ({
             ${availableAmount.toFixed(2)}
           </div>
           <p className='text-gray-400 text-xs sm:text-sm'>
-            {earningsSummary?.summary?.approved?.count || 0} approved earnings
-            ready for withdrawal
+            {earningsSummary?.summary?.approved?.count || 0} payable earnings
+            ready to request
           </p>
         </div>
         <div className='flex flex-col sm:flex-row items-center gap-3 sm:gap-4'>
@@ -497,19 +522,10 @@ const RecentTransactions = ({ recentEarnings, payoutHistory }) => {
                 {Math.abs(transaction.amount / 100).toFixed(2)}
               </div>
               {transaction.status && (
-                <span
-                  className={`px-2 py-1 rounded text-xs ${
-                    transaction.status === 'paid'
-                      ? 'bg-green-500/10 text-green-400'
-                      : transaction.status === 'approved'
-                      ? 'bg-blue-500/10 text-blue-400'
-                      : transaction.status === 'pending'
-                      ? 'bg-yellow-500/10 text-yellow-400'
-                      : 'bg-gray-500/10 text-gray-400'
-                  }`}
-                >
-                  {transaction.status}
-                </span>
+                <StatusBadge
+                  status={transaction.status}
+                  type={transaction.type}
+                />
               )}
             </div>
           </div>
@@ -521,31 +537,16 @@ const RecentTransactions = ({ recentEarnings, payoutHistory }) => {
 
 // Status Badge Component
 const StatusBadge = ({ status, type = 'earning' }) => {
-  const getClasses = () => {
-    const configs = {
-      earning: {
-        pending: 'bg-yellow-500/10 text-yellow-400',
-        approved: 'bg-blue-500/10 text-blue-400',
-        paid: 'bg-green-500/10 text-green-400',
-        disputed: 'bg-red-500/10 text-red-400',
-      },
-      payout: {
-        pending: 'bg-yellow-500/10 text-yellow-400',
-        processing: 'bg-blue-500/10 text-blue-400',
-        in_transit: 'bg-purple-500/10 text-purple-400',
-        paid: 'bg-green-500/10 text-green-400',
-        failed: 'bg-red-500/10 text-red-400',
-        cancelled: 'bg-gray-500/10 text-gray-400',
-      },
-    }
-    return configs[type][status] || configs[type].pending
+  const config = STATUS_CONFIG[type]?.[status] || {
+    label: 'Unknown',
+    classes: 'bg-gray-500/10 text-gray-400',
   }
 
   return (
     <span
-      className={`px-2 py-1 rounded-lg text-xs font-medium ${getClasses()}`}
+      className={`px-2 py-1 rounded-lg text-xs font-medium ${config.classes}`}
     >
-      {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
+      {config.label}
     </span>
   )
 }
@@ -628,11 +629,10 @@ const PayoutRequestModal = ({
   onClose,
   onSubmit,
   earningsSummary,
-  connectStatus,
   isLoading,
 }) => {
   const [amount, setAmount] = useState('')
-  const [method, setMethod] = useState('standard')
+  const method = 'standard'
 
   if (!show) return null
 
@@ -833,7 +833,8 @@ const PayoutDashboard = () => {
         <div className='text-center py-8 sm:py-12'>
           <Wallet className='mx-auto text-gray-600 mb-4' size={40} />
           <p className='text-gray-400 text-sm'>
-            Detailed earnings view coming soon
+            Open Earnings from the sidebar to review each commission record and
+            its current status.
           </p>
         </div>
       </div>
@@ -912,7 +913,7 @@ const PayoutDashboard = () => {
             Payouts
           </h1>
           <p className='text-sm sm:text-base text-gray-400'>
-            Manage your earnings and payout settings
+            See what is pending, payable, requested, and paid.
           </p>
         </div>
 
@@ -924,7 +925,7 @@ const PayoutDashboard = () => {
             </div>
             <div className='flex-1'>
               <h3 className='text-blue-400 font-semibold text-sm sm:text-base mb-2'>
-                30-Day Security Hold Period
+                30-Day Commission Hold
               </h3>
               <p className='text-gray-300 text-xs sm:text-sm mb-3 leading-relaxed'>
                 New commission earnings are held for 30 days before becoming
@@ -934,14 +935,14 @@ const PayoutDashboard = () => {
               <div className='grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-gray-400'>
                 <div className='flex items-center gap-2'>
                   <Clock size={12} className='text-blue-400 flex-shrink-0' />
-                  <span>Earnings approved automatically after 30 days</span>
+                  <span>Pending commission becomes payable after 30 days</span>
                 </div>
                 <div className='flex items-center gap-2'>
                   <CheckCircle2
                     size={12}
                     className='text-blue-400 flex-shrink-0'
                   />
-                  <span>Monthly payout schedule for approved earnings</span>
+                  <span>Only payable commission can be included in a payout</span>
                 </div>
               </div>
             </div>
@@ -989,7 +990,6 @@ const PayoutDashboard = () => {
           onClose={() => setShowRequestModal(false)}
           onSubmit={handlePayoutRequest}
           earningsSummary={earningsSummary?.data}
-          connectStatus={connectStatus?.data}
           isLoading={actionLoading}
         />
       </div>

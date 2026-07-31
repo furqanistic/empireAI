@@ -36,6 +36,25 @@ import {
 
 const app = express()
 
+// express-mongo-sanitize's middleware assigns the sanitized value back to
+// req.query. In Express 5 req.query is a getter-only property, so use the
+// package's object helpers without reassigning request properties.
+const mongoSanitizeExpress5 = (req, res, next) => {
+  if (mongoSanitize.has(req.query)) {
+    return res.status(400).json({
+      status: 'error',
+      statusCode: 400,
+      message: 'Invalid query parameters',
+    })
+  }
+
+  if (req.body) {
+    mongoSanitize.sanitize(req.body)
+  }
+
+  next()
+}
+
 // CORS configuration
 const corsOptions = {
   origin: (origin, callback) => {
@@ -71,7 +90,6 @@ app.use(
     },
   })
 )
-app.use(mongoSanitize())
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -91,6 +109,7 @@ app.use('/api/webhooks/', stripeConnectWebhooksRoute)
 // Regular middleware
 app.use(cookieParser())
 app.use(express.json())
+app.use(mongoSanitizeExpress5)
 
 // API Routes
 app.use('/api/auth/', authRoute)
