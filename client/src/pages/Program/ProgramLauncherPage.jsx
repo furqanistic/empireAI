@@ -312,7 +312,7 @@ const ProgramLauncherPage = () => {
 
   return (
     <Layout>
-      <div className='mx-auto max-w-6xl space-y-6 p-2 sm:p-6'>
+      <div className='space-y-6'>
         <header>
           <button
             type='button'

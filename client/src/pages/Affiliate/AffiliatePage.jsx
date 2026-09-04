@@ -138,7 +138,7 @@ const AffiliatePage = () => {
 
   return (
     <Layout>
-      <div className='mx-auto max-w-6xl space-y-6 p-2 sm:p-6'>
+      <div className='space-y-6'>
         <div>
           <p className='mb-3 text-[10px] font-black uppercase tracking-[0.22em] text-gold'>
             Affiliate program

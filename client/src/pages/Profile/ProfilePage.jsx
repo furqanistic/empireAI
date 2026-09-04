@@ -361,9 +361,8 @@ const ProfilePage = () => {
     <Layout>
       <MessageDisplay />
       <DeleteModal />
-      <div className='min-h-screen bg-[#0B0B0C]'>
-        <div className='max-w-6xl mx-auto p-2 sm:p-6 space-y-4 sm:space-y-8'>
-          <div className='text-left px-2 sm:px-0'>
+      <div className='space-y-4 sm:space-y-8'>
+          <div className='text-left'>
             <h1 className='text-2xl sm:text-3xl font-bold text-[#EDEDED] mb-2'>
               Profile Settings
             </h1>
@@ -700,7 +699,6 @@ const ProfilePage = () => {
               </div>
             </div>
           </div>
-        </div>
       </div>
     </Layout>
   )

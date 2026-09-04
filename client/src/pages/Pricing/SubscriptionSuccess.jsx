@@ -152,7 +152,7 @@ const SubscriptionSuccess = () => {
 
   return (
     <Layout>
-      <div className='max-w-4xl mx-auto p-6'>
+      <div>
         <div className='min-h-[60vh] flex items-center justify-center'>
           <div className='w-full max-w-2xl text-center'>
             {status === 'loading' && (

@@ -120,7 +120,7 @@ const PayoutDashboardLoader = () => {
 
   return (
     <Layout>
-      <div className='max-w-6xl mx-auto p-3 sm:p-6 space-y-6 sm:space-y-8'>
+      <div className='space-y-6 sm:space-y-8'>
         <div className='text-center space-y-4'>
           <div className='relative'>
             <div className='h-6 sm:h-8 w-32 sm:w-48 bg-gradient-to-r from-[#D4AF37]/30 via-[#D4AF37]/60 to-[#D4AF37]/30 rounded-lg mx-auto animate-pulse'></div>
@@ -160,7 +160,7 @@ const PayoutDashboardLoader = () => {
 // Error Display Component (Mobile Optimized)
 const ErrorDisplay = ({ error, onRetry }) => (
   <Layout>
-    <div className='max-w-6xl mx-auto p-3 sm:p-6'>
+    <div>
       <div className='bg-red-500/10 border border-red-500/20 rounded-xl p-4 sm:p-6 text-center'>
         <AlertCircle className='mx-auto mb-4 text-red-400' size={40} />
         <h2 className='text-lg sm:text-xl font-semibold text-red-400 mb-2'>
@@ -905,10 +905,10 @@ const PayoutDashboard = () => {
 
   return (
     <Layout>
-      <div className='max-w-6xl mx-auto p-3 sm:p-6 space-y-6 sm:space-y-8'>
+      <div className='space-y-6 sm:space-y-8'>
         {/* Header */}
         {/* Header */}
-        <div className='px-1'>
+        <div>
           <h1 className='text-2xl sm:text-3xl font-bold text-[#EDEDED] mb-1 sm:mb-2'>
             Payouts
           </h1>

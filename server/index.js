@@ -9,6 +9,7 @@ import mongoSanitize from 'express-mongo-sanitize'
 import rateLimit from 'express-rate-limit'
 import helmet from 'helmet'
 import mongoose from 'mongoose'
+import path from 'path'
 import adminRoutes from './routes/admin.js'
 import authRoute from './routes/auth.js'
 import businessPlanRoute from './routes/businessPlan.js'
@@ -20,6 +21,7 @@ import hookRoute from './routes/hook.js'
 import notificationRoute from './routes/notification.js'
 import payoutRoute from './routes/payout.js'
 import productRoute from './routes/product.js'
+import sellableProductRoute from './routes/sellableProduct.js'
 import referralRoute from './routes/referral.js'
 import stripeRoute from './routes/stripe.js'
 import stripeConnectWebhooksRoute from './routes/stripeConnectWebhooks.js'
@@ -88,8 +90,11 @@ app.use(
     frameguard: {
       action: 'sameorigin',
     },
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
   })
 )
+
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')))
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -117,6 +122,7 @@ app.use('/api/referral/', referralRoute)
 app.use('/api/notifications/', notificationRoute)
 app.use('/api/stripe/', stripeRoute)
 app.use('/api/products/', productRoute)
+app.use('/api/sellable-products/', sellableProductRoute)
 app.use('/api/digital-products/', digitalProductsRoute)
 app.use('/api/payouts/', payoutRoute)
 app.use('/api/earnings', earningsRoutes)

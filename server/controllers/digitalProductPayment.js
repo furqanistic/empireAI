@@ -15,7 +15,7 @@ dotenv.config({ quiet: true })
 export const createProductCheckoutSession = async (req, res, next) => {
   try {
     // Accept multiple field names for backward compatibility
-    const { productSlug, productIdentifier, slug, productId, customerInfo } =
+    const { productSlug, productIdentifier, slug, productId, customerInfo, referralCode } =
       req.body
 
     // Support multiple field names that frontend might send
@@ -159,6 +159,10 @@ export const createProductCheckoutSession = async (req, res, next) => {
         customerEmail: customerInfo.email,
         customerFirstName: customerInfo.firstName,
         customerLastName: customerInfo.lastName,
+        referralCode: String(referralCode || customerInfo?.referralCode || '')
+          .trim()
+          .toUpperCase()
+          .slice(0, 24),
       },
       billing_address_collection: 'auto',
       allow_promotion_codes: true,

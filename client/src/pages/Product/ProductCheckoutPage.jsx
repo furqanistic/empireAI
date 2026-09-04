@@ -3,13 +3,15 @@
 import { Lock, Package, ShieldCheck } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import { useDigitalProducts } from '@/hooks/useDigitalProduct'
 
 const ProductCheckoutPage = () => {
   const navigate = useNavigate()
   const { id } = useParams() // This is the MongoDB ID from the URL
+  const [searchParams] = useSearchParams()
+  const referralCode = searchParams.get('ref') || ''
   const [loading, setLoading] = useState(false)
   const [checkoutError, setCheckoutError] = useState(null)
 
@@ -54,6 +56,7 @@ const ProductCheckoutPage = () => {
         email: data.email,
         firstName: data.firstName,
         lastName: data.lastName,
+        referralCode,
       })
     } catch (error) {
       let errorMessage = 'Failed to process checkout. Please try again.'

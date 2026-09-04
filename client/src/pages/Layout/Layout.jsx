@@ -6,6 +6,7 @@ import {
     CreditCard,
     Crown,
     DollarSign,
+    FileText,
     Gem,
     HelpCircle,
     Home,
@@ -71,7 +72,13 @@ const Layout = ({ children }) => {
       icon: Sparkles,
       path: '/program/launcher',
       badge: 'AI',
-      featured: true,
+    },
+    {
+      id: 'product-studio',
+      label: 'Product Studio',
+      icon: FileText,
+      path: '/build/product',
+      badge: 'AI',
     },
     { id: 'program-setup', label: 'Program Settings', icon: Settings, path: '/program/setup' },
     { id: 'affiliates', label: 'Invite & Affiliates', icon: UserPlus, path: '/invite' },
@@ -116,9 +123,7 @@ const Layout = ({ children }) => {
         ${
           active
             ? 'bg-gold text-black shadow-[0_0_20px_rgba(212,175,55,0.2)]'
-            : item.featured
-              ? 'border border-gold/25 bg-gold/10 text-gold shadow-[0_0_18px_rgba(212,175,55,0.08)] hover:border-gold/45 hover:bg-gold/15'
-              : 'border border-transparent text-gray-400 hover:bg-white/5 hover:text-white'
+            : 'border border-transparent text-gray-400 hover:bg-white/5 hover:text-white'
         }
         ${!sidebarOpen ? 'justify-center px-0' : ''}
       `}>
@@ -131,7 +136,7 @@ const Layout = ({ children }) => {
               <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-md ${
                 active
                   ? 'bg-black/15 text-black/70'
-                  : item.featured
+                  : item.badge === 'AI'
                     ? 'bg-gold text-black'
                     : item.badgeColor || 'bg-white/10 text-white/60'
               }`}>
@@ -314,12 +319,12 @@ const Layout = ({ children }) => {
 
         {/* Dynamic Content */}
         <main className='flex-1 overflow-y-auto bg-[#030303] custom-scrollbar relative'>
-          <div className='p-6 max-w-7xl mx-auto min-h-full'>
+          <div className='mx-auto min-h-full w-full max-w-7xl p-4 sm:p-6'>
             {children}
           </div>
           
           {/* Subtle footer */}
-          <footer className='py-6 px-10 border-t border-white/5 opacity-50 text-[10px] font-medium tracking-widest text-center uppercase flex flex-col md:flex-row justify-center gap-4'>
+          <footer className='mx-auto w-full max-w-7xl py-6 px-4 sm:px-6 border-t border-white/5 opacity-50 text-[10px] font-medium tracking-widest text-center uppercase flex flex-col md:flex-row justify-center gap-4'>
              <span>© 2025 Ascnd Labs LLC.</span>
              <Link to='/privacy' className='hover:text-gold transition-colors'>Privacy</Link>
              <Link to='/terms' className='hover:text-gold transition-colors'>Terms</Link>

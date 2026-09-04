@@ -15,6 +15,9 @@ import PricingPage from './pages/Pricing/PricingPage'
 import SubscriptionSuccess from './pages/Pricing/SubscriptionSuccess'
 import ProgramSetupPage from './pages/Program/ProgramSetupPage'
 import ProgramLauncherPage from './pages/Program/ProgramLauncherPage'
+import SellableProductStudio from './pages/AIBuilder/SellableProductStudio'
+import ProductCheckoutPage from './pages/Product/ProductCheckoutPage'
+import ProductSuccessPage from './pages/Product/ProductSuccessPage'
 import ProfilePage from './pages/Profile/ProfilePage'
 import { selectCurrentUser, selectIsAdmin } from './redux/userSlice.js'
 
@@ -29,6 +32,7 @@ const routeTitles = {
   '/pricing': 'Plans & Billing | AscndLabs',
   '/program/setup': 'Program Settings | AscndLabs',
   '/program/launcher': 'AI Program Launcher | AscndLabs',
+  '/build/product': 'Product Studio | AscndLabs',
   '/admin': 'Admin | AscndLabs',
   '/privacy': 'Privacy Policy | AscndLabs',
   '/terms': 'Terms of Service | AscndLabs',
@@ -127,6 +131,14 @@ const App = () => {
           }
         />
         <Route
+          path='/build/product'
+          element={
+            <ProtectedRoute>
+              <SellableProductStudio />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path='/earn'
           element={
             <ProtectedRoute>
@@ -178,6 +190,8 @@ const App = () => {
         />
 
         <Route path='/pricing/success' element={<SubscriptionSuccess />} />
+        <Route path='/product/checkout/:id' element={<ProductCheckoutPage />} />
+        <Route path='/product/success' element={<ProductSuccessPage />} />
         <Route path='/privacy' element={<PrivacyPolicyPage />} />
         <Route path='/terms' element={<TermsOfServicePage />} />
 

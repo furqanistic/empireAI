@@ -176,7 +176,7 @@ const DashboardPage = () => {
 
   return (
     <Layout>
-      <div className='max-w-7xl mx-auto px-6 py-8 space-y-8'>
+      <div className='space-y-8'>
         <div className='flex flex-col md:flex-row md:items-center justify-between gap-6'>
           <div>
             <p className='text-[10px] font-black tracking-[0.22em] text-gold uppercase mb-3'>

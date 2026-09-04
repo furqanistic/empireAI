@@ -170,7 +170,7 @@ const ProgramSetupPage = () => {
 
   return (
     <Layout>
-      <div className='mx-auto max-w-4xl space-y-6 p-2 sm:p-6'>
+      <div className='space-y-6'>
         <div>
           <div className='mb-3 inline-flex items-center gap-2 rounded-full border-[0.5px] border-[#D4AF37]/20 bg-[#D4AF37]/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-[#D4AF37]'>
             <Settings2 size={14} />

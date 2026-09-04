@@ -174,12 +174,12 @@ class DigitalProductsService {
       const response = await axiosInstance.post(
         `${this.baseURL}/checkout/create-session`,
         {
-          // FIXED: Send multiple field names for backend compatibility
           productId: productIdentifier,
           productIdentifier: productIdentifier,
           productSlug: productIdentifier,
           slug: productIdentifier,
           customerInfo,
+          referralCode: customerInfo?.referralCode || '',
         }
       )
       return response.data
