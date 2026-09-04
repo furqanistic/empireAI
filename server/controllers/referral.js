@@ -129,7 +129,7 @@ export const getReferralStats = async (req, res, next) => {
     const userId = req.params.id || req.user.id
 
     const user = await User.findById(userId)
-      .populate('referrals.user', 'name email createdAt isActive')
+      .populate('referrals.user', 'name email createdAt isActive referralCode')
       .populate('referredBy', 'name email referralCode')
 
     if (!user) {

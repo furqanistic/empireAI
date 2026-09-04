@@ -66,6 +66,22 @@ const PurchaseSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  // Affiliate attribution (set when the buyer arrived through ?ref=CODE)
+  referralCode: {
+    type: String,
+  },
+  affiliate: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+  },
+  commissionAmount: {
+    type: Number, // cents owed to the affiliate for this sale
+    default: 0,
+  },
+  earning: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Earnings',
+  },
 })
 
 const DigitalProductSchema = new mongoose.Schema(

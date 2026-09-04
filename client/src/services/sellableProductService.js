@@ -30,6 +30,14 @@ export const sellableProductService = {
       unwrap(error)
     }
   },
+  performance: async (id) => {
+    try {
+      const response = await axiosInstance.get(`${base}/${id}/performance`)
+      return response.data
+    } catch (error) {
+      unwrap(error)
+    }
+  },
   generate: async (payload) => {
     try {
       const response = await axiosInstance.post(`${base}/generate`, payload)

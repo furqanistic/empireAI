@@ -3,7 +3,8 @@ import path from 'path'
 import PDFDocument from 'pdfkit'
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
-const MODEL = 'llama-3.3-70b-versatile'
+// Read lazily so dotenv has loaded by the time a request is made.
+const getModel = () => process.env.GROQ_MODEL || 'openai/gpt-oss-120b'
 const TYPES = ['ebook', 'guide', 'checklist', 'workbook']
 
 const TYPE_GUIDE = {
@@ -223,7 +224,7 @@ const callGroq = async (system, user, maxTokens) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: MODEL,
+          model: getModel(),
           messages: [
             { role: 'system', content: system },
             { role: 'user', content: user },

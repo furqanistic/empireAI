@@ -396,7 +396,7 @@ export const generateProgramDraft = async (input) => {
     throw new Error('GroqCloud is not configured')
   }
 
-  const model = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
+  const model = process.env.GROQ_MODEL || 'openai/gpt-oss-120b'
   let lastError
 
   for (let attempt = 1; attempt <= 2; attempt += 1) {

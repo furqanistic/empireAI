@@ -7,9 +7,81 @@ import path from 'path'
 import { stripe } from '../config/stripe.js'
 import { createError } from '../error.js'
 import DigitalProduct from '../models/DigitalProduct.js'
+import Earnings from '../models/Earnings.js'
 import User from '../models/User.js'
 
 dotenv.config({ quiet: true })
+
+const DEFAULT_PRODUCT_COMMISSION_RATE = 40
+
+// Resolve which affiliate (if any) should be credited for a product sale and
+// create the matching Earnings record. Never throws: attribution problems must
+// not block the buyer from receiving their download.
+export const attributeProductSale = async ({
+  product,
+  buyer,
+  referralCode,
+  sessionId,
+  paymentIntentId,
+}) => {
+  const code = String(referralCode || '').trim().toUpperCase()
+  if (!code) return null
+
+  try {
+    const affiliate = await User.findOne({ referralCode: code }).select(
+      'name email referralCode'
+    )
+    if (!affiliate) return null
+
+    // The creator promoting their own product is a plain sale, not a commission.
+    if (String(affiliate._id) === String(product.creator)) return null
+
+    const creator = await User.findById(product.creator).select(
+      'name affiliateProgram'
+    )
+    const programRate = Number(creator?.affiliateProgram?.commissionRate)
+    const ratePercent = Number.isFinite(programRate)
+      ? programRate
+      : DEFAULT_PRODUCT_COMMISSION_RATE
+    const grossAmount = Math.round(Number(product.price) * 100)
+    const commissionAmount = Math.round((grossAmount * ratePercent) / 100)
+
+    const existing = await Earnings.findOne({
+      digitalProduct: product._id,
+      'metadata.stripeSessionId': sessionId,
+    })
+    if (existing) {
+      return { affiliate, commissionAmount: existing.commissionAmount, earning: existing }
+    }
+
+    const earning = new Earnings({
+      user: affiliate._id,
+      referredUser: buyer._id,
+      source: 'digital_product_purchase',
+      digitalProduct: product._id,
+      grossAmount,
+      commissionRate: ratePercent / 100,
+      commissionAmount,
+      currency: 'USD',
+      status: 'pending',
+      description: `"${product.name}" sold through ${affiliate.name || affiliate.email}'s link`,
+      metadata: { stripeSessionId: sessionId },
+    })
+
+    const now = new Date()
+    const eligibleAt = new Date(now)
+    eligibleAt.setDate(eligibleAt.getDate() + earning.holdPeriodDays)
+    earning.paymentCompletedAt = now
+    earning.eligibleForPayoutAt = eligibleAt
+    earning.stripePaymentIntentId = paymentIntentId || undefined
+    await earning.save()
+
+    return { affiliate, commissionAmount, earning }
+  } catch (error) {
+    console.error('Affiliate attribution failed for product sale:', error)
+    return null
+  }
+}
 
 // Create checkout session for a digital product
 export const createProductCheckoutSession = async (req, res, next) => {
@@ -241,10 +313,10 @@ export const verifyProductCheckoutSession = async (req, res, next) => {
 
     const {
       productId,
-      productSlug,
       customerEmail,
       customerFirstName,
       customerLastName,
+      referralCode,
     } = session.metadata
 
     // Get the product
@@ -333,6 +405,23 @@ export const verifyProductCheckoutSession = async (req, res, next) => {
       stripePaymentIntentId: session.payment_intent.id,
       status: 'completed',
       purchasedAt: new Date(),
+    }
+
+    const attribution = await attributeProductSale({
+      product,
+      buyer: user,
+      referralCode,
+      sessionId,
+      paymentIntentId: session.payment_intent?.id,
+    })
+    if (attribution) {
+      purchaseData.referralCode = attribution.affiliate.referralCode
+      purchaseData.affiliate = attribution.affiliate._id
+      purchaseData.commissionAmount = attribution.commissionAmount
+      purchaseData.earning = attribution.earning._id
+      console.log(
+        `Sale attributed to affiliate ${attribution.affiliate.email} (${attribution.commissionAmount} cents)`
+      )
     }
 
     console.log('Adding purchase to product...')

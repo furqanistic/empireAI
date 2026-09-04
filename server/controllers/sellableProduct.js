@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import mongoose from 'mongoose'
 import { createError } from '../error.js'
 import DigitalProduct from '../models/DigitalProduct.js'
 import SellableProduct from '../models/SellableProduct.js'
@@ -13,23 +14,73 @@ import {
 } from '../services/sellableProductService.js'
 
 const TYPES = ['ebook', 'guide', 'checklist', 'workbook']
+const DEFAULT_COMMISSION_RATE = 40
 
-const serialize = (doc) => ({
-  id: doc._id,
-  productType: doc.productType,
-  topic: doc.topic,
-  audience: doc.audience,
-  extraPrompt: doc.extraPrompt,
-  content: doc.content,
-  price: doc.price,
-  status: doc.status,
-  salesUrl: doc.salesUrl,
-  affiliateUrl: doc.affiliateUrl,
-  digitalProductId: doc.digitalProduct,
-  revisionCount: doc.revisionNotes?.length || 0,
-  createdAt: doc.createdAt,
-  updatedAt: doc.updatedAt,
-})
+const completedPurchases = (digitalProduct) =>
+  (digitalProduct?.purchases || []).filter((p) => p.status === 'completed')
+
+// Sales figures for one product, derived from the linked DigitalProduct.
+const statsFor = (digitalProduct) => {
+  const purchases = completedPurchases(digitalProduct)
+  const affiliatePurchases = purchases.filter((p) => p.affiliate)
+  const revenue = purchases.reduce((sum, p) => sum + (p.amount || 0), 0)
+  const affiliateRevenue = affiliatePurchases.reduce(
+    (sum, p) => sum + (p.amount || 0),
+    0
+  )
+  const commissionOwed = affiliatePurchases.reduce(
+    (sum, p) => sum + (p.commissionAmount || 0),
+    0
+  )
+  const views = digitalProduct?.views || 0
+  return {
+    sales: purchases.length,
+    revenue,
+    affiliateSales: affiliatePurchases.length,
+    affiliateRevenue,
+    commissionOwed: commissionOwed / 100,
+    views,
+    conversionRate: views > 0 ? Number(((purchases.length / views) * 100).toFixed(1)) : 0,
+    lastSaleAt: purchases.length
+      ? purchases.reduce(
+          (latest, p) =>
+            !latest || new Date(p.purchasedAt) > new Date(latest)
+              ? p.purchasedAt
+              : latest,
+          null
+        )
+      : null,
+  }
+}
+
+const commissionRateFor = (user) => {
+  const rate = Number(user?.affiliateProgram?.commissionRate)
+  return Number.isFinite(rate) ? rate : DEFAULT_COMMISSION_RATE
+}
+
+const isPopulated = (value) =>
+  value && typeof value === 'object' && !(value instanceof mongoose.Types.ObjectId)
+
+const serialize = (doc) => {
+  const linked = isPopulated(doc.digitalProduct) ? doc.digitalProduct : null
+  return {
+    id: doc._id,
+    productType: doc.productType,
+    topic: doc.topic,
+    audience: doc.audience,
+    extraPrompt: doc.extraPrompt,
+    content: doc.content,
+    price: doc.price,
+    status: doc.status,
+    salesUrl: doc.salesUrl,
+    affiliateUrl: doc.affiliateUrl,
+    digitalProductId: linked ? linked._id : doc.digitalProduct,
+    revisionCount: doc.revisionNotes?.length || 0,
+    stats: linked ? statsFor(linked) : null,
+    createdAt: doc.createdAt,
+    updatedAt: doc.updatedAt,
+  }
+}
 
 const ensureReferralCode = async (user) => {
   if (user.referralCode) return user.referralCode
@@ -89,14 +140,101 @@ export const listSellableProducts = async (req, res, next) => {
   try {
     const products = await SellableProduct.find({ user: req.user._id })
       .sort({ updatedAt: -1 })
-      .limit(12)
+      .limit(24)
+      .populate('digitalProduct', 'views purchases')
+
+    const serialized = products.map(serialize)
+    const totals = serialized.reduce(
+      (acc, product) => {
+        if (product.status === 'published') acc.published += 1
+        if (product.stats) {
+          acc.sales += product.stats.sales
+          acc.revenue += product.stats.revenue
+          acc.affiliateSales += product.stats.affiliateSales
+          acc.commissionOwed += product.stats.commissionOwed
+        }
+        return acc
+      },
+      { published: 0, sales: 0, revenue: 0, affiliateSales: 0, commissionOwed: 0 }
+    )
 
     res.status(200).json({
       status: 'success',
-      data: { products: products.map(serialize) },
+      data: {
+        products: serialized,
+        totals,
+        commissionRate: commissionRateFor(req.user),
+        programName: req.user.affiliateProgram?.name || '',
+      },
     })
   } catch (error) {
     next(createError(500, 'Failed to load products'))
+  }
+}
+
+// Sales + affiliate breakdown for one published product.
+export const getSellableProductPerformance = async (req, res, next) => {
+  try {
+    const product = await SellableProduct.findOne({
+      _id: req.params.id,
+      user: req.user._id,
+    }).populate({
+      path: 'digitalProduct',
+      select: 'views purchases',
+      populate: { path: 'purchases.affiliate', select: 'name email referralCode' },
+    })
+    if (!product) return next(createError(404, 'Product not found'))
+
+    const linked = isPopulated(product.digitalProduct) ? product.digitalProduct : null
+    const purchases = completedPurchases(linked)
+
+    const byAffiliate = new Map()
+    purchases.forEach((purchase) => {
+      if (!purchase.affiliate) return
+      const affiliate = purchase.affiliate
+      const key = String(affiliate._id || affiliate)
+      const entry = byAffiliate.get(key) || {
+        id: key,
+        name: affiliate.name || 'Affiliate',
+        email: affiliate.email || '',
+        referralCode: affiliate.referralCode || purchase.referralCode || '',
+        sales: 0,
+        revenue: 0,
+        commission: 0,
+        lastSaleAt: null,
+      }
+      entry.sales += 1
+      entry.revenue += purchase.amount || 0
+      entry.commission += (purchase.commissionAmount || 0) / 100
+      if (!entry.lastSaleAt || new Date(purchase.purchasedAt) > new Date(entry.lastSaleAt)) {
+        entry.lastSaleAt = purchase.purchasedAt
+      }
+      byAffiliate.set(key, entry)
+    })
+
+    const recentSales = [...purchases]
+      .sort((a, b) => new Date(b.purchasedAt) - new Date(a.purchasedAt))
+      .slice(0, 8)
+      .map((purchase) => ({
+        id: purchase._id,
+        customerName: purchase.name,
+        amount: purchase.amount,
+        purchasedAt: purchase.purchasedAt,
+        affiliateName: purchase.affiliate?.name || null,
+        commission: (purchase.commissionAmount || 0) / 100,
+      }))
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        stats: linked ? statsFor(linked) : statsFor(null),
+        affiliates: [...byAffiliate.values()].sort((a, b) => b.revenue - a.revenue),
+        recentSales,
+        commissionRate: commissionRateFor(req.user),
+      },
+    })
+  } catch (error) {
+    next(createError(500, 'Failed to load product performance'))
   }
 }
 
@@ -323,11 +461,7 @@ export const publishSellableProduct = async (req, res, next) => {
     const origin = frontendBase()
     const salesUrl = `${origin}/product/checkout/${digitalProduct.slug || digitalProduct._id}`
     const affiliateUrl = `${salesUrl}?ref=${encodeURIComponent(referralCode)}`
-    const commissionRate = Number.isFinite(
-      Number(req.user.affiliateProgram?.commissionRate)
-    )
-      ? Number(req.user.affiliateProgram.commissionRate)
-      : 40
+    const commissionRate = commissionRateFor(req.user)
 
     product.price = price
     product.digitalProduct = digitalProduct._id
@@ -340,7 +474,7 @@ export const publishSellableProduct = async (req, res, next) => {
       status: 'success',
       data: {
         product: serialize(product),
-        invitationMessage: `Promote "${product.content.title}" and earn ${commissionRate}% when someone buys through your link: ${affiliateUrl}`,
+        invitationMessage: `Promote "${product.content.title}" ($${price}) and earn ${commissionRate}% on every sale made through your tracking link. Your link: ${salesUrl}?ref=YOUR-CODE (use the code shown on your Affiliates page).`,
         commissionRate,
       },
     })

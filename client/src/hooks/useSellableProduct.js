@@ -8,6 +8,14 @@ export const useSellableProducts = () =>
     staleTime: 30 * 1000,
   })
 
+export const useSellableProductPerformance = (id, enabled = true) =>
+  useQuery({
+    queryKey: ['sellable-products', 'performance', id],
+    queryFn: () => sellableProductService.performance(id),
+    enabled: !!id && enabled,
+    staleTime: 30 * 1000,
+  })
+
 export const useGenerateSellableProduct = () => {
   const queryClient = useQueryClient()
   return useMutation({

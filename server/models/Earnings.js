@@ -178,6 +178,8 @@ const EarningsSchema = new mongoose.Schema(
         type: Number,
         default: 1,
       },
+      // Stripe checkout session for digital product sales (idempotency key)
+      stripeSessionId: String,
     },
   },
   {

@@ -6,6 +6,7 @@ import {
   downloadSellablePdf,
   generateSellableProduct,
   getSellableProduct,
+  getSellableProductPerformance,
   listSellableProducts,
   publishSellableProduct,
   reviseSellableProduct,
@@ -61,6 +62,7 @@ router.post(
   generateSellableProduct
 )
 router.get('/:id', getSellableProduct)
+router.get('/:id/performance', getSellableProductPerformance)
 router.post('/:id/revise', reviseSellableProduct)
 router.put('/:id/content', saveSellableContent)
 router.patch('/:id/price', updateSellablePrice)
